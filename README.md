@@ -10,6 +10,14 @@ Built and tested on the **Forerunner 570**. The layout is resolution-independent
 so the same build runs across the Garmin watch range.
 
 <p align="center">
+  <img src="docs/demo.gif" width="300" alt="A game being tracked: the period clock runs, the shift clock opens and closes by itself, and the summary lands at the end" />
+</p>
+<p align="center">
+  <sub>A short game tracked end to end, in real time &middot;
+  <a href="https://youtu.be/b-NZduxCrtI">the same clip in 1080p</a></sub>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/01-ready.png" width="32%" alt="Ready to start" />
   <img src="docs/screenshots/02-on-ice.png" width="32%" alt="On the ice, shift clock green" />
   <img src="docs/screenshots/03-bench.png" width="32%" alt="On the bench" />
@@ -21,10 +29,6 @@ so the same build runs across the Garmin watch range.
 </p>
 <p align="center">
   <sub>Ready &middot; on the ice &middot; on the bench &middot; intermission &middot; the stop menu &middot; final summary</sub>
-</p>
-
-<p align="center">
-  <a href="https://youtu.be/b-NZduxCrtI"><b>&#9654;&nbsp; Watch the 20-second demo</b></a>
 </p>
 
 ---
@@ -189,13 +193,25 @@ enough. A sideloaded build writes them correctly and displays them nowhere.
 
 ## Install
 
-From the Connect IQ Store, once it is published there.
+**From the Connect IQ Store** — the ordinary way, and the only way the developer
+fields show up in Garmin Connect. Listed once Garmin's review completes.
 
-To sideload a build instead, copy `IndoorHockey.prg` to `GARMIN/APPS/` on the
-watch over USB and eject, or run `tools/watch.sh install <file.prg>`. The app
-appears in the activity list. Note that developer fields only render in Garmin
-Connect for an app that came from the store — a sideloaded build writes them
-correctly and displays them nowhere.
+**By sideloading** — every [release](../../releases) carries two files:
+
+| File | What it is |
+|---|---|
+| `IndoorHockey.prg` | A single build for the Forerunner 570. Copy it to `GARMIN/APPS/` on the watch over USB and eject, or run `tools/watch.sh install IndoorHockey.prg`. |
+| `IndoorHockey.iq` | The store package: the same app built for all 202 supported device variants. This is what gets uploaded to Garmin, not what gets copied to a watch. |
+
+For any watch other than a Forerunner 570, build the `.prg` yourself —
+`./build.sh <device>`, see [Build from source](#build-from-source). The `.iq` is
+an archive, not something a watch can open.
+
+The app then appears in the activity list. One thing to know before sideloading:
+**developer fields only render in Garmin Connect for an app that came from the
+store.** A sideloaded build writes shift and bench time into the FIT file
+correctly, and Garmin Connect displays none of it. The on-watch summary and the
+lap splits still work.
 
 ## Publishing
 
