@@ -185,8 +185,31 @@ enough. A sideloaded build writes them correctly and displays them nowhere.
 
 ## Install
 
-Grab `IndoorHockey.prg` from a build and copy it to `GARMIN/APPS/` on the watch
-over USB, then eject. The app appears in the activity list.
+From the Connect IQ Store, once it is published there.
+
+To sideload a build instead, copy `IndoorHockey.prg` to `GARMIN/APPS/` on the
+watch over USB and eject, or run `tools/watch.sh install <file.prg>`. The app
+appears in the activity list. Note that developer fields only render in Garmin
+Connect for an app that came from the store — a sideloaded build writes them
+correctly and displays them nowhere.
+
+## Publishing
+
+```bash
+cd IndoorHockey
+./export.sh                # builds bin/IndoorHockey.iq for every product
+```
+
+Upload that at <https://apps.garmin.com/en-US/developer/upload>; the dashboard
+for an app already up is <https://apps-developer.garmin.com>. `store/listing.md`
+holds the description, category and screenshot order to paste into the form.
+
+Launcher icons are generated, not hand-drawn, because the supported watches ask
+for fifteen different sizes between 26x26 and 70x70:
+
+```bash
+python3 tools/make-launcher-icons.py   # after changing the device list
+```
 
 ## Build from source
 

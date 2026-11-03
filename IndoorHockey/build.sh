@@ -21,7 +21,7 @@ mkdir -p bin
 "$SDK/bin/monkeyc" \
   -o "bin/IndoorHockey.prg" \
   -d "$DEVICE" \
-  -f monkey.jungle \
+  -f "monkey.jungle;icons.jungle" \
   -y "$KEY" \
   -l "$TYPECHECK" \
   -w

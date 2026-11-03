@@ -6,3 +6,6 @@ bin/
 
 # local SDK state
 *.log
+
+# python
+__pycache__/
