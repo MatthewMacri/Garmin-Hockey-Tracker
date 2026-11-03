@@ -392,7 +392,14 @@ class GameModel {
             elapsed = 0;
         }
 
-        if (onIce()) {
+        // The segment that just ENDED is the opposite of the one being opened.
+        // This must not be read from the detector: by the time onTick() calls
+        // in, the detector has already flipped, so asking it which state we are
+        // in returns the new one and every segment gets banked as its own
+        // opposite - ice time counted as bench and bench counted as a shift.
+        var wasIce = !toIce;
+
+        if (wasIce) {
             _iceMs += elapsed;
             bankShift(elapsed);
             if (autoLap) {
@@ -727,11 +734,18 @@ class GameModel {
         _periodAccumMs = 0;
 
         var elapsed = segmentMs();
-        if (onIce()) {
+        var endedOnIce = onIce();
+        if (endedOnIce) {
             _iceMs += elapsed;
             bankShift(elapsed);
         } else {
             _benchMs += elapsed;
+        }
+        // Close a lap for the final segment too. Without this the session's
+        // last lap is closed by the system with whatever the lap fields
+        // happened to hold, which is the previous segment's length.
+        if (autoLap) {
+            closeLap(elapsed, endedOnIce);
         }
         _segmentSince = -1;
 
