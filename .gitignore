@@ -9,3 +9,9 @@ bin/
 
 # python
 __pycache__/
+
+# Recorded activities. A FIT file carries the watch's serial number, a full
+# heart rate trace and the exact time every game was played, so these stay out
+# of a public repo. Keep them somewhere local and point the tools at that.
+*.fit
+Past Data/
