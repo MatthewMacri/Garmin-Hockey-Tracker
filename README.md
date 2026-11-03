@@ -16,11 +16,11 @@ so the same build runs across the Garmin watch range.
 </p>
 <p align="center">
   <img src="docs/screenshots/04-intermission.png" width="32%" alt="Intermission counting down" />
-  <img src="docs/screenshots/05-menu.png" width="32%" alt="In-game menu" />
+  <img src="docs/screenshots/05-menu.png" width="32%" alt="The stop menu" />
   <img src="docs/screenshots/06-summary.png" width="32%" alt="Post-game summary" />
 </p>
 <p align="center">
-  <sub>Ready &middot; on the ice &middot; on the bench &middot; intermission &middot; menu &middot; final summary</sub>
+  <sub>Ready &middot; on the ice &middot; on the bench &middot; intermission &middot; the stop menu &middot; final summary</sub>
 </p>
 
 ---

@@ -1,10 +1,48 @@
 # Connect IQ Store listing
 
-Copy-paste source for the submission form at
-<https://apps.garmin.com/en-US/developer/upload>. The dashboard for an app that
-is already up is <https://apps-developer.garmin.com>.
+Field-by-field answers for the upload form at
+<https://apps.garmin.com/en-US/developer/upload>. The dashboard for an app
+already up is <https://apps-developer.garmin.com>.
 
-Upload `IndoorHockey/bin/IndoorHockey.iq`, built by `IndoorHockey/export.sh`.
+**Step 1** — attach `IndoorHockey/bin/IndoorHockey.iq`, built by
+`IndoorHockey/export.sh`.
+
+**Step 2** — the fields below.
+
+| Form field | What to put |
+|---|---|
+| Title | `Ice Hockey Shifts` (17 of 50 chars) |
+| Description | The block under *Description* below (2,825 of 4,000 chars) |
+| What's New | Leave blank — it is the first release |
+| Hero Image (optional) | `store/images/hero-1440x720.jpg` (1440x720, 75 KB of 2048 KB) |
+| Category | Health & Fitness — then the closest subcategory to hockey or winter sports |
+| Does your app collect user data? | **No** — it sends nothing anywhere |
+| Does your app decode/encode ANT+ profiles? | **No** |
+| Does your app have regional limits? | **No** |
+| Cover Image (500x500) | `store/images/cover-500x500.png` (46 KB of 300 KB) |
+| Add icons for app store on device? | **No** — optional, and the launcher icon already covers every device |
+| Screen Images | The six PNGs in `docs/screenshots/`, in filename order (390x390, ~47 KB each, limit 150 KB) |
+| Preview Video | Leave blank |
+| Email Address | Shown publicly, so use an address you are happy to publish rather than your personal one |
+| Source Code URL | `https://github.com/MatthewMacri/Garmin-Hockey-Tracker` |
+| Review Notification | **Yes** |
+| App Migration | **Yes** — lets the store add new watches as Garmin releases them, which is the point of building for every product |
+| Monetization | **No** |
+| iOS / Android companion app | Leave blank |
+| Additional hardware | Leave blank |
+
+### On "Signature check failed"
+
+The panel showing `Status: Verified` alongside `Signature check failed` on a
+first upload is a known report against Garmin's own checker. The usual cause of
+a genuine failure is a key mismatch between versions of an app that is already
+published, which cannot apply to a first upload. The key here is a 4096-bit RSA
+private key in PKCS#8 DER, which is what Connect IQ requires.
+
+**Back up `~/.Garmin/ConnectIQ/keys/developer_key.der` somewhere safe.** Every
+future version of this app has to be signed with that exact key. Lose it and
+the app can never be updated again - only replaced by a new listing, with the
+install count back at zero.
 
 ---
 
