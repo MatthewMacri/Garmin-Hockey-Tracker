@@ -153,3 +153,27 @@ Source and issues: https://github.com/MatthewMacri/Garmin-Hockey-Tracker
 
 The app sends nothing anywhere. Everything it records goes into the activity
 file on the watch, which syncs to Garmin Connect the way any activity does.
+
+---
+
+## Preview Video
+
+The form accepts **YouTube and Vimeo links only**, so a file hosted anywhere
+else cannot go in that field. Upload `store/video/demo-1080p.mp4` to YouTube
+(unlisted is fine) and paste the link.
+
+| File | Use |
+|---|---|
+| `store/video/demo-1080p.mp4` | 1920x1080, for YouTube and the store's Preview Video field |
+| `store/video/demo-square-780.mp4` | 780x780, the watch screen alone, for the web |
+| `store/video/poster-1080p.jpg` | Thumbnail |
+
+Both are a real recording of the app in the Connect IQ simulator, sped up 2x:
+the game starting, the shift clock running, the state flipping between ice and
+bench, the stop menu, and the saved summary. Heart rate reads `--` because the
+simulator has no heart rate sensor.
+
+One thing was changed for the recording and changed back afterwards: the red
+`NO MOTION DATA` warning was suppressed. The simulator has no accelerometer,
+so that warning is on screen permanently there and never appears on a watch
+that works. Nothing else was altered and no number was invented.
