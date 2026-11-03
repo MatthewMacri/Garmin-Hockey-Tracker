@@ -125,10 +125,14 @@ class GameModel {
     private var _motionField as FitContributor.Field? = null;
     private var _thresholdField as FitContributor.Field? = null;
 
+    // Whether the player has already been warned that motion data stopped.
+    private var _sensorWarned as Boolean = false;
+
     //! Constructor.
     public function initialize() {
         detector = new ShiftDetector(1);
         loadSettings();
+        detector.start();
         _hrCeiling = profileMaxHeartRate();
         _hardThreshold = (_hrCeiling > 0) ? ((_hrCeiling * 85) / 100).toNumber() : 0;
     }
@@ -315,6 +319,7 @@ class GameModel {
             beginSession();
             detector.reset();
             detector.start();
+            _sensorWarned = false;
             enableGps();
 
             // Open the game on the ice. The press that starts the app is the
@@ -538,6 +543,16 @@ class GameModel {
             return;
         }
 
+        if (state == STATE_READY) {
+            // Keep the detector running before the game starts. The ready
+            // screen doubles as a self-test: wave the arm, watch the number
+            // move. That is the only way to find out the accelerometer is
+            // dead before a game rather than after one.
+            detector.observe(currentHeartRate(), _speed);
+            detector.tick();
+            return;
+        }
+
         if (state != STATE_RUNNING) {
             return;
         }
@@ -602,6 +617,19 @@ class GameModel {
             alert(Attention.TONE_ALERT_HI,
                 [new Attention.VibeProfile(100, 500), new Attention.VibeProfile(0, 150),
                  new Attention.VibeProfile(100, 500)]);
+        }
+
+        if (!detector.isHealthy() && !_sensorWarned) {
+            // Shift tracking has stopped and nothing else on screen would show
+            // it: the game would quietly record as one enormous shift. Say so
+            // while there is still time to do something about it.
+            _sensorWarned = true;
+            alert(Attention.TONE_ERROR,
+                [new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
+                 new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
+                 new Attention.VibeProfile(100, 400)]);
+        } else if (detector.isHealthy()) {
+            _sensorWarned = false;
         }
 
         if (periodElapsedMs() >= periodMs) {

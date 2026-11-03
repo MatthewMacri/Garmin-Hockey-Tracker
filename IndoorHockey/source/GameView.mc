@@ -48,6 +48,8 @@ class GameView extends WatchUi.View {
     private var _txtAvg as String = "Avg Shift";
     private var _txtIceHr as String = "On-Ice HR";
     private var _txtWorkRest as String = "Work:Rest";
+    private var _txtMotion as String = "MOTION";
+    private var _txtNoSensor as String = "NO MOTION DATA";
 
     //! Constructor.
     public function initialize(model as GameModel) {
@@ -71,6 +73,8 @@ class GameView extends WatchUi.View {
         _txtAvg = WatchUi.loadResource($.Rez.Strings.SummaryAvgShift) as String;
         _txtIceHr = WatchUi.loadResource($.Rez.Strings.SummaryIceHr) as String;
         _txtWorkRest = WatchUi.loadResource($.Rez.Strings.SummaryWorkRest) as String;
+        _txtMotion = WatchUi.loadResource($.Rez.Strings.LabelMotion) as String;
+        _txtNoSensor = WatchUi.loadResource($.Rez.Strings.LabelNoSensor) as String;
     }
 
     //! Start the once-a-second redraw.
@@ -160,8 +164,20 @@ class GameView extends WatchUi.View {
     //! mistaking a long rest for a long shift at a glance.
     private function drawSegment(dc as Graphics.Dc, w as Number, h as Number) as Void {
         if (_model.state == STATE_READY) {
-            drawFitted(dc, _txtOnIce + " --:--", Y_SHIFT, w, h, Graphics.COLOR_DK_GRAY,
-                [Graphics.FONT_LARGE, Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY]);
+            // Before the game this line is a live sensor check rather than a
+            // placeholder: the number tracks wrist movement, so a few seconds
+            // of waving confirms the one thing that silently breaks.
+            var detector = _model.detector;
+            var text = _txtMotion + " " + detector.motion;
+            var colour = Graphics.COLOR_LT_GRAY;
+            if (!detector.hasMotionSensor) {
+                text = _txtNoSensor;
+                colour = Graphics.COLOR_RED;
+            } else if (detector.motion >= detector.threshold) {
+                colour = Graphics.COLOR_GREEN;
+            }
+            drawFitted(dc, text, Y_SHIFT, w, h, colour,
+                [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]);
             return;
         }
 
@@ -186,6 +202,12 @@ class GameView extends WatchUi.View {
 
     //! Heart rate and shift count, the two numbers worth a glance mid-game.
     private function drawFooter(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        if (_model.state == STATE_RUNNING && !_model.detector.isHealthy()) {
+            drawFitted(dc, _txtNoSensor, Y_FOOT, w, h, Graphics.COLOR_RED,
+                [Graphics.FONT_TINY, Graphics.FONT_XTINY]);
+            return;
+        }
+
         var heartRate = _model.currentHeartRate();
         var hrText = (heartRate == null || heartRate <= 0) ? "--" : heartRate.toString();
         var text = hrText + " bpm   " + _model.shiftCount + " sh";

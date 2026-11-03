@@ -34,6 +34,8 @@
     <string id="LabelFinal">FINAL</string>
     <string id="LabelOnIce">ON</string>
     <string id="LabelBench">BENCH</string>
+    <string id="LabelMotion">MOTION</string>
+    <string id="LabelNoSensor">NO MOTION DATA</string>
 
     <!-- Menu -->
     <string id="MenuTitle">Game</string>

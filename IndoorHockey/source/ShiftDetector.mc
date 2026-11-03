@@ -90,6 +90,12 @@ class ShiftDetector {
     public var threshold as Number = MOTION_FLOOR;
     public var hasMotionSensor as Boolean = false;
 
+    // Seconds since the accelerometer last delivered anything. The listener
+    // can fail to register, or stop delivering, without raising an error -
+    // so silence has to be treated as a fault in its own right rather than
+    // as a player who is standing very still.
+    public var staleSeconds as Number = 0;
+
     private var _rest as Float = 40.0;
     private var _work as Float = 400.0;
     private var _band as Float = 0.45;
@@ -261,10 +267,12 @@ class ShiftDetector {
         if (sample == null) {
             // No accelerometer data this second. Hold the current state rather
             // than guess: a dropped callback is not evidence of anything.
+            staleSeconds++;
             return false;
         }
         _pending = null;
         hasMotionSensor = true;
+        staleSeconds = 0;
         motion = sample;
 
         learn(sample);
@@ -393,6 +401,15 @@ class ShiftDetector {
         _secondsInState = 0;
     }
 
+    //! True when the accelerometer is actually delivering. Everything the
+    //! detector does depends on this, and nothing else in the app will fail
+    //! visibly if it is false - the game would simply record as one very long
+    //! shift - so it is surfaced on screen rather than left to be discovered
+    //! afterwards.
+    public function isHealthy() as Boolean {
+        return hasMotionSensor && staleSeconds < 10;
+    }
+
     //! Reset the learned levels. Used when a new game starts.
     public function reset() as Void {
         _rest = 40.0;
@@ -403,6 +420,7 @@ class ShiftDetector {
         _pending = null;
         motion = 0;
         threshold = MOTION_FLOOR;
+        staleSeconds = 0;
         forceState(OFF_ICE);
     }
 }
