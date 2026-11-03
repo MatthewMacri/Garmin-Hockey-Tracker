@@ -1,0 +1,53 @@
+<resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+    <!--
+        Garmin Connect does not read rendering information out of the FIT file.
+        It fetches it from the app's Connect IQ store listing, which is built
+        from this block. Without it the developer fields are written correctly
+        and then displayed nowhere.
+
+        ids must match the fieldId passed to Session.createField, and sortOrder
+        must be unique. Labels must be string references, not literals, and a
+        charted field must declare a fillColor - the compiler enforces both.
+
+        This only takes effect once the app is on the store; a Beta upload is
+        enough, but a sideloaded build will never show these.
+    -->
+    <fitContributions>
+        <!-- Game summary -->
+        <fitField id="0" sortOrder="0" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitShifts" unitLabel="@Strings.UnitNone" />
+        <fitField id="1" sortOrder="1" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitIceTime" unitLabel="@Strings.UnitSeconds" />
+        <fitField id="2" sortOrder="2" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitBenchTime" unitLabel="@Strings.UnitSeconds" />
+        <fitField id="3" sortOrder="3" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitAvgShift" unitLabel="@Strings.UnitSeconds" />
+        <fitField id="4" sortOrder="4" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitMaxShift" unitLabel="@Strings.UnitSeconds" />
+        <fitField id="5" sortOrder="5" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitWorkRest" unitLabel="@Strings.UnitNone" />
+        <fitField id="6" sortOrder="6" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitIceHr" unitLabel="@Strings.UnitBpm" />
+        <fitField id="7" sortOrder="7" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitHardTime" unitLabel="@Strings.UnitSeconds" />
+
+        <!-- One row per segment in the Splits tab: alternating shifts and
+             spells on the bench, so the lap table reads as a shift chart. -->
+        <fitField id="8" sortOrder="8" displayInActivityLaps="true" displayInChart="true"
+                  precision="0" fillColor="#FF8800"
+                  chartTitle="@Strings.FitShiftChart"
+                  dataLabel="@Strings.FitShiftTime" unitLabel="@Strings.UnitSeconds" />
+        <fitField id="9" sortOrder="9" displayInActivityLaps="true" precision="0"
+                  dataLabel="@Strings.FitBenchLap" unitLabel="@Strings.UnitSeconds" />
+
+        <!-- The square wave against heart rate: every rise is a shift. -->
+        <fitField id="10" sortOrder="10" displayInChart="true" precision="0"
+                  fillColor="#00C853"
+                  chartTitle="@Strings.FitOnIceChart"
+                  dataLabel="@Strings.FitOnIce" unitLabel="@Strings.UnitNone" />
+        <fitField id="11" sortOrder="11" displayInChart="true" precision="0"
+                  fillColor="#00AAFF"
+                  chartTitle="@Strings.FitShiftLive"
+                  dataLabel="@Strings.FitShiftLive" unitLabel="@Strings.UnitSeconds" />
+    </fitContributions>
+</resources>

@@ -1,11 +1,14 @@
 <resources>
     <properties>
         <property id="periodCount"   type="number">3</property>
-        <property id="periodMinutes" type="number">15</property>
+        <property id="periodMinutes" type="number">20</property>
+        <property id="breakSeconds"  type="number">60</property>
         <property id="shiftSeconds"  type="number">60</property>
+        <property id="sensitivity"   type="number">1</property>
         <property id="shiftAlerts"   type="boolean">true</property>
         <property id="autoLap"       type="boolean">true</property>
         <property id="countDown"     type="boolean">true</property>
+        <property id="useGps"        type="boolean">true</property>
     </properties>
 
     <settings>
@@ -15,8 +18,18 @@
         <setting propertyKey="@Properties.periodMinutes" title="@Strings.SetPeriodMinutes" prompt="@Strings.SetPeriodMinutesPrompt">
             <settingConfig type="numeric" min="1" max="60" />
         </setting>
+        <setting propertyKey="@Properties.breakSeconds" title="@Strings.SetBreakSeconds" prompt="@Strings.SetBreakSecondsPrompt">
+            <settingConfig type="numeric" min="0" max="1200" />
+        </setting>
         <setting propertyKey="@Properties.shiftSeconds" title="@Strings.SetShiftSeconds" prompt="@Strings.SetShiftSecondsPrompt">
             <settingConfig type="numeric" min="15" max="600" />
+        </setting>
+        <setting propertyKey="@Properties.sensitivity" title="@Strings.SetSensitivity" prompt="@Strings.SetSensitivityPrompt">
+            <settingConfig type="list">
+                <listEntry value="0">@Strings.SensLow</listEntry>
+                <listEntry value="1">@Strings.SensNormal</listEntry>
+                <listEntry value="2">@Strings.SensHigh</listEntry>
+            </settingConfig>
         </setting>
         <setting propertyKey="@Properties.shiftAlerts" title="@Strings.SetShiftAlerts" prompt="@Strings.SetShiftAlertsPrompt">
             <settingConfig type="boolean" />
@@ -25,6 +38,9 @@
             <settingConfig type="boolean" />
         </setting>
         <setting propertyKey="@Properties.countDown" title="@Strings.SetCountDown" prompt="@Strings.SetCountDownPrompt">
+            <settingConfig type="boolean" />
+        </setting>
+        <setting propertyKey="@Properties.useGps" title="@Strings.SetUseGps" prompt="@Strings.SetUseGpsPrompt">
             <settingConfig type="boolean" />
         </setting>
     </settings>

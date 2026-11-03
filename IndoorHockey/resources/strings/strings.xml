@@ -1,47 +1,51 @@
 <resources>
     <!-- App -->
-    <string id="AppName">Indoor Hockey</string>
-    <string id="FitSessionName">Indoor Hockey</string>
+    <string id="AppName">Ice Hockey Shifts</string>
+    <string id="FitSessionName">Ice Hockey</string>
 
     <!-- FIT field + unit labels (shown in Garmin Connect) -->
-    <string id="FitGoals">Goals</string>
-    <string id="FitAssists">Assists</string>
-    <string id="FitShots">Shots</string>
-    <string id="FitSaves">Saves</string>
     <string id="FitShifts">Shifts</string>
+    <string id="FitIceTime">Ice Time</string>
+    <string id="FitBenchTime">Bench Time</string>
+    <string id="FitAvgShift">Avg Shift</string>
+    <string id="FitMaxShift">Longest Shift</string>
+    <string id="FitWorkRest">Rest per Work (x100)</string>
+    <string id="FitIceHr">On-Ice Avg HR</string>
+    <string id="FitHardTime">Time above 85% HR</string>
     <string id="FitShiftTime">Shift Time</string>
+    <string id="FitBenchLap">Bench Time</string>
+    <string id="FitOnIce">On Ice</string>
+    <string id="FitShiftLive">Shift Time (live)</string>
+    <string id="FitShiftChart">Shift Length</string>
+    <string id="FitOnIceChart">On Ice / On Bench</string>
     <string id="UnitSeconds">s</string>
+    <string id="UnitBpm">bpm</string>
+    <string id="UnitNone"> </string>
 
     <!-- On-screen labels -->
     <string id="LabelReady">READY</string>
     <string id="LabelPaused">PAUSED</string>
     <string id="LabelBreak">BREAK</string>
     <string id="LabelFinal">FINAL</string>
-    <string id="LabelShift">SHIFT</string>
-    <string id="LabelGoals">G</string>
-    <string id="LabelAssists">A</string>
-    <string id="LabelShots">SH</string>
-    <string id="LabelSaves">SV</string>
-    <string id="LabelHr">HR</string>
+    <string id="LabelOnIce">ON</string>
+    <string id="LabelBench">BENCH</string>
 
     <!-- Menu -->
     <string id="MenuTitle">Game</string>
-    <string id="MenuGoal">Goal</string>
-    <string id="MenuAssist">Assist</string>
-    <string id="MenuShot">Shot</string>
-    <string id="MenuSave">Save</string>
-    <string id="MenuNewShift">New Shift</string>
-    <string id="MenuNextPeriod">Next Period</string>
-    <string id="MenuUndo">Undo Last Stat</string>
+    <string id="MenuPause">Pause</string>
+    <string id="MenuResume">Resume</string>
+    <string id="MenuMarkBench">I am on the bench</string>
+    <string id="MenuMarkIce">I am on the ice</string>
+    <string id="MenuNextPeriod">End Period</string>
     <string id="MenuEndGame">End &amp; Save Game</string>
     <string id="MenuDiscard">Discard Game</string>
-    <string id="MenuResume">Resume</string>
 
     <!-- Summary -->
-    <string id="SummaryPlayed">Played</string>
     <string id="SummaryShifts">Shifts</string>
+    <string id="SummaryIce">Ice</string>
     <string id="SummaryAvgShift">Avg Shift</string>
-    <string id="SummaryCalories">Calories</string>
+    <string id="SummaryWorkRest">Work:Rest</string>
+    <string id="SummaryIceHr">On-Ice HR</string>
     <string id="ConfirmEnd">End game and save?</string>
 
     <!-- Settings -->
@@ -49,12 +53,21 @@
     <string id="SetPeriodCountPrompt">How many periods or halves</string>
     <string id="SetPeriodMinutes">Period length (min)</string>
     <string id="SetPeriodMinutesPrompt">Length of one period in minutes</string>
+    <string id="SetBreakSeconds">Intermission (sec)</string>
+    <string id="SetBreakSecondsPrompt">Break between periods; the next period starts on its own</string>
     <string id="SetShiftSeconds">Shift alert (sec)</string>
     <string id="SetShiftSecondsPrompt">Buzz when a shift reaches this length</string>
+    <string id="SetSensitivity">Shift sensitivity</string>
+    <string id="SetSensitivityPrompt">How easily movement counts as being on the ice</string>
+    <string id="SensLow">Low</string>
+    <string id="SensNormal">Normal</string>
+    <string id="SensHigh">High</string>
     <string id="SetShiftAlerts">Shift alerts</string>
-    <string id="SetShiftAlertsPrompt">Buzz at the end of each shift</string>
-    <string id="SetAutoLap">Lap on new shift</string>
-    <string id="SetAutoLapPrompt">Record a FIT lap for every shift</string>
+    <string id="SetShiftAlertsPrompt">Buzz when a shift runs long</string>
+    <string id="SetAutoLap">Lap per shift</string>
+    <string id="SetAutoLapPrompt">Record a FIT lap for every shift and every spell on the bench</string>
     <string id="SetCountDown">Count period down</string>
     <string id="SetCountDownPrompt">Show time remaining instead of elapsed</string>
+    <string id="SetUseGps">Use GPS</string>
+    <string id="SetUseGpsPrompt">Record speed and distance. Indoor rinks rarely get a fix; outdoor rinks do</string>
 </resources>

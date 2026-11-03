@@ -1,15 +1,18 @@
 //
-// The one screen you look at during a game.
+// The one screen the player sees during a game.
 //
-// Nothing here is measured in fixed pixels: every position is a fraction of the
-// screen and every font is the largest one that still fits. That is what makes
-// the same code look right on a 208 px Instinct and a 454 px fenix.
+// Everything is on a single page on purpose: the watch is under a glove and
+// behind a jersey sleeve, and there is no realistic way to change pages while
+// skating. What is on screen is chosen so it can be read in the half second
+// available while looking down between strides.
 //
-// "Fits" has to account for the screen being round. The usable width near the
-// top and bottom of a circular display is a chord, not the diameter, so a line
-// measured against the full width will run off the edge.
+// Round screens are the hard case. The usable width at any given height is the
+// chord of the circle at that height, not the width of the display, so text
+// placed near the top or the bottom has far less room than it looks like it
+// has. Every line here is measured against its own chord and shrunk to fit.
 //
 
+import Toybox.Activity;
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
@@ -17,85 +20,87 @@ import Toybox.System;
 import Toybox.Timer;
 import Toybox.WatchUi;
 
-//! Regions of the screen that respond to a tap.
-enum TouchZone {
-    ZONE_CLOCK = 0,
-    ZONE_SHIFT = 1,
-    ZONE_STATS = 2
-}
-
 class GameView extends WatchUi.View {
 
     // Vertical anchors, as a fraction of screen height.
     private const Y_HEADER = 0.150;
     private const Y_CLOCK  = 0.400;
     private const Y_SHIFT  = 0.645;
-    private const Y_STATS  = 0.830;
+    private const Y_FOOT   = 0.830;
 
-    // Tap boundaries, same units.
-    private const TAP_SHIFT_TOP = 0.520;
-    private const TAP_STATS_TOP = 0.755;
-
-    // Fraction of the available width a line is allowed to occupy.
+    // How much of the available chord a line may occupy.
     private const WIDTH_MARGIN = 0.94;
 
     private var _model as GameModel;
-    private var _timer as Timer.Timer? = null;
-    private var _isRound as Boolean = false;
+    private var _timer as Timer.Timer?;
+    private var _isRound as Boolean = true;
+
+    // Strings that never change, loaded once. Loading a resource is expensive
+    // and this view redraws every second for an hour and a half.
+    private var _txtReady as String = "READY";
+    private var _txtPaused as String = "PAUSED";
+    private var _txtBreak as String = "BREAK";
+    private var _txtFinal as String = "FINAL";
+    private var _txtOnIce as String = "ON";
+    private var _txtBench as String = "BENCH";
+    private var _txtShifts as String = "Shifts";
+    private var _txtIce as String = "Ice";
+    private var _txtAvg as String = "Avg Shift";
+    private var _txtIceHr as String = "On-Ice HR";
+    private var _txtWorkRest as String = "Work:Rest";
 
     //! Constructor.
-    //! @param model The game to display
     public function initialize(model as GameModel) {
         View.initialize();
         _model = model;
     }
 
-    //! Work out once what kind of screen this is.
-    public function onLayout(dc as Dc) as Void {
+    //! Cache everything that does not change, once.
+    public function onLayout(dc as Graphics.Dc) as Void {
         var settings = System.getDeviceSettings();
         _isRound = (settings.screenShape == System.SCREEN_SHAPE_ROUND);
+
+        _txtReady = WatchUi.loadResource($.Rez.Strings.LabelReady) as String;
+        _txtPaused = WatchUi.loadResource($.Rez.Strings.LabelPaused) as String;
+        _txtBreak = WatchUi.loadResource($.Rez.Strings.LabelBreak) as String;
+        _txtFinal = WatchUi.loadResource($.Rez.Strings.LabelFinal) as String;
+        _txtOnIce = WatchUi.loadResource($.Rez.Strings.LabelOnIce) as String;
+        _txtBench = WatchUi.loadResource($.Rez.Strings.LabelBench) as String;
+        _txtShifts = WatchUi.loadResource($.Rez.Strings.SummaryShifts) as String;
+        _txtIce = WatchUi.loadResource($.Rez.Strings.SummaryIce) as String;
+        _txtAvg = WatchUi.loadResource($.Rez.Strings.SummaryAvgShift) as String;
+        _txtIceHr = WatchUi.loadResource($.Rez.Strings.SummaryIceHr) as String;
+        _txtWorkRest = WatchUi.loadResource($.Rez.Strings.SummaryWorkRest) as String;
     }
 
-    //! Start the once-a-second refresh.
+    //! Start the once-a-second redraw.
     public function onShow() as Void {
         if (_timer == null) {
-            var timer = new Timer.Timer();
-            timer.start(method(:onTick), 1000, true);
-            _timer = timer;
+            _timer = new Timer.Timer();
         }
+        (_timer as Timer.Timer).start(method(:onTick), 1000, true);
     }
 
-    //! Stop refreshing while a menu or dialog is on top.
+    //! Stop redrawing while the view is off screen. The game clock itself is
+    //! driven from the app, not from here, so it keeps running regardless.
     public function onHide() as Void {
         var timer = _timer;
         if (timer != null) {
             timer.stop();
-            _timer = null;
         }
     }
 
-    //! Drive the model's clock checks, then redraw.
+    //! Once a second: ask for a redraw.
     public function onTick() as Void {
-        _model.onTick();
         WatchUi.requestUpdate();
     }
 
-    //! Which tappable region a y coordinate falls in.
-    //! @param y Screen y of the tap
-    //! @param height Screen height
-    //! @return The zone that was tapped
-    public function zoneAt(y as Number, height as Number) as TouchZone {
-        if (y >= (height * TAP_STATS_TOP)) {
-            return ZONE_STATS;
-        }
-        if (y >= (height * TAP_SHIFT_TOP)) {
-            return ZONE_SHIFT;
-        }
-        return ZONE_CLOCK;
-    }
+    // ------------------------------------------------------------------
+    // Drawing
+    // ------------------------------------------------------------------
 
-    //! Draw the game.
-    public function onUpdate(dc as Dc) as Void {
+    //! Draw the whole screen.
+    public function onUpdate(dc as Graphics.Dc) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
 
@@ -110,246 +115,219 @@ class GameView extends WatchUi.View {
         drawPeriodArc(dc, w, h);
         drawHeader(dc, w, h);
         drawClock(dc, w, h);
-        drawShift(dc, w, h);
-        drawStats(dc, w, h);
+        drawSegment(dc, w, h);
+        drawFooter(dc, w, h);
     }
 
-    //! A ring around the edge showing how much of the period is gone.
-    private function drawPeriodArc(dc as Dc, w as Number, h as Number) as Void {
-        if (!_isRound || !(dc has :drawArc)) {
+    //! Period number, and the state when it is not simply running.
+    private function drawHeader(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        var text = "P" + _model.period + "/" + _model.periodCount;
+        var colour = Graphics.COLOR_LT_GRAY;
+
+        if (_model.state == STATE_READY) {
+            text = text + " " + _txtReady;
+        } else if (_model.state == STATE_PAUSED) {
+            text = text + " " + _txtPaused;
+            colour = Graphics.COLOR_YELLOW;
+        } else if (_model.state == STATE_BREAK) {
+            text = _txtBreak;
+            colour = Graphics.COLOR_YELLOW;
+        } else {
+            colour = Graphics.COLOR_BLUE;
+        }
+
+        drawFitted(dc, text, Y_HEADER, w, h, colour,
+            [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]);
+    }
+
+    //! The big clock: time left in the period, or left in the intermission.
+    private function drawClock(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        var text = Fmt.clock(_model.clockMs());
+        var colour = Graphics.COLOR_WHITE;
+        if (_model.state == STATE_BREAK) {
+            colour = Graphics.COLOR_YELLOW;
+        }
+        drawFitted(dc, text, Y_CLOCK, w, h, colour,
+            [Graphics.FONT_NUMBER_HOT, Graphics.FONT_NUMBER_MEDIUM,
+             Graphics.FONT_NUMBER_MILD, Graphics.FONT_LARGE, Graphics.FONT_MEDIUM]);
+    }
+
+    //! On the ice, or on the bench, and for how long.
+    //!
+    //! The colour carries the message: green while the shift is within target,
+    //! amber once it is over, red once it is well over. Blue means the bench,
+    //! which is deliberately a different hue family so there is no chance of
+    //! mistaking a long rest for a long shift at a glance.
+    private function drawSegment(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        if (_model.state == STATE_READY) {
+            drawFitted(dc, _txtOnIce + " --:--", Y_SHIFT, w, h, Graphics.COLOR_DK_GRAY,
+                [Graphics.FONT_LARGE, Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY]);
             return;
         }
 
-        var pen = w / 40;
-        if (pen < 3) {
-            pen = 3;
-        }
-        var radius = (w < h ? w : h) / 2 - pen - 2;
-        var cx = w / 2;
-        var cy = h / 2;
+        var elapsed = _model.segmentMs();
+        var label = _model.onIce() ? _txtOnIce : _txtBench;
+        var colour = Graphics.COLOR_BLUE;
 
-        dc.setPenWidth(pen);
-        dc.setColor(0x555555, Graphics.COLOR_TRANSPARENT);
-        dc.drawArc(cx, cy, radius, Graphics.ARC_CLOCKWISE, 0, 360);
-
-        var periodMs = _model.periodMs;
-        if (periodMs > 0) {
-            var fraction = _model.periodElapsedMs().toFloat() / periodMs.toFloat();
-            if (fraction > 0.0) {
-                if (fraction > 1.0) {
-                    fraction = 1.0;
-                }
-                // Angles run counter-clockwise from 3 o'clock, so sweeping
-                // clockwise from 12 o'clock means counting down from 90.
-                var endAngle = 90.0 - (360.0 * fraction);
-                if (endAngle <= -270.0) {
-                    endAngle = -269.9;
-                }
-                dc.setColor(stateColor(), Graphics.COLOR_TRANSPARENT);
-                dc.drawArc(cx, cy, radius, Graphics.ARC_CLOCKWISE, 90, endAngle.toNumber());
+        if (_model.onIce()) {
+            var target = _model.shiftTargetMs;
+            if (elapsed >= (target * 13) / 10) {
+                colour = Graphics.COLOR_RED;
+            } else if (elapsed >= target) {
+                colour = Graphics.COLOR_ORANGE;
+            } else {
+                colour = Graphics.COLOR_GREEN;
             }
         }
 
+        drawFitted(dc, label + " " + Fmt.clock(elapsed), Y_SHIFT, w, h, colour,
+            [Graphics.FONT_LARGE, Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY]);
+    }
+
+    //! Heart rate and shift count, the two numbers worth a glance mid-game.
+    private function drawFooter(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        var heartRate = _model.currentHeartRate();
+        var hrText = (heartRate == null || heartRate <= 0) ? "--" : heartRate.toString();
+        var text = hrText + " bpm   " + _model.shiftCount + " sh";
+
+        drawFitted(dc, text, Y_FOOT, w, h, Graphics.COLOR_LT_GRAY,
+            [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]);
+    }
+
+    //! A ring around the edge showing how much of the period is gone.
+    private function drawPeriodArc(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        if (!_isRound || _model.state == STATE_READY) {
+            return;
+        }
+
+        var total = (_model.state == STATE_BREAK) ? _model.breakMs : _model.periodMs;
+        if (total <= 0) {
+            return;
+        }
+        var done = (_model.state == STATE_BREAK)
+            ? (_model.breakMs - _model.breakRemainingMs())
+            : _model.periodElapsedMs();
+
+        var fraction = done.toFloat() / total.toFloat();
+        if (fraction < 0.0) { fraction = 0.0; }
+        if (fraction > 1.0) { fraction = 1.0; }
+
+        var centreX = w / 2;
+        var centreY = h / 2;
+        var radius = ((w < h ? w : h) / 2) - 3;
+
+        dc.setPenWidth(5);
+        dc.setColor(0x555555, Graphics.COLOR_TRANSPARENT);
+        dc.drawCircle(centreX, centreY, radius);
+
+        if (fraction <= 0.0) {
+            return;
+        }
+
+        var sweep = 360.0 * fraction;
+        var end = 90.0 - sweep;
+        dc.setColor(_model.state == STATE_BREAK ? Graphics.COLOR_YELLOW : Graphics.COLOR_BLUE,
+            Graphics.COLOR_TRANSPARENT);
+        dc.drawArc(centreX, centreY, radius, Graphics.ARC_CLOCKWISE, 90, end.toNumber());
         dc.setPenWidth(1);
     }
 
-    //! Period number, plus either heart rate or what the game is waiting for.
-    private function drawHeader(dc as Dc, w as Number, h as Number) as Void {
-        var text = "P" + _model.period.toString() + "/" + _model.periodCount.toString();
-        var state = _model.state;
+    //! The post-game card, drawn in place rather than as a separate view so
+    //! that nothing has to be pushed from inside a confirmation callback.
+    private function drawSummary(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        drawFitted(dc, _txtFinal, 0.115, w, h, Graphics.COLOR_LT_GRAY,
+            [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]);
 
-        if (state == STATE_RUNNING) {
-            var hr = _model.currentHeartRate();
-            if (hr != null && hr > 0) {
-                text = text + "  " + hr.toString();
-            }
-        } else {
-            text = text + "  " + stateLabel();
-        }
+        var rows = [
+            [_txtShifts, _model.shiftCount.toString()],
+            [_txtIce, Fmt.clock(_model.iceTimeMs())],
+            [_txtAvg, Fmt.clock(_model.averageShiftMs())],
+            [_txtWorkRest, workRestText()],
+            [_txtIceHr, hrText()]
+        ];
 
-        var y = (h * Y_HEADER).toNumber();
-        var font = fittingFont(dc, text, y, w, h,
-            [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<FontDefinition>);
-
-        dc.setColor(stateColor(), Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, y, font, text,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-    }
-
-    //! The big period clock.
-    private function drawClock(dc as Dc, w as Number, h as Number) as Void {
-        var text = Fmt.clock(_model.clockMs());
-        var y = (h * Y_CLOCK).toNumber();
-        var font = fittingFont(dc, text, y, w, h,
-            [Graphics.FONT_NUMBER_HOT, Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD,
-             Graphics.FONT_LARGE, Graphics.FONT_MEDIUM] as Array<FontDefinition>);
-
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, y, font, text,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-    }
-
-    //! Shift timer, coloured by how long this shift has run.
-    private function drawShift(dc as Dc, w as Number, h as Number) as Void {
-        var label = WatchUi.loadResource($.Rez.Strings.LabelShift) as String;
-        var text;
-        var color;
-
-        if (_model.state == STATE_READY) {
-            text = label + " --:--";
-            color = Graphics.COLOR_DK_GRAY;
-        } else {
-            var shiftMs = _model.shiftMs();
-            text = label + " " + Fmt.clock(shiftMs);
-            color = shiftColor(shiftMs);
-        }
-
-        var y = (h * Y_SHIFT).toNumber();
-        var font = fittingFont(dc, text, y, w, h,
-            [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<FontDefinition>);
-
-        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, y, font, text,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-    }
-
-    //! Goals, assists, shots, saves on one line.
-    private function drawStats(dc as Dc, w as Number, h as Number) as Void {
-        var text = Lang.format("$1$ $2$  $3$ $4$  $5$ $6$  $7$ $8$", [
-            WatchUi.loadResource($.Rez.Strings.LabelGoals) as String, _model.goals,
-            WatchUi.loadResource($.Rez.Strings.LabelAssists) as String, _model.assists,
-            WatchUi.loadResource($.Rez.Strings.LabelShots) as String, _model.shots,
-            WatchUi.loadResource($.Rez.Strings.LabelSaves) as String, _model.saves
-        ]);
-
-        var y = (h * Y_STATS).toNumber();
-        var font = fittingFont(dc, text, y, w, h,
-            [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<FontDefinition>);
-
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, y, font, text,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-    }
-
-    //! The post-game card. Shown in place of the live screen once the
-    //! activity has been saved, so there is no second view to push.
-    private function drawSummary(dc as Dc, w as Number, h as Number) as Void {
-        var hrText = "--";
-        if (_model.finalAvgHr > 0 || _model.finalMaxHr > 0) {
-            hrText = _model.finalAvgHr.toString() + " / " + _model.finalMaxHr.toString();
-        }
-
-        var lines = [
-            WatchUi.loadResource($.Rez.Strings.LabelFinal) as String,
-            (WatchUi.loadResource($.Rez.Strings.SummaryPlayed) as String) + " " + Fmt.clock(_model.totalPlayedMs()),
-            Lang.format("$1$ $2$  $3$ $4$  $5$ $6$  $7$ $8$", [
-                WatchUi.loadResource($.Rez.Strings.LabelGoals) as String, _model.goals,
-                WatchUi.loadResource($.Rez.Strings.LabelAssists) as String, _model.assists,
-                WatchUi.loadResource($.Rez.Strings.LabelShots) as String, _model.shots,
-                WatchUi.loadResource($.Rez.Strings.LabelSaves) as String, _model.saves
-            ]),
-            Lang.format("$1$ $2$  $3$ $4$", [
-                WatchUi.loadResource($.Rez.Strings.SummaryShifts) as String, _model.shiftCount,
-                WatchUi.loadResource($.Rez.Strings.SummaryAvgShift) as String, Fmt.clock(_model.averageShiftMs())
-            ]),
-            (WatchUi.loadResource($.Rez.Strings.LabelHr) as String) + " " + hrText,
-            (WatchUi.loadResource($.Rez.Strings.SummaryCalories) as String) + " " + _model.finalCalories.toString()
-        ] as Array<String>;
-
-        // Spread the rows evenly down the usable middle of the screen.
-        var top = 0.17;
-        var step = 0.66 / (lines.size() - 1).toFloat();
-
-        for (var i = 0; i < lines.size(); i++) {
-            var text = lines[i];
-            var y = (h * (top + step * i)).toNumber();
-            var font = fittingFont(dc, text, y, w, h,
-                [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<FontDefinition>);
-            dc.setColor(i == 0 ? Graphics.COLOR_RED : Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(w / 2, y, font, text,
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        var top = 0.270;
+        var step = 0.128;
+        for (var i = 0; i < rows.size(); i++) {
+            var row = rows[i] as Array<String>;
+            drawFitted(dc, row[0] + "  " + row[1], top + (step * i), w, h,
+                Graphics.COLOR_WHITE,
+                [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]);
         }
     }
 
-    //! Largest font from the list whose rendering fits the screen at this height.
-    private function fittingFont(dc as Dc, text as String, centerY as Number,
+    //! Rest per unit of work, as "1:2.4".
+    private function workRestText() as String {
+        var ratio = _model.workRestX100();
+        if (ratio <= 0) {
+            return "--";
+        }
+        var whole = ratio / 100;
+        var tenths = (ratio % 100) / 10;
+        return "1:" + whole + "." + tenths;
+    }
+
+    //! On-ice average heart rate next to the whole-game average, because the
+    //! gap between the two is the point: a game average is diluted by every
+    //! minute spent on the bench.
+    private function hrText() as String {
+        var ice = _model.iceAverageHr();
+        if (ice <= 0) {
+            return "--";
+        }
+        if (_model.finalAvgHr > 0) {
+            return ice + " / " + _model.finalAvgHr;
+        }
+        return ice.toString();
+    }
+
+    // ------------------------------------------------------------------
+    // Text fitting
+    // ------------------------------------------------------------------
+
+    //! Draw one centred line at the largest font that actually fits.
+    private function drawFitted(dc as Graphics.Dc, text as String, yFraction as Float,
+                                w as Number, h as Number, colour as Number,
+                                candidates as Array<Graphics.FontDefinition>) as Void {
+        var centreY = (h * yFraction).toNumber();
+        var font = fittingFont(dc, text, centreY, w, h, candidates);
+        dc.setColor(colour, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(w / 2, centreY, font, text, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+    }
+
+    //! The largest candidate font whose rendering of this text fits the width
+    //! available at this height. Falls back to the smallest candidate.
+    private function fittingFont(dc as Graphics.Dc, text as String, centreY as Number,
                                  w as Number, h as Number,
-                                 candidates as Array<FontDefinition>) as FontDefinition {
+                                 candidates as Array<Graphics.FontDefinition>) as Graphics.FontDefinition {
         for (var i = 0; i < candidates.size(); i++) {
             var font = candidates[i];
-            var allowed = usableWidth(centerY, dc.getFontHeight(font), w, h);
-            if (dc.getTextWidthInPixels(text, font) <= allowed) {
+            var height = dc.getFontHeight(font);
+            var available = usableWidth(centreY, height, w, h);
+            if (available > 0 && dc.getTextWidthInPixels(text, font) <= available) {
                 return font;
             }
         }
         return candidates[candidates.size() - 1];
     }
 
-    //! How wide a line of this height may be when centred at this y.
-    private function usableWidth(centerY as Number, textHeight as Number,
+    //! How wide a line may be at a given height.
+    //!
+    //! On a round screen the display is a circle, so the room available at a
+    //! given height is the chord at that height, which narrows sharply towards
+    //! the top and bottom. Measuring against the full screen width is what
+    //! makes text run off the edge of a round watch.
+    private function usableWidth(centreY as Number, textHeight as Number,
                                  w as Number, h as Number) as Number {
         if (!_isRound) {
             return (w * WIDTH_MARGIN).toNumber();
         }
-
         var radius = (w < h ? w : h) / 2.0;
-        // Measure at whichever edge of the text sits furthest from the centre:
-        // that is where the circle is narrowest and where text would spill out.
-        var dy = (centerY - (h / 2.0)).abs() + (textHeight / 2.0);
+        var dy = (centreY - (h / 2.0)).abs() + (textHeight / 2.0);
         if (dy >= radius) {
             return 0;
         }
-
         var halfChord = Math.sqrt((radius * radius) - (dy * dy));
         return (halfChord * 2.0 * WIDTH_MARGIN).toNumber();
-    }
-
-    //! Green while the shift is short, amber as it nears the target, red past it.
-    private function shiftColor(shiftMs as Number) as Number {
-        var target = _model.shiftTargetMs;
-        if (target <= 0) {
-            return Graphics.COLOR_GREEN;
-        }
-        var ratio = shiftMs.toFloat() / target.toFloat();
-        if (ratio >= 1.0) {
-            return Graphics.COLOR_RED;
-        }
-        if (ratio >= 0.8) {
-            return Graphics.COLOR_YELLOW;
-        }
-        return Graphics.COLOR_GREEN;
-    }
-
-    //! Colour that matches the current game state.
-    private function stateColor() as Number {
-        var state = _model.state;
-        if (state == STATE_RUNNING) {
-            return Graphics.COLOR_BLUE;
-        }
-        if (state == STATE_PAUSED) {
-            return Graphics.COLOR_YELLOW;
-        }
-        if (state == STATE_BREAK) {
-            return Graphics.COLOR_ORANGE;
-        }
-        if (state == STATE_FINISHED) {
-            return Graphics.COLOR_RED;
-        }
-        return Graphics.COLOR_LT_GRAY;
-    }
-
-    //! Word describing the current game state.
-    private function stateLabel() as String {
-        var state = _model.state;
-        if (state == STATE_PAUSED) {
-            return WatchUi.loadResource($.Rez.Strings.LabelPaused) as String;
-        }
-        if (state == STATE_BREAK) {
-            return WatchUi.loadResource($.Rez.Strings.LabelBreak) as String;
-        }
-        if (state == STATE_FINISHED) {
-            return WatchUi.loadResource($.Rez.Strings.LabelFinal) as String;
-        }
-        return WatchUi.loadResource($.Rez.Strings.LabelReady) as String;
     }
 }
