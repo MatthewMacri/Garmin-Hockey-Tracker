@@ -9,7 +9,7 @@ so the same build runs across the Garmin watch range.
 
 <p align="center">
   <img src="docs/screenshots/01-ready.png" width="24%" alt="Ready to start" />
-  <img src="docs/screenshots/02-running.png" width="24%" alt="Clock running" />
+  <img src="docs/screenshots/02-running.png" width="24%" alt="Clock running, period ring filling, goal logged" />
   <img src="docs/screenshots/03-shift-alert.png" width="24%" alt="Shift over target" />
   <img src="docs/screenshots/04-menu.png" width="24%" alt="In-game menu" />
 </p>
