@@ -222,7 +222,7 @@ class ShiftDetector {
             var y = ys[i].toFloat();
             var z = zs[i].toFloat();
             var m = Math.sqrt((x * x) + (y * y) + (z * z));
-            magnitudes[i] = m;
+            magnitudes[i] = m.toFloat();
             sum += m;
         }
 

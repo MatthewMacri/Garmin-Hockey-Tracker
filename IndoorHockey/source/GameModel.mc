@@ -29,6 +29,13 @@ enum GameState {
     STATE_FINISHED = 4   //!< Session saved or discarded; summary on screen.
 }
 
+//! Which FIT sport the finished activity is filed under. Hockey is the truthful
+//! answer; skate is the one Strava can read. See hockeySport().
+enum ActivityType {
+    ACTIVITY_HOCKEY = 0, //!< FIT sport 73 / sub-sport 91: ice hockey.
+    ACTIVITY_SKATE = 1   //!< FIT sport 33: ice skating.
+}
+
 //! Owns the whole game.
 class GameModel {
 
@@ -65,6 +72,7 @@ class GameModel {
     public var countDown as Boolean = true;
     public var useGps as Boolean = true;
     public var sensitivity as Number = 1;
+    public var activityType as Number = ACTIVITY_HOCKEY;
 
     // ---- live game state ----
     public var state as GameState = STATE_READY;
@@ -152,6 +160,9 @@ class GameModel {
         autoLap = readBoolean("autoLap", true);
         countDown = readBoolean("countDown", true);
         useGps = readBoolean("useGps", true);
+        // Read, but only consulted when a session is created, so changing it
+        // mid-game cannot retype an activity that is already recording.
+        activityType = readNumber("activityType", ACTIVITY_HOCKEY, 0, 1);
 
         detector.setSensitivity(sensitivity);
 
@@ -455,11 +466,11 @@ class GameModel {
     //! wrong number rather than a blank one. Both fields are written every
     //! time, with a zero in the one that does not apply, so each lap in Garmin
     //! Connect reads unambiguously as either a shift or a spell on the bench.
-    private function closeLap(elapsedMs as Number, wasIce as Boolean) as Void {
-        var session = _session;
-        if (session == null || !session.isRecording()) {
-            return;
-        }
+    //! Put the finished segment's length into the lap fields. Kept separate
+    //! from adding the lap because the final segment of a game has no lap to
+    //! add: the system writes that one itself when the session is saved, and
+    //! it writes it with whatever these fields hold at that moment.
+    private function setLapFields(elapsedMs as Number, wasIce as Boolean) as Void {
         var seconds = (elapsedMs / 1000).toNumber();
         var shiftField = _lapShiftField;
         if (shiftField != null) {
@@ -469,7 +480,14 @@ class GameModel {
         if (benchField != null) {
             benchField.setData(wasIce ? 0 : seconds);
         }
-        session.addLap();
+    }
+
+    private function closeLap(elapsedMs as Number, wasIce as Boolean) as Void {
+        setLapFields(elapsedMs, wasIce);
+        var session = _session;
+        if (session != null && session.isRecording()) {
+            session.addLap();
+        }
     }
 
     // ------------------------------------------------------------------
@@ -741,11 +759,13 @@ class GameModel {
         } else {
             _benchMs += elapsed;
         }
-        // Close a lap for the final segment too. Without this the session's
-        // last lap is closed by the system with whatever the lap fields
-        // happened to hold, which is the previous segment's length.
+        // The system closes the final lap itself when the session is saved,
+        // using whatever the lap fields hold at that moment. So set them and
+        // do NOT add a lap: adding one here would either duplicate the final
+        // lap or, if the game was paused first, be dropped silently and leave
+        // the system to write the previous segment's length instead.
         if (autoLap) {
-            closeLap(elapsed, endedOnIce);
+            setLapFields(elapsed, endedOnIce);
         }
         _segmentSince = -1;
 
@@ -817,35 +837,50 @@ class GameModel {
         }
     }
 
-    //! Activity.SPORT_HOCKEY was added in API 4.1.6. Roughly a third of the
-    //! watches this app supports are older than that, and handing their
-    //! firmware a sport value it does not know is not something the compiler
-    //! catches - the constant is inlined and never checked against
-    //! minApiLevel. Fall back to a generic training sport on those.
+    //! The FIT sport the activity is filed under.
+    //!
+    //! Activity.SPORT_HOCKEY (73) is the honest answer and is what makes Garmin
+    //! Connect label this an ice hockey game. It is also a sport that Strava
+    //! does not know, so a synced hockey game lands there as a bare "Workout".
+    //! ACTIVITY_SKATE trades the correct Connect label for a sport Strava does
+    //! understand - ice skating (33) - which is the closest thing it has.
+    //!
+    //! Both constants are gated on firmware version. Handing a watch a sport
+    //! value its firmware predates is not something the compiler catches: the
+    //! constant is inlined and never checked against minApiLevel.
     private function hockeySport() as Activity.Sport {
-        return apiAtLeast416() ? Activity.SPORT_HOCKEY : Activity.SPORT_TRAINING;
-    }
-
-    //! SUB_SPORT_ICE arrived with the hockey sport, so it is gated the same way.
-    //! It is what makes Garmin Connect label the activity ice hockey rather than
-    //! leaving it as an unqualified hockey game.
-    private function hockeySubSport() as Activity.SubSport {
-        return apiAtLeast416() ? Activity.SUB_SPORT_ICE : Activity.SUB_SPORT_GENERIC;
-    }
-
-    //! True on firmware new enough for the hockey sport constants.
-    private function apiAtLeast416() as Boolean {
-        var version = System.getDeviceSettings().monkeyVersion;
-        if (version != null && version.size() >= 3) {
-            var major = version[0];
-            var minor = version[1];
-            var micro = version[2];
-            if (major > 4 ||
-                (major == 4 && (minor > 1 || (minor == 1 && micro >= 6)))) {
-                return true;
-            }
+        if (activityType == ACTIVITY_SKATE && apiAtLeast(3, 2, 0)) {
+            return Activity.SPORT_ICE_SKATING;
         }
-        return false;
+        if (apiAtLeast(4, 1, 6)) {
+            return Activity.SPORT_HOCKEY;
+        }
+        return Activity.SPORT_TRAINING;
+    }
+
+    //! SUB_SPORT_ICE is what separates ice hockey from the other hockeys. It
+    //! arrived with the hockey sport, so it is gated the same way. Ice skating
+    //! needs no qualifier.
+    private function hockeySubSport() as Activity.SubSport {
+        if (activityType == ACTIVITY_SKATE || !apiAtLeast(4, 1, 6)) {
+            return Activity.SUB_SPORT_GENERIC;
+        }
+        return Activity.SUB_SPORT_ICE;
+    }
+
+    //! True when the watch's firmware is at or past the given API level.
+    private function apiAtLeast(major as Number, minor as Number, micro as Number) as Boolean {
+        var version = System.getDeviceSettings().monkeyVersion;
+        if (version == null || version.size() < 3) {
+            return false;
+        }
+        var have = [version[0], version[1], version[2]];
+        var want = [major, minor, micro];
+        for (var i = 0; i < 3; i++) {
+            if (have[i] > want[i]) { return true; }
+            if (have[i] < want[i]) { return false; }
+        }
+        return true;
     }
 
     //! Developer fields, so the numbers travel with the activity into Connect.

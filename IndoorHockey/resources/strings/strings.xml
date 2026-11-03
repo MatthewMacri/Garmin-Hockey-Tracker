@@ -39,6 +39,7 @@
 
     <!-- Menu -->
     <string id="MenuTitle">Game</string>
+    <string id="MenuStoppedTitle">Stopped</string>
     <string id="MenuPause">Pause</string>
     <string id="MenuResume">Resume</string>
     <string id="MenuMarkBench">I am on the bench</string>
@@ -54,6 +55,7 @@
     <string id="SummaryWorkRest">Work:Rest</string>
     <string id="SummaryIceHr">On-Ice HR</string>
     <string id="ConfirmEnd">End game and save?</string>
+    <string id="ConfirmDiscard">Discard this game?</string>
 
     <!-- Settings -->
     <string id="SetPeriodCount">Periods per game</string>
@@ -75,6 +77,10 @@
     <string id="SetAutoLapPrompt">Record a FIT lap for every shift and every spell on the bench</string>
     <string id="SetCountDown">Count period down</string>
     <string id="SetCountDownPrompt">Show time remaining instead of elapsed</string>
+    <string id="SetActivityType">Activity Type</string>
+    <string id="SetActivityTypePrompt">How the finished activity is filed. Ice Hockey is correct in Garmin Connect. Strava has no hockey type and shows it as a plain workout, so pick Ice Skate if you sync to Strava.</string>
+    <string id="TypeHockey">Ice Hockey</string>
+    <string id="TypeSkate">Ice Skate (Strava)</string>
     <string id="SetUseGps">Use GPS</string>
     <string id="SetUseGpsPrompt">Record speed and distance. Indoor rinks rarely get a fix; outdoor rinks do</string>
 </resources>

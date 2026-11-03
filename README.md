@@ -95,15 +95,24 @@ This app knows when you were on the ice, so it reports both.
 
 ## Controls
 
-Nothing here is needed during normal play.
+Laid out the way Garmin's own activities are, so muscle memory from the stock
+Run app transfers. Nothing here is needed during normal play.
 
 | Button | Action |
 |---|---|
-| `START` | Start the game · pause · resume · skip the rest of an intermission |
-| `UP` | Correct the detector: flip between on-ice and on-bench |
-| `DOWN` | End the period early |
-| `MENU` (hold `UP`) | Pause, correct the shift state, end the period, end or discard the game |
-| `BACK` | End the game, after a confirmation |
+| `START` / `STOP` | Start the game. Press again to stop into the stop menu — resume, save, discard — exactly as stopping a run does. Skips the rest of an intermission. |
+| `BACK` (`LAP`) | Line change. `BACK` is the lap key in every Garmin activity, and a lap here *is* a shift, so this is the button that corrects the detector when it has the state wrong. |
+| `UP` / `DOWN` | Nothing. There is one data screen by design, so there is nothing to page through. |
+| `MENU` (hold `UP`) | Correct the shift state, pause, end the period, end or discard the game. |
+
+Two things follow from that, and both are deliberate departures from where this
+app started:
+
+- **`BACK` no longer ends the game.** On a Garmin watch `BACK` is never the exit
+  during an activity, and a knock against the boards should not be able to end a
+  game. Ending now goes through the stop menu: `START`, then *End & Save*.
+- **`DOWN` no longer ends the period.** A mis-press inside a glove should not be
+  able to burn a period. It is still in the menu.
 
 ## Settings
 
@@ -120,6 +129,7 @@ Editable in Garmin Connect; the defaults are a regulation game.
 | Lap per shift | on | |
 | Count period down | on | |
 | Use GPS | on | |
+| Activity type | Ice Hockey | Ice Hockey / Ice Skate |
 
 **Shift sensitivity** moves the decision boundary within the learned band. High
 means less movement counts as being on the ice — raise it if shifts are being
@@ -128,6 +138,21 @@ missed, lower it if standing on the bench is being counted as a shift.
 **Use GPS** is on because speed and distance are worth having when a fix exists.
 Expect no fix inside most arenas; the app degrades quietly to motion-only
 detection and records the game normally.
+
+**Activity type** decides the FIT sport the finished game is filed under, and
+it is a straight trade:
+
+| | Garmin Connect | Strava |
+|---|---|---|
+| **Ice Hockey** (default) | Ice hockey | A plain *Workout* |
+| **Ice Skate** | Ice skating | *Ice Skate* |
+
+Strava has no ice hockey type and has said it has no plans to add one, so a
+hockey-typed game arrives there untyped. Ice skating — FIT sport 33 — is the
+closest thing Strava understands, and switching to it costs only the label in
+Garmin Connect. Everything else, including every field below, is unaffected.
+The setting is read when a game starts, so changing it never retypes an
+activity that is already recording.
 
 ## What lands in Garmin Connect
 

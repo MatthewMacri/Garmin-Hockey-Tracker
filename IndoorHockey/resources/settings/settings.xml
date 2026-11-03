@@ -9,6 +9,7 @@
         <property id="autoLap"       type="boolean">true</property>
         <property id="countDown"     type="boolean">true</property>
         <property id="useGps"        type="boolean">true</property>
+        <property id="activityType"  type="number">0</property>
     </properties>
 
     <settings>
@@ -42,6 +43,12 @@
         </setting>
         <setting propertyKey="@Properties.useGps" title="@Strings.SetUseGps" prompt="@Strings.SetUseGpsPrompt">
             <settingConfig type="boolean" />
+        </setting>
+        <setting propertyKey="@Properties.activityType" title="@Strings.SetActivityType" prompt="@Strings.SetActivityTypePrompt">
+            <settingConfig type="list">
+                <listEntry value="0">@Strings.TypeHockey</listEntry>
+                <listEntry value="1">@Strings.TypeSkate</listEntry>
+            </settingConfig>
         </setting>
     </settings>
 </resources>
