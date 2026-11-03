@@ -23,6 +23,10 @@ so the same build runs across the Garmin watch range.
   <sub>Ready &middot; on the ice &middot; on the bench &middot; intermission &middot; the stop menu &middot; final summary</sub>
 </p>
 
+<p align="center">
+  <a href="https://youtu.be/b-NZduxCrtI"><b>&#9654;&nbsp; Watch the 20-second demo</b></a>
+</p>
+
 ---
 
 ## What it does

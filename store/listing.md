@@ -22,7 +22,7 @@ already up is <https://apps-developer.garmin.com>.
 | Cover Image (500x500) | `store/images/cover-500x500.png` (46 KB of 300 KB) |
 | Add icons for app store on device? | **No** — optional, and the launcher icon already covers every device |
 | Screen Images | The six PNGs in `docs/screenshots/`, in filename order (390x390, ~47 KB each, limit 150 KB) |
-| Preview Video | Leave blank |
+| Preview Video | `https://youtu.be/b-NZduxCrtI` |
 | Email Address | Shown publicly, so use an address you are happy to publish rather than your personal one |
 | Source Code URL | `https://github.com/MatthewMacri/Garmin-Hockey-Tracker` |
 | Review Notification | **Yes** |
@@ -158,9 +158,10 @@ file on the watch, which syncs to Garmin Connect the way any activity does.
 
 ## Preview Video
 
-The form accepts **YouTube and Vimeo links only**, so a file hosted anywhere
-else cannot go in that field. Upload `store/video/demo-1080p.mp4` to YouTube
-(unlisted is fine) and paste the link.
+Uploaded: **https://youtu.be/b-NZduxCrtI**
+
+The form accepts YouTube and Vimeo links only, so a file hosted anywhere else
+cannot go in that field. The source files are kept here for re-uploading.
 
 | File | Use |
 |---|---|
