@@ -47,6 +47,14 @@ class GameModel {
     private const FIELD_ON_ICE      = 10;
     private const FIELD_CUR_SHIFT   = 11;
 
+    // Diagnostics. These exist so a recorded game can be replayed against the
+    // detector afterwards and its thresholds tuned against real skating, which
+    // is the one thing that cannot be tested in the simulator. Garmin does not
+    // record wrist acceleration into a FIT file, so unless the app writes this
+    // itself the signal the detector runs on is gone the moment the game ends.
+    private const FIELD_MOTION      = 12;
+    private const FIELD_THRESHOLD   = 13;
+
     // ---- settings, refreshed whenever Garmin Connect pushes a change ----
     public var periodCount as Number = 3;
     public var periodMs as Number = 20 * 60 * 1000;
@@ -113,6 +121,8 @@ class GameModel {
     private var _lapBenchField as FitContributor.Field? = null;
     private var _onIceField as FitContributor.Field? = null;
     private var _curShiftField as FitContributor.Field? = null;
+    private var _motionField as FitContributor.Field? = null;
+    private var _thresholdField as FitContributor.Field? = null;
 
     //! Constructor.
     public function initialize() {
@@ -562,6 +572,17 @@ class GameModel {
             onIceField.setData(onTheIce ? 1 : 0);
         }
 
+        // The raw detection signal and the boundary it was judged against,
+        // second by second, so the decision can be re-examined after the game.
+        var motionField = _motionField;
+        if (motionField != null) {
+            motionField.setData(detector.motion);
+        }
+        var thresholdField = _thresholdField;
+        if (thresholdField != null) {
+            thresholdField.setData(detector.threshold);
+        }
+
         if (onTheIce && shiftAlerts && !_shiftAlerted && segmentMs() >= shiftTargetMs) {
             _shiftAlerted = true;
             alert(Attention.TONE_ALERT_HI,
@@ -817,6 +838,12 @@ class GameModel {
         _curShiftField = session.createField("shift_time_live", FIELD_CUR_SHIFT,
             FitContributor.DATA_TYPE_UINT16,
             {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "s"});
+        _motionField = session.createField("motion", FIELD_MOTION,
+            FitContributor.DATA_TYPE_UINT16,
+            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "mg"});
+        _thresholdField = session.createField("motion_threshold", FIELD_THRESHOLD,
+            FitContributor.DATA_TYPE_UINT16,
+            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "mg"});
 
         writeSessionFields();
     }

@@ -49,5 +49,17 @@
                   fillColor="#00AAFF"
                   chartTitle="@Strings.FitShiftLive"
                   dataLabel="@Strings.FitShiftLive" unitLabel="@Strings.UnitSeconds" />
+
+        <!-- Diagnostics: the signal the shift detector actually ran on, and
+             the learned boundary it was compared against. Charted together
+             they show every decision the app made and why. -->
+        <fitField id="12" sortOrder="12" displayInChart="true" precision="0"
+                  fillColor="#AA66FF"
+                  chartTitle="@Strings.FitMotionChart"
+                  dataLabel="@Strings.FitMotion" unitLabel="@Strings.UnitMilliG" />
+        <fitField id="13" sortOrder="13" displayInChart="true" precision="0"
+                  fillColor="#888888"
+                  chartTitle="@Strings.FitThresholdChart"
+                  dataLabel="@Strings.FitThreshold" unitLabel="@Strings.UnitMilliG" />
     </fitContributions>
 </resources>

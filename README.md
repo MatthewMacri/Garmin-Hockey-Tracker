@@ -146,6 +146,14 @@ calories, time and — where there was a fix — GPS. On top of that:
 | Shift Time / Bench Time | lap | One lap per shift and one per bench spell, so the Splits tab reads as a shift chart |
 | On Ice | record | 1 on the ice, 0 on the bench — a square wave against the heart rate trace |
 | Shift Time (live) | record | The running shift clock |
+| Wrist Motion | record | The raw signal the detector ran on, in milli-g |
+| Detection Threshold | record | The learned boundary it was judged against |
+
+The last two are diagnostics. Garmin does not record wrist acceleration into a
+FIT file, so unless the app writes it itself the signal the detector ran on is
+gone the moment the game ends. Charted against each other they show every
+decision the app made and why, which is what makes the thresholds tunable
+against real skating rather than guesswork.
 
 Developer fields only render once the app is on the store — a Beta upload is
 enough. A sideloaded build writes them correctly and displays them nowhere.
