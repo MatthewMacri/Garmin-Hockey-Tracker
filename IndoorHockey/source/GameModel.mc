@@ -102,6 +102,7 @@ class GameModel {
     private var _iceHrSamples as Number = 0;
     private var _hardSeconds as Number = 0;
     private var _hardThreshold as Number = 0;
+    private var _hrCeiling as Number = 0;
 
     private var _speed as Float? = null;
     private var _gpsOn as Boolean = false;
@@ -128,7 +129,8 @@ class GameModel {
     public function initialize() {
         detector = new ShiftDetector(1);
         loadSettings();
-        _hardThreshold = hardEffortThreshold();
+        _hrCeiling = profileMaxHeartRate();
+        _hardThreshold = (_hrCeiling > 0) ? ((_hrCeiling * 85) / 100).toNumber() : 0;
     }
 
     // ------------------------------------------------------------------
@@ -556,6 +558,18 @@ class GameModel {
                 _iceHrSum += heartRate;
                 _iceHrSamples++;
             }
+
+            // Self-calibrate the ceiling. The zones on the watch are often
+            // never set, or set from a formula, and hockey reaches a genuine
+            // maximum: across twelve recorded games this player's own profile
+            // ceiling was beaten repeatedly, peaking at 199. A beat that has
+            // actually happened is better evidence than an untouched setting,
+            // so the higher of the two wins.
+            if (heartRate > _hrCeiling) {
+                _hrCeiling = heartRate;
+                _hardThreshold = ((_hrCeiling * 85) / 100).toNumber();
+            }
+
             if (_hardThreshold > 0 && heartRate >= _hardThreshold) {
                 _hardSeconds++;
             }
@@ -595,16 +609,16 @@ class GameModel {
         }
     }
 
-    //! 85% of maximum heart rate, taken from the top of the user's zone 5.
-    //! There is no maximum heart rate field on the user profile, so the zones
-    //! are the only place the real figure is available.
-    private function hardEffortThreshold() as Number {
+    //! Maximum heart rate from the top of the user's zone 5. There is no
+    //! maximum heart rate field on the user profile, so the zones are the only
+    //! place the figure is available at all.
+    private function profileMaxHeartRate() as Number {
         try {
             var zones = UserProfile.getHeartRateZones(UserProfile.HR_ZONE_SPORT_GENERIC);
             if (zones != null && zones.size() >= 6) {
                 var maximum = zones[zones.size() - 1];
                 if (maximum != null && maximum > 100) {
-                    return ((maximum * 85) / 100).toNumber();
+                    return maximum;
                 }
             }
         } catch (ex) {

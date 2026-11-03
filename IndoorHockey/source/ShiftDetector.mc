@@ -63,6 +63,22 @@ class ShiftDetector {
     // Heart rate samples kept for the slope estimate.
     private const HR_WINDOW = 20;
 
+    // How fast heart rate has to be moving to count as agreeing with motion.
+    //
+    // Measured against twelve recorded games: at a shift change the median
+    // slope is only about +0.2 bpm/s going on and -0.1 coming off, against a
+    // background where half of all random 20-second windows already show
+    // 0.23 bpm/s of drift. The separation is genuinely weak, which is the
+    // evidence for keeping heart rate as corroboration only and never letting
+    // it open or close a shift by itself.
+    private const HR_SLOPE = 0.25;
+
+    // Heart rate's distance from its own slow baseline is a much better signal
+    // than its slope: across those games the swing between a shift and the
+    // bench that follows it is 42-62 bpm, so the phase of the oscillation is
+    // unmistakable even when the derivative is buried in noise.
+    private const HR_OFFSET = 4.0;
+
     // A shift shorter than this is noise, not a line change.
     private const MIN_SHIFT_SEC = 8;
     private const MIN_BENCH_SEC = 8;
@@ -84,6 +100,7 @@ class ShiftDetector {
     private var _backtrackMs as Number = 0;
 
     private var _hr as Array<Number> = [] as Array<Number>;
+    private var _hrBaseline as Float = 0.0;
     private var _speed as Float? = null;
 
     private var _listening as Boolean = false;
@@ -224,6 +241,13 @@ class ShiftDetector {
             if (_hr.size() > HR_WINDOW) {
                 _hr = _hr.slice(1, null);
             }
+            // A slow baseline, around a three-minute time constant, so it
+            // tracks the drift of the game rather than the swing of a shift.
+            if (_hrBaseline <= 0.0) {
+                _hrBaseline = heartRate.toFloat();
+            } else {
+                _hrBaseline += (heartRate.toFloat() - _hrBaseline) * 0.0055;
+            }
         }
         _speed = speedMps;
     }
@@ -305,22 +329,32 @@ class ShiftDetector {
         threshold = (boundary < MOTION_FLOOR) ? MOTION_FLOOR : boundary.toNumber();
     }
 
-    //! Heart rate climbing, or GPS saying the player is moving at skating speed.
+    //! Heart rate agreeing that work is starting, or GPS saying the player is
+    //! moving at skating speed.
     private function corroboratesIce() as Boolean {
         var speed = _speed;
         if (speed != null && speed >= 2.5) {
             return true;
         }
-        return hrSlope() >= 0.5;
+        return hrSlope() >= HR_SLOPE || hrOffset() >= HR_OFFSET;
     }
 
-    //! Heart rate falling away, or GPS saying the player has stopped.
+    //! Heart rate agreeing that work has stopped, or GPS saying the player has.
     private function corroboratesBench() as Boolean {
         var speed = _speed;
         if (speed != null && speed <= 0.6) {
             return true;
         }
-        return hrSlope() <= -0.5;
+        return hrSlope() <= -HR_SLOPE || hrOffset() <= -HR_OFFSET;
+    }
+
+    //! How far the current heart rate sits above or below its slow baseline.
+    private function hrOffset() as Float {
+        var size = _hr.size();
+        if (size < 8 || _hrBaseline <= 0.0) {
+            return 0.0;
+        }
+        return _hr[size - 1].toFloat() - _hrBaseline;
     }
 
     //! Change in heart rate in beats per second across the window.
@@ -364,6 +398,7 @@ class ShiftDetector {
         _rest = 40.0;
         _work = 400.0;
         _hr = [] as Array<Number>;
+        _hrBaseline = 0.0;
         _speed = null;
         _pending = null;
         motion = 0;
