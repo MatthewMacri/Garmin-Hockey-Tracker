@@ -1,0 +1,8 @@
+# build output
+bin/
+*.prg
+*.iq
+*.debug.xml
+
+# local SDK state
+*.log

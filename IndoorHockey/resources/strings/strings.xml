@@ -1,0 +1,60 @@
+<resources>
+    <!-- App -->
+    <string id="AppName">Indoor Hockey</string>
+    <string id="FitSessionName">Indoor Hockey</string>
+
+    <!-- FIT field + unit labels (shown in Garmin Connect) -->
+    <string id="FitGoals">Goals</string>
+    <string id="FitAssists">Assists</string>
+    <string id="FitShots">Shots</string>
+    <string id="FitSaves">Saves</string>
+    <string id="FitShifts">Shifts</string>
+    <string id="FitShiftTime">Shift Time</string>
+    <string id="UnitSeconds">s</string>
+
+    <!-- On-screen labels -->
+    <string id="LabelReady">READY</string>
+    <string id="LabelPaused">PAUSED</string>
+    <string id="LabelBreak">BREAK</string>
+    <string id="LabelFinal">FINAL</string>
+    <string id="LabelShift">SHIFT</string>
+    <string id="LabelGoals">G</string>
+    <string id="LabelAssists">A</string>
+    <string id="LabelShots">SH</string>
+    <string id="LabelSaves">SV</string>
+    <string id="LabelHr">HR</string>
+
+    <!-- Menu -->
+    <string id="MenuTitle">Game</string>
+    <string id="MenuGoal">Goal</string>
+    <string id="MenuAssist">Assist</string>
+    <string id="MenuShot">Shot</string>
+    <string id="MenuSave">Save</string>
+    <string id="MenuNewShift">New Shift</string>
+    <string id="MenuNextPeriod">Next Period</string>
+    <string id="MenuUndo">Undo Last Stat</string>
+    <string id="MenuEndGame">End &amp; Save Game</string>
+    <string id="MenuDiscard">Discard Game</string>
+    <string id="MenuResume">Resume</string>
+
+    <!-- Summary -->
+    <string id="SummaryPlayed">Played</string>
+    <string id="SummaryShifts">Shifts</string>
+    <string id="SummaryAvgShift">Avg Shift</string>
+    <string id="SummaryCalories">Calories</string>
+    <string id="ConfirmEnd">End game and save?</string>
+
+    <!-- Settings -->
+    <string id="SetPeriodCount">Periods per game</string>
+    <string id="SetPeriodCountPrompt">How many periods or halves</string>
+    <string id="SetPeriodMinutes">Period length (min)</string>
+    <string id="SetPeriodMinutesPrompt">Length of one period in minutes</string>
+    <string id="SetShiftSeconds">Shift alert (sec)</string>
+    <string id="SetShiftSecondsPrompt">Buzz when a shift reaches this length</string>
+    <string id="SetShiftAlerts">Shift alerts</string>
+    <string id="SetShiftAlertsPrompt">Buzz at the end of each shift</string>
+    <string id="SetAutoLap">Lap on new shift</string>
+    <string id="SetAutoLapPrompt">Record a FIT lap for every shift</string>
+    <string id="SetCountDown">Count period down</string>
+    <string id="SetCountDownPrompt">Show time remaining instead of elapsed</string>
+</resources>
