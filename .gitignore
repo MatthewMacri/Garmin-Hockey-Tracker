@@ -15,3 +15,11 @@ __pycache__/
 # of a public repo. Keep them somewhere local and point the tools at that.
 *.fit
 Past Data/
+
+# Everything pulled off the watch, not just the FIT files. The debug and
+# Connect IQ logs that come with them are device state too, and the directory
+# is a working area rather than something the repo should carry.
+data/
+
+# Local virtualenv for reading FIT files.
+.venv-fit/

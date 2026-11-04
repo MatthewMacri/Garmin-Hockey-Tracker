@@ -81,6 +81,10 @@
     <string id="SetActivityTypePrompt">How the finished activity is filed. Ice Hockey is correct in Garmin Connect. Strava has no hockey type and shows it as a plain workout, so pick Ice Skate if you sync to Strava.</string>
     <string id="TypeHockey">Ice Hockey</string>
     <string id="TypeSkate">Ice Skate (Strava)</string>
+    <string id="LabelOvertime">OT</string>
+    <string id="LabelPressAgain">PRESS AGAIN</string>
+    <string id="SetAutoEndGame">Auto-end game</string>
+    <string id="SetAutoEndGamePrompt">Save and close the activity by itself when the last period's clock runs out. Off means the game keeps recording into overtime until you stop it, which is almost always what you want - a real game runs longer than the sum of its periods.</string>
     <string id="SetUseGps">Use GPS</string>
     <string id="SetUseGpsPrompt">Record speed and distance. Indoor rinks rarely get a fix; outdoor rinks do</string>
 </resources>

@@ -70,6 +70,11 @@ class GameModel {
     public var shiftAlerts as Boolean = true;
     public var autoLap as Boolean = true;
     public var countDown as Boolean = true;
+    // Whether the app is allowed to save and close the game by itself when the
+    // last period's clock runs out. Off by default, and deliberately so: see
+    // endOfPeriod(). A game that ends while it is still being played loses the
+    // rest of the game, and no setting should have that as its default.
+    public var autoEndGame as Boolean = false;
     public var useGps as Boolean = true;
     public var sensitivity as Number = 1;
     public var activityType as Number = ACTIVITY_HOCKEY;
@@ -90,6 +95,11 @@ class GameModel {
     private var _periodSince as Number = -1;
     private var _earlierPeriodsMs as Number = 0;
     private var _breakSince as Number = -1;
+
+    // True once the last period's clock has run out and the game is still
+    // going. The period clock keeps counting from there and the activity keeps
+    // recording; nothing stops until the player stops it.
+    private var _overtime as Boolean = false;
 
     // Shift and bench clocks run on wall time, not game time. Recovery happens
     // during whistles too, so a bench spell that spans a stoppage is longer
@@ -159,6 +169,7 @@ class GameModel {
         shiftAlerts = readBoolean("shiftAlerts", true);
         autoLap = readBoolean("autoLap", true);
         countDown = readBoolean("countDown", true);
+        autoEndGame = readBoolean("autoEndGame", false);
         useGps = readBoolean("useGps", true);
         // Read, but only consulted when a session is created, so changing it
         // mid-game cannot retype an activity that is already recording.
@@ -218,16 +229,40 @@ class GameModel {
     //! Milliseconds the clock has run in the current period.
     public function periodElapsedMs() as Number {
         var ms = _periodAccumMs + sinceMs(_periodSince);
-        if (ms > periodMs) {
+        // Normally the clock stops at the length of a period, because the
+        // period is about to end anyway. In overtime there is no end to stop
+        // at, so it keeps counting.
+        if (ms > periodMs && !_overtime) {
             ms = periodMs;
         }
         return ms;
+    }
+
+    //! True when the last period's clock has run out and play has continued.
+    public function inOvertime() as Boolean {
+        return _overtime;
+    }
+
+    //! How long the game has run past the end of regulation.
+    public function overtimeMs() as Number {
+        if (!_overtime) {
+            return 0;
+        }
+        var over = periodElapsedMs() - periodMs;
+        return (over < 0) ? 0 : over;
     }
 
     //! What the big clock should show: time left, or time played, per settings.
     public function clockMs() as Number {
         if (state == STATE_BREAK) {
             return breakRemainingMs();
+        }
+        if (_overtime) {
+            // Counting down past zero would show a negative clock, and counting
+            // the period up would show a number larger than a period. Neither
+            // means anything, so overtime shows how long it has been in
+            // overtime.
+            return overtimeMs();
         }
         if (countDown) {
             return periodMs - periodElapsedMs();
@@ -356,6 +391,52 @@ class GameModel {
         alert(Attention.TONE_START, [new Attention.VibeProfile(100, 300)]);
     }
 
+    // How long a first press stays armed, waiting for the second.
+    private const PAUSE_ARM_MS = 3000;
+    private var _pauseArmedAt as Number = -1;
+
+    //! Ask to pause. The first ask only arms; a second ask within
+    //! PAUSE_ARM_MS actually pauses. Returns true when the pause happened.
+    //!
+    //! This exists because one press used to be enough, and this watch has a
+    //! touchscreen - WatchUi's SELECT behaviour fires on a screen tap as well
+    //! as on the START button, so a glove, a sleeve or a shove against the
+    //! boards could stop the recording. On 2026-11-03 the clock stopped twice
+    //! mid-period, for 3m40s and 3m26s, neither of them deliberate.
+    //!
+    //! Two presses within three seconds is not something a jersey cuff does.
+    public function requestPause() as Boolean {
+        if (state != STATE_RUNNING) {
+            return false;
+        }
+        if (isPauseArmed()) {
+            _pauseArmedAt = -1;
+            pause();
+            return true;
+        }
+        _pauseArmedAt = System.getTimer();
+        // Distinct from the pause tone: this says "heard you, say it again",
+        // so a press that was not meant is audibly not a pause.
+        alert(Attention.TONE_KEY, [new Attention.VibeProfile(40, 120)]);
+        return false;
+    }
+
+    //! True while a first press is still waiting for its second.
+    public function isPauseArmed() as Boolean {
+        if (_pauseArmedAt < 0 || state != STATE_RUNNING) {
+            return false;
+        }
+        return sinceMs(_pauseArmedAt) <= PAUSE_ARM_MS;
+    }
+
+    //! Milliseconds left to confirm, for the countdown on screen.
+    public function pauseArmRemainingMs() as Number {
+        if (!isPauseArmed()) {
+            return 0;
+        }
+        return PAUSE_ARM_MS - sinceMs(_pauseArmedAt);
+    }
+
     //! Stop the clock without ending the game.
     public function pause() as Void {
         if (state != STATE_RUNNING) {
@@ -368,6 +449,7 @@ class GameModel {
             session.stop();
         }
         state = STATE_PAUSED;
+        _pauseArmedAt = -1;
         alert(Attention.TONE_STOP, [new Attention.VibeProfile(100, 300)]);
     }
 
@@ -496,6 +578,19 @@ class GameModel {
 
     //! The period clock hit zero. Start the intermission; it runs itself.
     private function endOfPeriod() as Void {
+        if (_overtime) {
+            return;     // Already past regulation; there is no period to end.
+        }
+
+        // Decide before touching anything. Everything below this point is
+        // destructive end-of-period bookkeeping - it banks the period clock,
+        // takes the player off the ice and stops the recording - and none of
+        // it should happen to a game that is simply still being played.
+        if (isLastPeriod() && !autoEndGame) {
+            enterOvertime();
+            return;
+        }
+
         _periodAccumMs += sinceMs(_periodSince);
         _periodSince = -1;
         _earlierPeriodsMs += _periodAccumMs;
@@ -524,6 +619,27 @@ class GameModel {
              new Attention.VibeProfile(100, 500)]);
     }
 
+    //! Regulation has run out and the game is still being played.
+    //!
+    //! This exists because the app used to save and close the activity here.
+    //! On 2026-11-03 that ended a recording at exactly 3600.79s of clock time -
+    //! three periods of twenty minutes, to the second - while the game was
+    //! still going, and the remaining nine minutes of wall-clock play were
+    //! simply lost. Nothing recovers a game from that afterwards.
+    //!
+    //! A real game is always longer than the sum of its periods: stoppages,
+    //! overtime, a running clock nobody told the watch about. So the end of
+    //! regulation is now an announcement rather than an ending. Deliberately
+    //! nothing here stops: not the clock, not the recording, not the shift
+    //! detector. The game ends when the player ends it.
+    private function enterOvertime() as Void {
+        _overtime = true;
+        alert(Attention.TONE_INTERVAL_ALERT,
+            [new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
+             new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
+             new Attention.VibeProfile(100, 400)]);
+    }
+
     //! The intermission ran out, or the player pressed start to skip it.
     private function beginPeriod() as Void {
         if (state != STATE_BREAK) {
@@ -533,6 +649,7 @@ class GameModel {
         _breakSince = -1;
         _periodAccumMs = 0;
         _periodSince = System.getTimer();
+        _overtime = false;
 
         var session = _session;
         if (session != null && !session.isRecording()) {
@@ -657,7 +774,9 @@ class GameModel {
             _sensorWarned = false;
         }
 
-        if (periodElapsedMs() >= periodMs) {
+        // Once in overtime the period clock is permanently past periodMs, so
+        // without this guard endOfPeriod() would fire on every tick.
+        if (!_overtime && periodElapsedMs() >= periodMs) {
             endOfPeriod();
         }
     }

@@ -4,7 +4,7 @@
 // Laid out the way Garmin's own activities are laid out, so that muscle memory
 // built on the stock Run or Bike app transfers to this one:
 //
-//   START/STOP   start the game; press again to stop and get the stop menu
+//   START/STOP   start the game; press TWICE to stop and get the stop menu
 //   BACK (LAP)   mark a lap - here, a line change
 //   UP / DOWN    nothing during play, as on a profile with one data screen
 //   hold UP      the menu
@@ -22,6 +22,12 @@
 // START, then Save or Discard. DOWN no longer ends the period, because a
 // mis-press in a pocket or a glove should not be able to burn a period.
 // Everything it used to do is still in the menu.
+//
+// Pausing takes two presses rather than one, and screen taps do nothing at all
+// while a game is live. Both are there because a single press was too easy to
+// make by accident: SELECT fires on a touchscreen tap as well as on the button,
+// and a game on 2026-11-03 lost seven minutes to two pauses nobody meant to
+// make.
 //
 // None of this is needed during normal play. The app is built to be left alone
 // once the game starts.
@@ -46,10 +52,15 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
         var state = _model.state;
 
         if (state == STATE_RUNNING) {
-            // Garmin's behaviour: STOP pauses and immediately offers resume,
-            // save and discard rather than making you hunt for them.
-            _model.pause();
-            pushStopMenu();
+            // Two presses, not one. The first arms and buzzes; the second,
+            // within three seconds, pauses. See GameModel.requestPause() for
+            // why - in short, this watch has a touchscreen and SELECT fires on
+            // a tap, so one press was never only a press.
+            if (_model.requestPause()) {
+                // Garmin's behaviour: STOP pauses and immediately offers
+                // resume, save and discard rather than making you hunt.
+                pushStopMenu();
+            }
         } else if (state == STATE_BREAK) {
             _model.skipAhead();
         } else if (state == STATE_PAUSED || state == STATE_READY) {
@@ -93,6 +104,25 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     //! DOWN: as UP.
     public function onNextPage() as Boolean {
         return _model.state == STATE_READY ? false : true;
+    }
+
+    //! Screen taps, swallowed while a game is live.
+    //!
+    //! On a touchscreen watch WatchUi turns a tap into the SELECT behaviour,
+    //! which is the same path as the START button - so without this, brushing
+    //! the display with a glove runs the pause code. There is nothing on this
+    //! screen to tap: one data page, no paging, no on-screen controls. So a tap
+    //! during a game can only be an accident, and the cheapest way to honour
+    //! "I never touch the watch during a game" is to make the glass inert.
+    //!
+    //! The menus are their own delegates and still take touch normally, so
+    //! this costs nothing once a menu is actually open and deliberate.
+    public function onTap(clickEvent as WatchUi.ClickEvent) as Boolean {
+        var state = _model.state;
+        if (state == STATE_RUNNING || state == STATE_PAUSED || state == STATE_BREAK) {
+            return true;    // Handled, meaning: ignored.
+        }
+        return false;
     }
 
     //! MENU (hold UP): everything the buttons no longer do.

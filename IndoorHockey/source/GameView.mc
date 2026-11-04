@@ -50,6 +50,8 @@ class GameView extends WatchUi.View {
     private var _txtWorkRest as String = "Work:Rest";
     private var _txtMotion as String = "MOTION";
     private var _txtNoSensor as String = "NO MOTION DATA";
+    private var _txtOvertime as String = "OT";
+    private var _txtPressAgain as String = "PRESS AGAIN";
 
     //! Constructor.
     public function initialize(model as GameModel) {
@@ -75,6 +77,8 @@ class GameView extends WatchUi.View {
         _txtWorkRest = WatchUi.loadResource($.Rez.Strings.SummaryWorkRest) as String;
         _txtMotion = WatchUi.loadResource($.Rez.Strings.LabelMotion) as String;
         _txtNoSensor = WatchUi.loadResource($.Rez.Strings.LabelNoSensor) as String;
+        _txtOvertime = WatchUi.loadResource($.Rez.Strings.LabelOvertime) as String;
+        _txtPressAgain = WatchUi.loadResource($.Rez.Strings.LabelPressAgain) as String;
     }
 
     //! Start the once-a-second redraw.
@@ -125,10 +129,25 @@ class GameView extends WatchUi.View {
 
     //! Period number, and the state when it is not simply running.
     private function drawHeader(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        // A pause waiting for its second press is the most important thing on
+        // the screen: the player needs to know the watch heard the press, and
+        // that it has not paused yet.
+        if (_model.isPauseArmed()) {
+            drawFitted(dc, _txtPressAgain, Y_HEADER, w, h, Graphics.COLOR_YELLOW,
+                [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY,
+                 Graphics.FONT_XTINY]);
+            return;
+        }
+
         var text = "P" + _model.period + "/" + _model.periodCount;
         var colour = Graphics.COLOR_LT_GRAY;
 
-        if (_model.state == STATE_READY) {
+        if (_model.inOvertime()) {
+            // Regulation is over and the game is not. Say so, rather than
+            // showing "P3/3" next to a clock that no longer means that.
+            text = _txtOvertime;
+            colour = Graphics.COLOR_ORANGE;
+        } else if (_model.state == STATE_READY) {
             text = text + " " + _txtReady;
         } else if (_model.state == STATE_PAUSED) {
             text = text + " " + _txtPaused;
@@ -138,6 +157,11 @@ class GameView extends WatchUi.View {
             colour = Graphics.COLOR_YELLOW;
         } else {
             colour = Graphics.COLOR_BLUE;
+        }
+
+        if (_model.inOvertime() && _model.state == STATE_PAUSED) {
+            text = _txtOvertime + " " + _txtPaused;
+            colour = Graphics.COLOR_YELLOW;
         }
 
         drawFitted(dc, text, Y_HEADER, w, h, colour,
@@ -150,6 +174,9 @@ class GameView extends WatchUi.View {
         var colour = Graphics.COLOR_WHITE;
         if (_model.state == STATE_BREAK) {
             colour = Graphics.COLOR_YELLOW;
+        } else if (_model.inOvertime()) {
+            // Counting up from the end of regulation, not down to it.
+            colour = Graphics.COLOR_ORANGE;
         }
         drawFitted(dc, text, Y_CLOCK, w, h, colour,
             [Graphics.FONT_NUMBER_HOT, Graphics.FONT_NUMBER_MEDIUM,
@@ -233,6 +260,9 @@ class GameView extends WatchUi.View {
         var fraction = done.toFloat() / total.toFloat();
         if (fraction < 0.0) { fraction = 0.0; }
         if (fraction > 1.0) { fraction = 1.0; }
+        if (_model.inOvertime()) {
+            fraction = 1.0;     // Regulation is spent; the ring stays closed.
+        }
 
         var centreX = w / 2;
         var centreY = h / 2;
@@ -248,8 +278,13 @@ class GameView extends WatchUi.View {
 
         var sweep = 360.0 * fraction;
         var end = 90.0 - sweep;
-        dc.setColor(_model.state == STATE_BREAK ? Graphics.COLOR_YELLOW : Graphics.COLOR_BLUE,
-            Graphics.COLOR_TRANSPARENT);
+        var arcColour = Graphics.COLOR_BLUE;
+        if (_model.state == STATE_BREAK) {
+            arcColour = Graphics.COLOR_YELLOW;
+        } else if (_model.inOvertime()) {
+            arcColour = Graphics.COLOR_ORANGE;
+        }
+        dc.setColor(arcColour, Graphics.COLOR_TRANSPARENT);
         dc.drawArc(centreX, centreY, radius, Graphics.ARC_CLOCKWISE, 90, end.toNumber());
         dc.setPenWidth(1);
     }

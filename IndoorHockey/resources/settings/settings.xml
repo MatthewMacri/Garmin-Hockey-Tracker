@@ -8,6 +8,7 @@
         <property id="shiftAlerts"   type="boolean">true</property>
         <property id="autoLap"       type="boolean">true</property>
         <property id="countDown"     type="boolean">true</property>
+        <property id="autoEndGame"   type="boolean">false</property>
         <property id="useGps"        type="boolean">true</property>
         <property id="activityType"  type="number">0</property>
     </properties>
@@ -39,6 +40,9 @@
             <settingConfig type="boolean" />
         </setting>
         <setting propertyKey="@Properties.countDown" title="@Strings.SetCountDown" prompt="@Strings.SetCountDownPrompt">
+            <settingConfig type="boolean" />
+        </setting>
+        <setting propertyKey="@Properties.autoEndGame" title="@Strings.SetAutoEndGame" prompt="@Strings.SetAutoEndGamePrompt">
             <settingConfig type="boolean" />
         </setting>
         <setting propertyKey="@Properties.useGps" title="@Strings.SetUseGps" prompt="@Strings.SetUseGpsPrompt">
