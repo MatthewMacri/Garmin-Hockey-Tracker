@@ -61,18 +61,21 @@ shift and every spell on the bench by itself.
 
 ## Description
 
-One press at the opening faceoff. After that the app runs the periods, runs the
-intermissions, and works out when you are on the ice and when you are on the
-bench on its own. You never touch the watch during a game.
+One press at the opening faceoff. After that the app works out when you are on
+the ice and when you are on the bench on its own, and keeps recording until you
+stop it. You never touch the watch during a game.
 
 WHAT IT DOES
 
 • Automatic shift detection — no button per line change. The app decides when
   you are skating and when you are resting, and splits the activity to match.
-• Period clock — 3 x 20 minutes by default. Ends itself at zero, runs a
-  one-minute intermission, and starts the next period without being asked.
+• One continuous game clock — no periods to set up and nothing that ends your
+  activity on a schedule. A real game runs longer than the sum of its periods,
+  so the recording stops when you stop it and not before.
 • Shift clock — green, then amber, then red as the shift runs long, with a
-  long buzz at your target length so it is felt through a glove.
+  long buzz at your target length so it is felt through a glove. The ring
+  around the screen fills as the shift goes on, readable without reading it.
+• Total ice time on screen all game, not just in the summary afterwards.
 • On-ice heart rate, reported separately from bench heart rate.
 • One screen. Everything at a glance, no paging mid-game.
 
@@ -106,15 +109,17 @@ threshold.
 
 BUTTONS
 
-START/STOP starts the game and stops into the stop menu. BACK is the lap key,
-and a lap here is a line change. Hold UP for the menu. Nothing is needed during
-normal play.
+START begins the game. Pressing it twice stops into the stop menu — twice,
+because the screen is a touchscreen and one press was too easy to make by
+accident inside a glove. The first press asks, the second does it. Screen taps
+do nothing at all while a game is running. BACK is the lap key, and a lap here
+is a line change. Hold UP for the menu. Nothing is needed during normal play.
 
 SETTINGS
 
-Periods per game, period length, intermission length, shift alert target, shift
-sensitivity, lap per shift, count period up or down, GPS on or off, and whether
-the activity is filed as ice hockey or as ice skating.
+Shift alert target, shift sensitivity, shift alerts on or off, lap per shift,
+GPS on or off, and whether the activity is filed as ice hockey or as ice
+skating.
 
 NOTES
 
@@ -132,7 +137,7 @@ Health & Fitness
 ## Keywords
 
 hockey, ice hockey, shifts, shift timer, line change, on-ice heart rate,
-bench, periods, rink, skating
+bench, shifts, rink, skating
 
 ## Screenshots
 
@@ -141,7 +146,7 @@ In order, from `docs/screenshots/` (390x390 PNG):
 1. `01-ready.png` — ready to start
 2. `02-on-ice.png` — on the ice, shift clock green
 3. `03-bench.png` — on the bench
-4. `04-intermission.png` — intermission counting down
+4. `04-bench.png` — on the bench between shifts
 5. `05-menu.png` — the stop menu
 6. `06-summary.png` — the post-game summary
 
