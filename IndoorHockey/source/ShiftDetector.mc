@@ -110,7 +110,20 @@ class ShiftDetector {
     private var _speed as Float? = null;
 
     private var _listening as Boolean = false;
-    private var _pending as Number? = null;
+    // Samples delivered since the last tick, kept as a running total rather
+    // than a single slot.
+    //
+    // The sensor callback and the tick that consumes it are two independent
+    // 1 Hz clocks, and they drift against each other: in the game of
+    // 2026-11-03 the phase slipped far enough to miss a second every five or
+    // six seconds, 501 times in all. A missed second is survivable - tick()
+    // holds the state, which measurement shows is the right thing to do - but
+    // the same slip hands two callbacks to some other second, and this used to
+    // be one slot that the second callback overwrote. That silently threw away
+    // a second of real wrist motion, roughly one second in seven, and the
+    // learner never saw any of it.
+    private var _pendingSum as Number = 0;
+    private var _pendingCount as Number = 0;
 
     //! Constructor. sensitivity: 0 low (fewer, longer shifts), 1 normal, 2 high.
     public function initialize(sensitivity as Number) {
@@ -251,7 +264,9 @@ class ShiftDetector {
             deviation += (d < 0) ? -d : d;
         }
 
-        _pending = (deviation / count).toNumber();
+        // Add rather than replace. Two callbacks between ticks both count.
+        _pendingSum += (deviation / count).toNumber();
+        _pendingCount++;
     }
 
     // ------------------------------------------------------------------
@@ -279,16 +294,24 @@ class ShiftDetector {
     //! Run one second of the state machine. Returns true when the state just
     //! changed, in which case backtrackMs() says how long ago it really changed.
     public function tick() as Boolean {
-        var sample = _pending;
         _secondsInState++;
 
-        if (sample == null) {
+        if (_pendingCount < 1) {
             // No accelerometer data this second. Hold the current state rather
             // than guess: a dropped callback is not evidence of anything.
+            //
+            // Carrying the previous sample forward instead was tried against
+            // the 2026-11-03 recording and is worse. It repeats whatever the
+            // last value was, which advances the confirmation streaks on
+            // evidence that was already counted, and the shift count went from
+            // 23 to 29 against the 22 heart rate shows on its own - a 81-second
+            // cycle where the player actually plays about 160.
             staleSeconds++;
             return false;
         }
-        _pending = null;
+        var sample = _pendingSum / _pendingCount;
+        _pendingSum = 0;
+        _pendingCount = 0;
         hasMotionSensor = true;
         staleSeconds = 0;
         motion = sample;
@@ -435,7 +458,8 @@ class ShiftDetector {
         _hr = [] as Array<Number>;
         _hrBaseline = 0.0;
         _speed = null;
-        _pending = null;
+        _pendingSum = 0;
+        _pendingCount = 0;
         motion = 0;
         threshold = MOTION_FLOOR;
         staleSeconds = 0;
