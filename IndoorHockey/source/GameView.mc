@@ -39,7 +39,6 @@ class GameView extends WatchUi.View {
     // and this view redraws every second for an hour and a half.
     private var _txtReady as String = "READY";
     private var _txtPaused as String = "PAUSED";
-    private var _txtBreak as String = "BREAK";
     private var _txtFinal as String = "FINAL";
     private var _txtOnIce as String = "ON";
     private var _txtBench as String = "BENCH";
@@ -50,7 +49,6 @@ class GameView extends WatchUi.View {
     private var _txtWorkRest as String = "Work:Rest";
     private var _txtMotion as String = "MOTION";
     private var _txtNoSensor as String = "NO MOTION DATA";
-    private var _txtOvertime as String = "OT";
     private var _txtPressAgain as String = "PRESS AGAIN";
 
     //! Constructor.
@@ -66,7 +64,6 @@ class GameView extends WatchUi.View {
 
         _txtReady = WatchUi.loadResource($.Rez.Strings.LabelReady) as String;
         _txtPaused = WatchUi.loadResource($.Rez.Strings.LabelPaused) as String;
-        _txtBreak = WatchUi.loadResource($.Rez.Strings.LabelBreak) as String;
         _txtFinal = WatchUi.loadResource($.Rez.Strings.LabelFinal) as String;
         _txtOnIce = WatchUi.loadResource($.Rez.Strings.LabelOnIce) as String;
         _txtBench = WatchUi.loadResource($.Rez.Strings.LabelBench) as String;
@@ -77,7 +74,6 @@ class GameView extends WatchUi.View {
         _txtWorkRest = WatchUi.loadResource($.Rez.Strings.SummaryWorkRest) as String;
         _txtMotion = WatchUi.loadResource($.Rez.Strings.LabelMotion) as String;
         _txtNoSensor = WatchUi.loadResource($.Rez.Strings.LabelNoSensor) as String;
-        _txtOvertime = WatchUi.loadResource($.Rez.Strings.LabelOvertime) as String;
         _txtPressAgain = WatchUi.loadResource($.Rez.Strings.LabelPressAgain) as String;
     }
 
@@ -127,7 +123,13 @@ class GameView extends WatchUi.View {
         drawFooter(dc, w, h);
     }
 
-    //! Period number, and the state when it is not simply running.
+    //! Total ice time, and the state when it is not simply running.
+    //!
+    //! This slot used to hold the period number. With no periods there is a
+    //! better use for it: total time on the ice, which is the number this whole
+    //! app exists to produce and which otherwise only appeared on the summary
+    //! after the game. Paired with the segment line below it the screen now
+    //! reads "this shift, and the game so far".
     private function drawHeader(dc as Graphics.Dc, w as Number, h as Number) as Void {
         // A pause waiting for its second press is the most important thing on
         // the screen: the player needs to know the watch heard the press, and
@@ -139,45 +141,27 @@ class GameView extends WatchUi.View {
             return;
         }
 
-        var text = "P" + _model.period + "/" + _model.periodCount;
+        var text = _txtIce + " " + Fmt.clock(_model.iceTimeMs());
         var colour = Graphics.COLOR_LT_GRAY;
 
-        if (_model.inOvertime()) {
-            // Regulation is over and the game is not. Say so, rather than
-            // showing "P3/3" next to a clock that no longer means that.
-            text = _txtOvertime;
-            colour = Graphics.COLOR_ORANGE;
-        } else if (_model.state == STATE_READY) {
-            text = text + " " + _txtReady;
+        if (_model.state == STATE_READY) {
+            text = _txtReady;
         } else if (_model.state == STATE_PAUSED) {
-            text = text + " " + _txtPaused;
-            colour = Graphics.COLOR_YELLOW;
-        } else if (_model.state == STATE_BREAK) {
-            text = _txtBreak;
+            text = _txtPaused;
             colour = Graphics.COLOR_YELLOW;
         } else {
             colour = Graphics.COLOR_BLUE;
-        }
-
-        if (_model.inOvertime() && _model.state == STATE_PAUSED) {
-            text = _txtOvertime + " " + _txtPaused;
-            colour = Graphics.COLOR_YELLOW;
         }
 
         drawFitted(dc, text, Y_HEADER, w, h, colour,
             [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]);
     }
 
-    //! The big clock: time left in the period, or left in the intermission.
+    //! The big clock: how long the game has been running, counting up.
     private function drawClock(dc as Graphics.Dc, w as Number, h as Number) as Void {
         var text = Fmt.clock(_model.clockMs());
-        var colour = Graphics.COLOR_WHITE;
-        if (_model.state == STATE_BREAK) {
-            colour = Graphics.COLOR_YELLOW;
-        } else if (_model.inOvertime()) {
-            // Counting up from the end of regulation, not down to it.
-            colour = Graphics.COLOR_ORANGE;
-        }
+        var colour = (_model.state == STATE_PAUSED)
+            ? Graphics.COLOR_YELLOW : Graphics.COLOR_WHITE;
         drawFitted(dc, text, Y_CLOCK, w, h, colour,
             [Graphics.FONT_NUMBER_HOT, Graphics.FONT_NUMBER_MEDIUM,
              Graphics.FONT_NUMBER_MILD, Graphics.FONT_LARGE, Graphics.FONT_MEDIUM]);
@@ -243,25 +227,20 @@ class GameView extends WatchUi.View {
             [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]);
     }
 
-    //! A ring around the edge showing how much of the period is gone.
+    //! A ring around the edge showing the shift in progress against the target.
+    //!
+    //! This used to show how much of the period was gone. With no periods it
+    //! shows the thing that actually wants watching from across the ice: how
+    //! long the current shift has run against the shift target. It fills as the
+    //! shift goes on and changes colour with it, so the ring says "get off" at
+    //! a glance, without reading a number.
+    //!
+    //! On the bench it is left as a bare track. A bench spell has no target to
+    //! fill against, and inventing one would make the ring mean two different
+    //! things depending on a state the player cannot see from the ring itself.
     private function drawPeriodArc(dc as Graphics.Dc, w as Number, h as Number) as Void {
         if (!_isRound || _model.state == STATE_READY) {
             return;
-        }
-
-        var total = (_model.state == STATE_BREAK) ? _model.breakMs : _model.periodMs;
-        if (total <= 0) {
-            return;
-        }
-        var done = (_model.state == STATE_BREAK)
-            ? (_model.breakMs - _model.breakRemainingMs())
-            : _model.periodElapsedMs();
-
-        var fraction = done.toFloat() / total.toFloat();
-        if (fraction < 0.0) { fraction = 0.0; }
-        if (fraction > 1.0) { fraction = 1.0; }
-        if (_model.inOvertime()) {
-            fraction = 1.0;     // Regulation is spent; the ring stays closed.
         }
 
         var centreX = w / 2;
@@ -272,18 +251,31 @@ class GameView extends WatchUi.View {
         dc.setColor(0x555555, Graphics.COLOR_TRANSPARENT);
         dc.drawCircle(centreX, centreY, radius);
 
-        if (fraction <= 0.0) {
+        var target = _model.shiftTargetMs;
+        if (!_model.onIce() || target <= 0) {
+            dc.setPenWidth(1);
             return;
+        }
+
+        var fraction = _model.segmentMs().toFloat() / target.toFloat();
+        if (fraction <= 0.0) {
+            dc.setPenWidth(1);
+            return;
+        }
+        if (fraction > 1.0) { fraction = 1.0; }
+
+        // The same three steps the segment line uses, so the ring and the
+        // number below it can never disagree about how the shift is going.
+        var arcColour = Graphics.COLOR_GREEN;
+        var over = _model.segmentMs();
+        if (over >= target * 2) {
+            arcColour = Graphics.COLOR_RED;
+        } else if (over >= target) {
+            arcColour = Graphics.COLOR_ORANGE;
         }
 
         var sweep = 360.0 * fraction;
         var end = 90.0 - sweep;
-        var arcColour = Graphics.COLOR_BLUE;
-        if (_model.state == STATE_BREAK) {
-            arcColour = Graphics.COLOR_YELLOW;
-        } else if (_model.inOvertime()) {
-            arcColour = Graphics.COLOR_ORANGE;
-        }
         dc.setColor(arcColour, Graphics.COLOR_TRANSPARENT);
         dc.drawArc(centreX, centreY, radius, Graphics.ARC_CLOCKWISE, 90, end.toNumber());
         dc.setPenWidth(1);

@@ -4,9 +4,21 @@
 // All state lives here. Views read it and draw; they keep nothing of their own.
 //
 // The design assumption is that the watch is not touched once the game starts.
-// One press begins the game; after that the periods, the intermissions and
-// every shift boundary are worked out by the app. Everything in here that
-// would normally be a button is therefore driven from a clock or a sensor.
+// One press begins the game; after that every shift boundary is worked out by
+// the app. Everything in here that would normally be a button is therefore
+// driven from a clock or a sensor.
+//
+// There is no period model. The app used to run a game as three twenty-minute
+// periods with intermissions between them, and end it when the last one
+// expired - which on 2026-11-03 closed a recording at exactly 3600s while the
+// game was still being played. The periods were a fiction anyway: a real game
+// is longer than the sum of its periods, its clock stops for things the watch
+// cannot see, and nothing here ever knew the real score or the real time.
+//
+// So a game is now one continuous recording with one clock, which starts when
+// the player starts it and ends when the player ends it. What this app is
+// actually good at - finding shift boundaries from wrist motion, and splitting
+// heart rate into ice and bench - never needed periods to work.
 //
 
 import Toybox.Activity;
@@ -25,8 +37,7 @@ enum GameState {
     STATE_READY = 0,     //!< Nothing started; no FIT session yet.
     STATE_RUNNING = 1,   //!< Clock moving, session recording.
     STATE_PAUSED = 2,    //!< Manually stopped.
-    STATE_BREAK = 3,     //!< Between periods; the intermission is counting down.
-    STATE_FINISHED = 4   //!< Session saved or discarded; summary on screen.
+    STATE_FINISHED = 3   //!< Session saved or discarded; summary on screen.
 }
 
 //! Which FIT sport the finished activity is filed under. Hockey is the truthful
@@ -63,25 +74,15 @@ class GameModel {
     private const FIELD_THRESHOLD   = 13;
 
     // ---- settings, refreshed whenever Garmin Connect pushes a change ----
-    public var periodCount as Number = 3;
-    public var periodMs as Number = 20 * 60 * 1000;
-    public var breakMs as Number = 60 * 1000;
     public var shiftTargetMs as Number = 60 * 1000;
     public var shiftAlerts as Boolean = true;
     public var autoLap as Boolean = true;
-    public var countDown as Boolean = true;
-    // Whether the app is allowed to save and close the game by itself when the
-    // last period's clock runs out. Off by default, and deliberately so: see
-    // endOfPeriod(). A game that ends while it is still being played loses the
-    // rest of the game, and no setting should have that as its default.
-    public var autoEndGame as Boolean = false;
     public var useGps as Boolean = true;
     public var sensitivity as Number = 1;
     public var activityType as Number = ACTIVITY_HOCKEY;
 
     // ---- live game state ----
     public var state as GameState = STATE_READY;
-    public var period as Number = 1;
     public var shiftCount as Number = 0;
 
     // Summary values, captured before the session is handed back to the system.
@@ -91,19 +92,12 @@ class GameModel {
 
     // Clocks are kept as "time already banked" plus "running since", both in
     // milliseconds from System.getTimer(), which is monotonic.
-    private var _periodAccumMs as Number = 0;
-    private var _periodSince as Number = -1;
-    private var _earlierPeriodsMs as Number = 0;
-    private var _breakSince as Number = -1;
-
-    // True once the last period's clock has run out and the game is still
-    // going. The period clock keeps counting from there and the activity keeps
-    // recording; nothing stops until the player stops it.
-    private var _overtime as Boolean = false;
+    private var _gameAccumMs as Number = 0;
+    private var _gameSince as Number = -1;
 
     // Shift and bench clocks run on wall time, not game time. Recovery happens
     // during whistles too, so a bench spell that spans a stoppage is longer
-    // than the period clock says it is.
+    // than the game clock says it is.
     private var _segmentSince as Number = -1;
     private var _iceMs as Number = 0;
     private var _benchMs as Number = 0;
@@ -161,25 +155,16 @@ class GameModel {
 
     //! Re-read the user's settings. Safe to call at any time.
     public function loadSettings() as Void {
-        periodCount = readNumber("periodCount", 3, 1, 9);
-        periodMs = readNumber("periodMinutes", 20, 1, 60) * 60 * 1000;
-        breakMs = readNumber("breakSeconds", 60, 0, 1200) * 1000;
         shiftTargetMs = readNumber("shiftSeconds", 60, 15, 600) * 1000;
         sensitivity = readNumber("sensitivity", 1, 0, 2);
         shiftAlerts = readBoolean("shiftAlerts", true);
         autoLap = readBoolean("autoLap", true);
-        countDown = readBoolean("countDown", true);
-        autoEndGame = readBoolean("autoEndGame", false);
         useGps = readBoolean("useGps", true);
         // Read, but only consulted when a session is created, so changing it
         // mid-game cannot retype an activity that is already recording.
         activityType = readNumber("activityType", ACTIVITY_HOCKEY, 0, 1);
 
         detector.setSensitivity(sensitivity);
-
-        if (period > periodCount) {
-            period = periodCount;
-        }
     }
 
     //! Read a numeric property, clamped, falling back to a default.
@@ -226,54 +211,18 @@ class GameModel {
     // Clocks
     // ------------------------------------------------------------------
 
-    //! Milliseconds the clock has run in the current period.
-    public function periodElapsedMs() as Number {
-        var ms = _periodAccumMs + sinceMs(_periodSince);
-        // Normally the clock stops at the length of a period, because the
-        // period is about to end anyway. In overtime there is no end to stop
-        // at, so it keeps counting.
-        if (ms > periodMs && !_overtime) {
-            ms = periodMs;
-        }
-        return ms;
+    //! How long the game has been running, pauses excluded.
+    //!
+    //! There is nothing to count down to - no period length, no end - so this
+    //! counts up and has no ceiling. It is the activity's timer time, and it is
+    //! what the big clock shows.
+    public function gameElapsedMs() as Number {
+        return _gameAccumMs + sinceMs(_gameSince);
     }
 
-    //! True when the last period's clock has run out and play has continued.
-    public function inOvertime() as Boolean {
-        return _overtime;
-    }
-
-    //! How long the game has run past the end of regulation.
-    public function overtimeMs() as Number {
-        if (!_overtime) {
-            return 0;
-        }
-        var over = periodElapsedMs() - periodMs;
-        return (over < 0) ? 0 : over;
-    }
-
-    //! What the big clock should show: time left, or time played, per settings.
+    //! What the big clock shows.
     public function clockMs() as Number {
-        if (state == STATE_BREAK) {
-            return breakRemainingMs();
-        }
-        if (_overtime) {
-            // Counting down past zero would show a negative clock, and counting
-            // the period up would show a number larger than a period. Neither
-            // means anything, so overtime shows how long it has been in
-            // overtime.
-            return overtimeMs();
-        }
-        if (countDown) {
-            return periodMs - periodElapsedMs();
-        }
-        return periodElapsedMs();
-    }
-
-    //! Milliseconds left in the intermission.
-    public function breakRemainingMs() as Number {
-        var left = breakMs - sinceMs(_breakSince);
-        return (left < 0) ? 0 : left;
+        return gameElapsedMs();
     }
 
     //! True when the player is on the ice right now.
@@ -287,9 +236,10 @@ class GameModel {
         return sinceMs(_segmentSince);
     }
 
-    //! Total clock time played across every period so far.
+    //! Total clock time played. Kept as its own name because the summary and
+    //! the FIT session fields read it, and they mean "the whole game".
     public function totalPlayedMs() as Number {
-        return _earlierPeriodsMs + periodElapsedMs();
+        return gameElapsedMs();
     }
 
     //! Average length of the shifts that have been completed.
@@ -371,7 +321,7 @@ class GameModel {
             // Open the game on the ice. The press that starts the app is the
             // one at the faceoff, so that is the likelier of the two, and it is
             // also the safe failure: on a watch with no usable accelerometer
-            // the detector never flips and the player still gets a period
+            // the detector never flips and the player still gets a game
             // clock and a recorded activity rather than a screen that says
             // BENCH for an hour.
             detector.forceState(ON_ICE);
@@ -385,8 +335,7 @@ class GameModel {
             session.start();
         }
 
-        _periodSince = System.getTimer();
-        _breakSince = -1;
+        _gameSince = System.getTimer();
         state = STATE_RUNNING;
         alert(Attention.TONE_START, [new Attention.VibeProfile(100, 300)]);
     }
@@ -442,8 +391,8 @@ class GameModel {
         if (state != STATE_RUNNING) {
             return;
         }
-        _periodAccumMs += sinceMs(_periodSince);
-        _periodSince = -1;
+        _gameAccumMs += sinceMs(_gameSince);
+        _gameSince = -1;
         var session = _session;
         if (session != null && session.isRecording()) {
             session.stop();
@@ -457,16 +406,9 @@ class GameModel {
     public function toggleRun() as Void {
         if (state == STATE_RUNNING) {
             pause();
-        } else if (state == STATE_BREAK) {
-            beginPeriod();
         } else {
             start();
         }
-    }
-
-    //! True when the period on screen is the last one of the game.
-    public function isLastPeriod() as Boolean {
-        return period >= periodCount;
     }
 
     // ------------------------------------------------------------------
@@ -573,118 +515,12 @@ class GameModel {
     }
 
     // ------------------------------------------------------------------
-    // Periods
-    // ------------------------------------------------------------------
-
-    //! The period clock hit zero. Start the intermission; it runs itself.
-    private function endOfPeriod() as Void {
-        if (_overtime) {
-            return;     // Already past regulation; there is no period to end.
-        }
-
-        // Decide before touching anything. Everything below this point is
-        // destructive end-of-period bookkeeping - it banks the period clock,
-        // takes the player off the ice and stops the recording - and none of
-        // it should happen to a game that is simply still being played.
-        if (isLastPeriod() && !autoEndGame) {
-            enterOvertime();
-            return;
-        }
-
-        _periodAccumMs += sinceMs(_periodSince);
-        _periodSince = -1;
-        _earlierPeriodsMs += _periodAccumMs;
-        _periodAccumMs = 0;
-
-        // The player comes off the ice at the horn whether the detector has
-        // noticed or not.
-        if (onIce()) {
-            switchSegment(false, 0);
-        }
-
-        var session = _session;
-        if (session != null && session.isRecording()) {
-            session.stop();
-        }
-
-        if (isLastPeriod()) {
-            endGame(true);
-            return;
-        }
-
-        state = STATE_BREAK;
-        _breakSince = System.getTimer();
-        alert(Attention.TONE_INTERVAL_ALERT,
-            [new Attention.VibeProfile(100, 500), new Attention.VibeProfile(0, 200),
-             new Attention.VibeProfile(100, 500)]);
-    }
-
-    //! Regulation has run out and the game is still being played.
-    //!
-    //! This exists because the app used to save and close the activity here.
-    //! On 2026-11-03 that ended a recording at exactly 3600.79s of clock time -
-    //! three periods of twenty minutes, to the second - while the game was
-    //! still going, and the remaining nine minutes of wall-clock play were
-    //! simply lost. Nothing recovers a game from that afterwards.
-    //!
-    //! A real game is always longer than the sum of its periods: stoppages,
-    //! overtime, a running clock nobody told the watch about. So the end of
-    //! regulation is now an announcement rather than an ending. Deliberately
-    //! nothing here stops: not the clock, not the recording, not the shift
-    //! detector. The game ends when the player ends it.
-    private function enterOvertime() as Void {
-        _overtime = true;
-        alert(Attention.TONE_INTERVAL_ALERT,
-            [new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
-             new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
-             new Attention.VibeProfile(100, 400)]);
-    }
-
-    //! The intermission ran out, or the player pressed start to skip it.
-    private function beginPeriod() as Void {
-        if (state != STATE_BREAK) {
-            return;
-        }
-        period++;
-        _breakSince = -1;
-        _periodAccumMs = 0;
-        _periodSince = System.getTimer();
-        _overtime = false;
-
-        var session = _session;
-        if (session != null && !session.isRecording()) {
-            session.start();
-        }
-
-        state = STATE_RUNNING;
-        alert(Attention.TONE_START,
-            [new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
-             new Attention.VibeProfile(100, 400)]);
-    }
-
-    //! Skip the rest of the intermission, or the rest of the period.
-    public function skipAhead() as Void {
-        if (state == STATE_BREAK) {
-            beginPeriod();
-        } else if (state == STATE_RUNNING || state == STATE_PAUSED) {
-            endOfPeriod();
-        }
-    }
-
-    // ------------------------------------------------------------------
     // Per-second work
     // ------------------------------------------------------------------
 
     //! Housekeeping, once a second: run the detector, accumulate the heart rate
-    //! statistics, raise alerts and advance the period or the intermission.
+    //! statistics and raise alerts.
     public function onTick() as Void {
-        if (state == STATE_BREAK) {
-            if (breakRemainingMs() <= 0) {
-                beginPeriod();
-            }
-            return;
-        }
-
         if (state == STATE_READY) {
             // Keep the detector running before the game starts. The ready
             // screen doubles as a self-test: wave the arm, watch the number
@@ -773,12 +609,6 @@ class GameModel {
         } else if (detector.isHealthy()) {
             _sensorWarned = false;
         }
-
-        // Once in overtime the period clock is permanently past periodMs, so
-        // without this guard endOfPeriod() would fire on every tick.
-        if (!_overtime && periodElapsedMs() >= periodMs) {
-            endOfPeriod();
-        }
     }
 
     //! Maximum heart rate from the top of the user's zone 5. There is no
@@ -863,12 +693,8 @@ class GameModel {
             return;
         }
 
-        _periodAccumMs += sinceMs(_periodSince);
-        _periodSince = -1;
-        if (state != STATE_BREAK) {
-            _earlierPeriodsMs += _periodAccumMs;
-        }
-        _periodAccumMs = 0;
+        _gameAccumMs += sinceMs(_gameSince);
+        _gameSince = -1;
 
         var elapsed = segmentMs();
         var endedOnIce = onIce();

@@ -12,15 +12,11 @@ import Toybox.WatchUi;
 
 module GameMenus {
 
-    //! Add end-period, save and discard to a menu. Shared by both menus so the
-    //! two cannot drift apart.
+    //! Add save and discard to a menu. Shared by both menus so the two cannot
+    //! drift apart.
     function addExits(menu as WatchUi.Menu2, model as $.GameModel) as Void {
         if (model.state == $.STATE_FINISHED || model.state == $.STATE_READY) {
             return;
-        }
-        if (!model.isLastPeriod()) {
-            menu.addItem(new WatchUi.MenuItem(
-                WatchUi.loadResource($.Rez.Strings.MenuNextPeriod) as String, null, :next, null));
         }
         menu.addItem(new WatchUi.MenuItem(
             WatchUi.loadResource($.Rez.Strings.MenuEndGame) as String, null, :end, null));
@@ -53,7 +49,7 @@ module GameMenus {
                     : $.Rez.Strings.MenuMarkIce) as String, null, :mark, null));
             menu.addItem(new WatchUi.MenuItem(
                 WatchUi.loadResource($.Rez.Strings.MenuPause) as String, null, :pause, null));
-        } else if (model.state == $.STATE_PAUSED || model.state == $.STATE_BREAK) {
+        } else if (model.state == $.STATE_PAUSED) {
             menu.addItem(new WatchUi.MenuItem(
                 WatchUi.loadResource($.Rez.Strings.MenuResume) as String, null, :resume, null));
         }
@@ -97,8 +93,6 @@ class GameMenuDelegate extends WatchUi.Menu2InputDelegate {
             _model.toggleRun();
         } else if (id == :mark) {
             _model.markSwitch();
-        } else if (id == :next) {
-            _model.skipAhead();
         } else if (id == :end) {
             _model.endGame(true);
         }

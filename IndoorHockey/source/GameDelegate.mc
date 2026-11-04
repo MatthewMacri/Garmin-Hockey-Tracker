@@ -18,10 +18,11 @@
 // against the boards can no longer end a game, which the old binding allowed
 // behind a confirmation.
 //
-// Ending a game now goes through the stop menu, the way stopping a run does:
-// START, then Save or Discard. DOWN no longer ends the period, because a
-// mis-press in a pocket or a glove should not be able to burn a period.
-// Everything it used to do is still in the menu.
+// Ending a game goes through the stop menu, the way stopping a run does:
+// START twice, then Save or Discard.
+//
+// DOWN used to end the period. There are no periods any more - a game is one
+// continuous recording - so there is nothing for it to end.
 //
 // Pausing takes two presses rather than one, and screen taps do nothing at all
 // while a game is live. Both are there because a single press was too easy to
@@ -61,8 +62,6 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
                 // resume, save and discard rather than making you hunt.
                 pushStopMenu();
             }
-        } else if (state == STATE_BREAK) {
-            _model.skipAhead();
         } else if (state == STATE_PAUSED || state == STATE_READY) {
             _model.toggleRun();
         } else {
@@ -85,7 +84,7 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
             WatchUi.requestUpdate();
             return true;
         }
-        if (state == STATE_PAUSED || state == STATE_BREAK) {
+        if (state == STATE_PAUSED) {
             // A game is still open. Offer the way out rather than dropping out
             // of the app with it unsaved.
             pushStopMenu();
@@ -119,7 +118,7 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     //! this costs nothing once a menu is actually open and deliberate.
     public function onTap(clickEvent as WatchUi.ClickEvent) as Boolean {
         var state = _model.state;
-        if (state == STATE_RUNNING || state == STATE_PAUSED || state == STATE_BREAK) {
+        if (state == STATE_RUNNING || state == STATE_PAUSED) {
             return true;    // Handled, meaning: ignored.
         }
         return false;

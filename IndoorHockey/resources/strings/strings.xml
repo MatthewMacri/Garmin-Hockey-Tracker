@@ -30,7 +30,6 @@
     <!-- On-screen labels -->
     <string id="LabelReady">READY</string>
     <string id="LabelPaused">PAUSED</string>
-    <string id="LabelBreak">BREAK</string>
     <string id="LabelFinal">FINAL</string>
     <string id="LabelOnIce">ON</string>
     <string id="LabelBench">BENCH</string>
@@ -44,7 +43,6 @@
     <string id="MenuResume">Resume</string>
     <string id="MenuMarkBench">I am on the bench</string>
     <string id="MenuMarkIce">I am on the ice</string>
-    <string id="MenuNextPeriod">End Period</string>
     <string id="MenuEndGame">End &amp; Save Game</string>
     <string id="MenuDiscard">Discard Game</string>
 
@@ -58,12 +56,6 @@
     <string id="ConfirmDiscard">Discard this game?</string>
 
     <!-- Settings -->
-    <string id="SetPeriodCount">Periods per game</string>
-    <string id="SetPeriodCountPrompt">How many periods or halves</string>
-    <string id="SetPeriodMinutes">Period length (min)</string>
-    <string id="SetPeriodMinutesPrompt">Length of one period in minutes</string>
-    <string id="SetBreakSeconds">Intermission (sec)</string>
-    <string id="SetBreakSecondsPrompt">Break between periods; the next period starts on its own</string>
     <string id="SetShiftSeconds">Shift alert (sec)</string>
     <string id="SetShiftSecondsPrompt">Buzz when a shift reaches this length</string>
     <string id="SetSensitivity">Shift sensitivity</string>
@@ -75,16 +67,11 @@
     <string id="SetShiftAlertsPrompt">Buzz when a shift runs long</string>
     <string id="SetAutoLap">Lap per shift</string>
     <string id="SetAutoLapPrompt">Record a FIT lap for every shift and every spell on the bench</string>
-    <string id="SetCountDown">Count period down</string>
-    <string id="SetCountDownPrompt">Show time remaining instead of elapsed</string>
     <string id="SetActivityType">Activity Type</string>
     <string id="SetActivityTypePrompt">How the finished activity is filed. Ice Hockey is correct in Garmin Connect. Strava has no hockey type and shows it as a plain workout, so pick Ice Skate if you sync to Strava.</string>
     <string id="TypeHockey">Ice Hockey</string>
     <string id="TypeSkate">Ice Skate (Strava)</string>
-    <string id="LabelOvertime">OT</string>
     <string id="LabelPressAgain">PRESS AGAIN</string>
-    <string id="SetAutoEndGame">Auto-end game</string>
-    <string id="SetAutoEndGamePrompt">Save and close the activity by itself when the last period's clock runs out. Off means the game keeps recording into overtime until you stop it, which is almost always what you want - a real game runs longer than the sum of its periods.</string>
     <string id="SetUseGps">Use GPS</string>
     <string id="SetUseGpsPrompt">Record speed and distance. Indoor rinks rarely get a fix; outdoor rinks do</string>
 </resources>
