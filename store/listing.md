@@ -4,7 +4,7 @@ Field-by-field answers for the upload form at
 <https://apps.garmin.com/en-US/developer/upload>. The dashboard for an app
 already up is <https://apps-developer.garmin.com>.
 
-**Step 1** — attach `IndoorHockey/bin/IndoorHockey.iq`, built by
+**Step 1** — attach `IndoorHockey/dist/IndoorHockey.iq`, built by
 `IndoorHockey/package.sh`.
 
 Build it with that script and nothing else. It stages the source to a neutral

@@ -34,7 +34,17 @@ mount_watch() {
         echo "$MNT"; return 0
     fi
     mkdir -p "$MNT"
-    if jmtpfs "$MNT" >/dev/null 2>&1 && [ -n "$(ls -A "$MNT" 2>/dev/null)" ]; then
+    # Only one process may hold an MTP device at a time. On a machine with a
+    # desktop session, gvfs grabs the watch the moment it is plugged in, and
+    # then jmtpfs and mtp-detect both fail with "Unable to open raw device 0",
+    # which reads like a broken cable rather than a daemon holding the handle.
+    if ! jmtpfs "$MNT" >/dev/null 2>&1 && pgrep -x gvfsd-mtp >/dev/null 2>&1; then
+        msg "gvfsd-mtp is holding the watch. Release it with:"
+        msg "    pkill -x gvfsd-mtp"
+        msg "then run this again."
+        return 1
+    fi
+    if [ -n "$(ls -A "$MNT" 2>/dev/null)" ]; then
         # The watch exposes one store; descend into it if that is the layout.
         local inner
         inner="$(find "$MNT" -maxdepth 2 -type d -name GARMIN 2>/dev/null | head -1)"
