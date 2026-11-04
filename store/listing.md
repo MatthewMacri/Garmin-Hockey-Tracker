@@ -27,7 +27,7 @@ the builder's home directory, shipped inside the package.
 | Cover Image (500x500) | `store/images/cover-500x500.png` (46 KB of 300 KB) |
 | Add icons for app store on device? | **No** — optional, and the launcher icon already covers every device |
 | Screen Images | The six PNGs in `docs/screenshots/`, in filename order (390x390, ~47 KB each, limit 150 KB) |
-| Preview Video | A new YouTube link — the old one shows the period clock. See *Preview Video* below |
+| Preview Video | `https://youtu.be/LM8cZ_diB8s` |
 | Email Address | Shown publicly, so use an address you are happy to publish rather than your personal one |
 | Source Code URL | `https://github.com/MatthewMacri/Garmin-Hockey-Tracker` |
 | Review Notification | **Yes** |
@@ -187,12 +187,11 @@ file on the watch, which syncs to Garmin Connect the way any activity does.
 
 ## Preview Video
 
-**The YouTube link below is the OLD recording and must be replaced.** It shows
-the period clock (`P1/3`) that this version removes, so it advertises the exact
-behaviour that cut a game short. Upload `store/video/demo-1080p.mp4` to YouTube
-as unlisted, then put the new link in the Preview Video field and here.
+Uploaded, unlisted: **https://youtu.be/LM8cZ_diB8s**
 
-Previous link, now stale: ~~https://youtu.be/b-NZduxCrtI~~
+Recorded from the 2.0.0 build. It replaces `youtu.be/b-NZduxCrtI`, which showed
+the period clock (`P1/3`) this version removes - that clip advertised the exact
+behaviour that cut a game short, so it must not go back in the form.
 
 The form accepts YouTube and Vimeo links only, so a file hosted anywhere else
 cannot go in that field. The source files are kept here for re-uploading.

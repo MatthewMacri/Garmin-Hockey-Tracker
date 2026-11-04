@@ -13,7 +13,7 @@ so the same build runs across the Garmin watch range.
 </p>
 <p align="center">
   <sub>A short game tracked end to end &middot;
-  <a href="store/video/demo-1080p.mp4">the same clip in 1080p</a></sub>
+  <a href="https://youtu.be/LM8cZ_diB8s">the same clip in 1080p</a></sub>
 </p>
 
 <p align="center">
