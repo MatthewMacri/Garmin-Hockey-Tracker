@@ -34,24 +34,42 @@ mount_watch() {
         echo "$MNT"; return 0
     fi
     mkdir -p "$MNT"
+    # Two different things make the first mount fail, and they look identical.
+    #
     # Only one process may hold an MTP device at a time. On a machine with a
     # desktop session, gvfs grabs the watch the moment it is plugged in, and
     # then jmtpfs and mtp-detect both fail with "Unable to open raw device 0",
     # which reads like a broken cable rather than a daemon holding the handle.
-    if ! jmtpfs "$MNT" >/dev/null 2>&1 && pgrep -x gvfsd-mtp >/dev/null 2>&1; then
-        msg "gvfsd-mtp is holding the watch. Release it with:"
-        msg "    pkill -x gvfsd-mtp"
-        msg "then run this again."
+    #
+    # The watch also re-enumerates on its own - it drops off the bus and comes
+    # back with a new device number - so a mount can fail several times and
+    # then succeed with nothing changed. Retrying is the fix; giving up after
+    # one attempt reports a healthy watch as broken.
+    local mounted=0 attempt
+    for attempt in 1 2 3 4 5 6; do
+        if jmtpfs "$MNT" >/dev/null 2>&1 && [ -n "$(ls -A "$MNT" 2>/dev/null)" ]; then
+            mounted=1; break
+        fi
+        fusermount -u "$MNT" 2>/dev/null
+        if pgrep -x gvfsd-mtp >/dev/null 2>&1; then
+            msg "gvfsd-mtp is holding the watch; releasing it"
+            pkill -x gvfsd-mtp
+        fi
+        lsusb 2>/dev/null | grep -qiE 'garmin|091e' \
+            || msg "attempt $attempt: watch is not on the USB bus"
+        sleep 4
+    done
+    if [ "$mounted" != 1 ]; then
+        msg "could not mount the watch after 6 attempts."
+        msg "Check it is plugged in and awake, then run this again."
         return 1
     fi
-    if [ -n "$(ls -A "$MNT" 2>/dev/null)" ]; then
-        # The watch exposes one store; descend into it if that is the layout.
-        local inner
-        inner="$(find "$MNT" -maxdepth 2 -type d -name GARMIN 2>/dev/null | head -1)"
-        if [ -n "$inner" ]; then echo "$(dirname "$inner")"; else echo "$MNT"; fi
-        return 0
-    fi
-    return 1
+    # The watch exposes one store ("Internal Storage"); descend into it if that
+    # is the layout, so callers always get the directory holding GARMIN.
+    local inner
+    inner="$(find "$MNT" -maxdepth 2 -type d -name GARMIN 2>/dev/null | head -1)"
+    if [ -n "$inner" ]; then echo "$(dirname "$inner")"; else echo "$MNT"; fi
+    return 0
 }
 
 unmount_watch() {

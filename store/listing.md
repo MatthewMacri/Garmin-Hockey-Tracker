@@ -12,6 +12,21 @@ path first, because a plain `-e` build writes the absolute path of every source
 file into a debug record for all 202 device variants - about 180,000 copies of
 the builder's home directory, shipped inside the package.
 
+Step 1 also asks for **App Version**, a free text box. Type the version there -
+`2.0.0`, then `2.1.0`, and so on.
+
+**Nothing in the build carries the version.** `manifest.xml` has no version
+attribute and never has; the packaged `.iq` has none either, only `apiVersion`,
+`connectIqVersion` and `minFirmwareVersion`, which are SDK and device
+compatibility. The store tells releases apart by that typed string alone, so
+bumping a version is an act of typing and nothing in the repo will prompt it.
+
+The hint under the box reads *(Latest app version: X)* - that is Garmin reading
+back the last string submitted, and it is the quickest way to confirm an upload
+landed. The public listing keeps showing the previous version, and its
+`Internal:` counter, until review passes the new one, so neither of those tells
+you anything while a release is queued.
+
 **Step 2** — the fields below.
 
 | Form field | What to put |
