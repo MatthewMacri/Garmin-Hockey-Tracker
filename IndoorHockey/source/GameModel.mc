@@ -99,6 +99,9 @@ class GameModel {
     // during whistles too, so a bench spell that spans a stoppage is longer
     // than the game clock says it is.
     private var _segmentSince as Number = -1;
+    // The segment clock is banked the same way the game clock is, so that a
+    // pause does not land in ice or bench time. See pause().
+    private var _segmentAccumMs as Number = 0;
     private var _iceMs as Number = 0;
     private var _benchMs as Number = 0;
     private var _completedShiftMs as Number = 0;
@@ -231,9 +234,10 @@ class GameModel {
     }
 
     //! Length of the segment in progress, whether that is a shift or a spell on
-    //! the bench. Runs on wall time.
+    //! the bench. Runs on wall time while the game runs, and stops when the
+    //! game is paused - a whistle is part of your shift, an intermission is not.
     public function segmentMs() as Number {
-        return sinceMs(_segmentSince);
+        return _segmentAccumMs + sinceMs(_segmentSince);
     }
 
     //! Total clock time played. Kept as its own name because the summary and
@@ -272,7 +276,15 @@ class GameModel {
         if (ice < 1000) {
             return 0;
         }
-        return ((benchTimeMs() * 100) / ice).toNumber();
+        // Computed in seconds, not milliseconds: bench * 100 in ms overflows a
+        // 32-bit Number after about six minutes of bench time.
+        var ratio = ((benchTimeMs() / 1000) * 100) / (ice / 1000);
+        // The FIT field is a UINT16. A first shift almost entirely eaten by the
+        // detector backdate leaves a tiny ice time and sends this past 65535.
+        if (ratio > 65535) {
+            ratio = 65535;
+        }
+        return ratio.toNumber();
     }
 
     //! Average heart rate counting only the seconds actually spent on the ice.
@@ -326,9 +338,30 @@ class GameModel {
             // BENCH for an hour.
             detector.forceState(ON_ICE);
             shiftCount = 1;
-            _segmentSince = System.getTimer();
+            _segmentAccumMs = 0;
             _shiftAlerted = false;
         }
+
+        // Restarts the segment clock as well as the game clock. On a resume
+        // _segmentAccumMs still holds the part of the shift played before the
+        // pause, so the shift continues rather than starting over.
+        _segmentSince = System.getTimer();
+
+        // Any arm belongs to the run that is over. pause() already clears it
+        // on the path through a pause, but clearing it on every entry to
+        // RUNNING is what makes "you cannot enter a game already armed" a
+        // property of the code rather than a coincidence of the routes.
+        _pauseArmedAt = -1;
+
+        // pause() stops the accelerometer, so resuming has to start it again.
+        // Both calls are no-ops when they are not needed.
+        detector.start();
+        detector.flushPending();
+
+        // The system writes a record at the instant the timer restarts, before
+        // onTick() next runs, so without this the first record after every
+        // resume repeats the values from before the pause.
+        writeRecordFields();
 
         var session = _session;
         if (session != null && !session.isRecording()) {
@@ -341,7 +374,20 @@ class GameModel {
     }
 
     // How long a first press stays armed, waiting for the second.
-    private const PAUSE_ARM_MS = 3000;
+    //
+    // Five seconds rather than three. The accident this guards against is a
+    // single continuous contact - a glove dragging over the glass, a shove
+    // against the boards - which produces one event, not two separated ones.
+    // So a wider window costs very little in accidental pauses and buys a lot
+    // for the deliberate case, where the player is wearing hockey gloves and
+    // may not feel the first press at all.
+    private const PAUSE_ARM_MS = 5000;
+
+    // ...but ignore a second press that lands too soon after the first, which
+    // is mechanical bounce or one drag registering twice rather than a person
+    // pressing twice.
+    private const PAUSE_MIN_GAP_MS = 250;
+
     private var _pauseArmedAt as Number = -1;
 
     //! Ask to pause. The first ask only arms; a second ask within
@@ -359,14 +405,21 @@ class GameModel {
             return false;
         }
         if (isPauseArmed()) {
+            if (sinceMs(_pauseArmedAt) < PAUSE_MIN_GAP_MS) {
+                return false;   // Too fast to be two presses.
+            }
             _pauseArmedAt = -1;
             pause();
             return true;
         }
         _pauseArmedAt = System.getTimer();
-        // Distinct from the pause tone: this says "heard you, say it again",
-        // so a press that was not meant is audibly not a pause.
-        alert(Attention.TONE_KEY, [new Attention.VibeProfile(40, 120)]);
+        // The arm is a question, so it has to be the most distinctive cue the
+        // app makes - everything else is a single pulse, this is a double one.
+        // It used to be the weakest (40% for 120ms), which through a glove and
+        // a jersey cuff in a rink is nothing at all: the player never knew they
+        // were in an armed window, which defeats the whole point of asking.
+        alert(Attention.TONE_KEY, [new Attention.VibeProfile(100, 150),
+            new Attention.VibeProfile(0, 100), new Attention.VibeProfile(100, 150)]);
         return false;
     }
 
@@ -375,7 +428,15 @@ class GameModel {
         if (_pauseArmedAt < 0 || state != STATE_RUNNING) {
             return false;
         }
-        return sinceMs(_pauseArmedAt) <= PAUSE_ARM_MS;
+        // sinceMs() reports 0 for a clock that has wrapped, and 0 is inside the
+        // window - so a wrap mid-window would leave this armed for the rest of
+        // the game, and a single press or tap would pause instantly. An arm
+        // that cannot be timed has expired.
+        var age = System.getTimer() - _pauseArmedAt;
+        if (age < 0) {
+            return false;
+        }
+        return age <= PAUSE_ARM_MS;
     }
 
     //! Milliseconds left to confirm, for the countdown on screen.
@@ -393,6 +454,16 @@ class GameModel {
         }
         _gameAccumMs += sinceMs(_gameSince);
         _gameSince = -1;
+        // Bank the segment and stop its clock. Without this the whole pause
+        // would be banked as ice or bench time at the next flip: a fifteen
+        // minute intermission would be recorded as a fifteen minute shift,
+        // and the shift alert would fire the moment play resumed.
+        _segmentAccumMs += sinceMs(_segmentSince);
+        _segmentSince = -1;
+        // Nothing reads the accelerometer while the clock is stopped, so
+        // sampling through a pause only spends battery and piles up samples
+        // that would be averaged into the first second after the resume.
+        detector.stop();
         var session = _session;
         if (session != null && session.isRecording()) {
             session.stop();
@@ -422,10 +493,18 @@ class GameModel {
     //! every shift would lose its first few seconds to the bench and every
     //! bench spell would lose its first few seconds to the shift.
     private function switchSegment(toIce as Boolean, backdateMs as Number) as Void {
-        var elapsed = segmentMs() - backdateMs;
-        if (elapsed < 0) {
-            elapsed = 0;
+        // The backdate cannot reach back past the start of the segment being
+        // closed, or the new segment would begin before the old one did and the
+        // overlap would be counted twice.
+        var available = segmentMs();
+        var backdate = backdateMs;
+        if (backdate > available) {
+            backdate = available;
         }
+        if (backdate < 0) {
+            backdate = 0;
+        }
+        var elapsed = available - backdate;
 
         // The segment that just ENDED is the opposite of the one being opened.
         // This must not be read from the detector: by the time onTick() calls
@@ -448,7 +527,11 @@ class GameModel {
         }
 
         detector.forceState(toIce ? ON_ICE : OFF_ICE);
-        _segmentSince = System.getTimer() - backdateMs;
+        // Carried as accumulated time rather than by moving the marker into the
+        // past, so the marker is never negative and sinceMs() cannot read it as
+        // "unset" and freeze the segment clock at zero.
+        _segmentAccumMs = backdate;
+        _segmentSince = System.getTimer();
         _shiftAlerted = false;
 
         if (toIce) {
@@ -568,27 +651,7 @@ class GameModel {
             }
         }
 
-        var segmentSeconds = (segmentMs() / 1000).toNumber();
-
-        var curShiftField = _curShiftField;
-        if (curShiftField != null) {
-            curShiftField.setData(onTheIce ? segmentSeconds : 0);
-        }
-        var onIceField = _onIceField;
-        if (onIceField != null) {
-            onIceField.setData(onTheIce ? 1 : 0);
-        }
-
-        // The raw detection signal and the boundary it was judged against,
-        // second by second, so the decision can be re-examined after the game.
-        var motionField = _motionField;
-        if (motionField != null) {
-            motionField.setData(detector.motion);
-        }
-        var thresholdField = _thresholdField;
-        if (thresholdField != null) {
-            thresholdField.setData(detector.threshold);
-        }
+        writeRecordFields();
 
         if (onTheIce && shiftAlerts && !_shiftAlerted && segmentMs() >= shiftTargetMs) {
             _shiftAlerted = true;
@@ -596,6 +659,16 @@ class GameModel {
                 [new Attention.VibeProfile(100, 500), new Attention.VibeProfile(0, 150),
                  new Attention.VibeProfile(100, 500)]);
         }
+
+        // The session fields used to be written only at the end of the game.
+        // If the battery dies or the firmware restarts mid-game, the system
+        // recovers the activity but no app code runs again, so the session
+        // message kept whatever was last set - the zeros written at creation.
+        // Garmin Connect would then show "Shifts 19" beside "Ice Time 0s", and
+        // a zero reads as a measurement rather than as missing data. These are
+        // eight setData calls on in-memory objects, so doing it every tick is
+        // cheap and makes the recovery path produce a true summary.
+        writeSessionFields();
 
         if (!detector.isHealthy() && !_sensorWarned) {
             // Shift tracking has stopped and nothing else on screen would show
@@ -712,7 +785,9 @@ class GameModel {
         if (autoLap) {
             setLapFields(elapsed, endedOnIce);
         }
+        _segmentAccumMs = 0;
         _segmentSince = -1;
+        _pauseArmedAt = -1;
 
         detector.stop();
         disableGps();
@@ -731,6 +806,7 @@ class GameModel {
                 session.discard();
             }
             _session = null;
+            clearFields();
         }
 
         state = STATE_FINISHED;
@@ -758,6 +834,7 @@ class GameModel {
         }
         session.save();
         _session = null;
+        clearFields();
     }
 
     // ------------------------------------------------------------------
@@ -778,8 +855,72 @@ class GameModel {
             createFields();
         } catch (ex) {
             // Without a session the app still works as a clock and shift timer.
+            //
+            // Discard before dropping the reference: a created session that is
+            // never started and never discarded leaves the system believing an
+            // activity is in progress, and the next createSession() can be
+            // refused. Clearing the field handles matters just as much - if
+            // createField() threw partway, the handles already set point into
+            // the abandoned session, and onTick() would keep calling setData()
+            // on them once a second.
+            var failed = _session;
+            if (failed != null) {
+                try {
+                    failed.discard();
+                } catch (ignored) {
+                    // Nothing further to try.
+                }
+            }
             _session = null;
+            clearFields();
         }
+    }
+
+    //! Push the per-second record fields: what the detector sees and what it
+    //! decided. Called every tick, and again on resume so the record the system
+    //! writes at the restart instant is not a copy of the one before the pause.
+    private function writeRecordFields() as Void {
+        var onTheIce = onIce();
+        var segmentSeconds = (segmentMs() / 1000).toNumber();
+
+        var curShiftField = _curShiftField;
+        if (curShiftField != null) {
+            curShiftField.setData(onTheIce ? segmentSeconds : 0);
+        }
+        var onIceField = _onIceField;
+        if (onIceField != null) {
+            onIceField.setData(onTheIce ? 1 : 0);
+        }
+
+        // The raw detection signal and the boundary it was judged against,
+        // second by second, so the decision can be re-examined after the game.
+        var motionField = _motionField;
+        if (motionField != null) {
+            motionField.setData(detector.motion);
+        }
+        var thresholdField = _thresholdField;
+        if (thresholdField != null) {
+            thresholdField.setData(detector.threshold);
+        }
+    }
+
+    //! Drop every developer-field handle. Called whenever the session they
+    //! belong to goes away, so nothing can write into a session that is gone.
+    private function clearFields() as Void {
+        _shiftsField = null;
+        _iceTimeField = null;
+        _benchTimeField = null;
+        _avgShiftField = null;
+        _maxShiftField = null;
+        _workRestField = null;
+        _iceHrField = null;
+        _hardTimeField = null;
+        _lapShiftField = null;
+        _lapBenchField = null;
+        _onIceField = null;
+        _curShiftField = null;
+        _motionField = null;
+        _thresholdField = null;
     }
 
     //! The FIT sport the activity is filed under.

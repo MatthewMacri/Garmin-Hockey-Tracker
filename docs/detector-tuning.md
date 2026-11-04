@@ -16,6 +16,8 @@ replayed through a candidate detector offline, as many times as needed,
 without going back to a rink.
 
 ```
+python3 -m venv .venv-fit
+.venv-fit/bin/pip install -r tools/requirements.txt
 .venv-fit/bin/python tools/replay_detector.py <game.fit>
 ```
 
@@ -24,7 +26,20 @@ it replays the recorded motion through the same rule and compares against the
 threshold the watch actually recorded. **Max disagreement is 3 mg over an hour**,
 which is Monkey C's Float-to-Number truncation against Python's. The full state
 machine - hysteresis, confirmation streaks, dwell guards, heart-rate
-corroboration - reproduces **98.3%** of the watch's own on-ice decisions.
+corroboration - reproduces **98.9%** of the watch's own on-ice decisions.
+
+The validation replays at the band the recording was made with (`RECORDED_BAND`
+in the harness), not at the band currently shipped. Those are no longer the
+same number, and replaying at today's band would compare against a threshold
+no watch ever computed - a disagreement that is really a settings difference.
+
+One correction worth recording, because it is the kind of error a harness
+invites: the harness originally computed the heart-rate slope by least squares
+over the window, where the watch uses a crude two-point endpoint slope, and it
+skipped the eight-sample guard the watch applies. Least squares is the better
+statistic, which is exactly why it was wrong here - the harness answers "what
+would the watch have done", so where the watch is crude it has to be crude
+identically. Matching them moved agreement from 98.3% to 98.9%.
 
 Two things had to be understood before it agreed at all, and both are
 properties of the data rather than of the algorithm:

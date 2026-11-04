@@ -36,12 +36,14 @@ class GameView extends WatchUi.View {
     private var _isRound as Boolean = true;
 
     // Strings that never change, loaded once. Loading a resource is expensive
-    // and this view redraws every second for an hour and a half.
+    // and this view redraws every second for as long as the game runs, which
+    // now has no upper bound.
     private var _txtReady as String = "READY";
     private var _txtPaused as String = "PAUSED";
     private var _txtFinal as String = "FINAL";
     private var _txtOnIce as String = "ON";
     private var _txtBench as String = "BENCH";
+    private var _txtGame as String = "Game";
     private var _txtShifts as String = "Shifts";
     private var _txtIce as String = "Ice";
     private var _txtAvg as String = "Avg Shift";
@@ -67,6 +69,7 @@ class GameView extends WatchUi.View {
         _txtFinal = WatchUi.loadResource($.Rez.Strings.LabelFinal) as String;
         _txtOnIce = WatchUi.loadResource($.Rez.Strings.LabelOnIce) as String;
         _txtBench = WatchUi.loadResource($.Rez.Strings.LabelBench) as String;
+        _txtGame = WatchUi.loadResource($.Rez.Strings.SummaryGame) as String;
         _txtShifts = WatchUi.loadResource($.Rez.Strings.SummaryShifts) as String;
         _txtIce = WatchUi.loadResource($.Rez.Strings.SummaryIce) as String;
         _txtAvg = WatchUi.loadResource($.Rez.Strings.SummaryAvgShift) as String;
@@ -116,7 +119,7 @@ class GameView extends WatchUi.View {
             return;
         }
 
-        drawPeriodArc(dc, w, h);
+        drawShiftRing(dc, w, h);
         drawHeader(dc, w, h);
         drawClock(dc, w, h);
         drawSegment(dc, w, h);
@@ -141,7 +144,7 @@ class GameView extends WatchUi.View {
             return;
         }
 
-        var text = _txtIce + " " + Fmt.clock(_model.iceTimeMs());
+        var text = "";
         var colour = Graphics.COLOR_LT_GRAY;
 
         if (_model.state == STATE_READY) {
@@ -150,6 +153,10 @@ class GameView extends WatchUi.View {
             text = _txtPaused;
             colour = Graphics.COLOR_YELLOW;
         } else {
+            // Built only here: the other states replace it, and formatting a
+            // clock every second to throw it away is the cost this file's
+            // string caching exists to avoid.
+            text = _txtIce + " " + Fmt.clock(_model.iceTimeMs());
             colour = Graphics.COLOR_BLUE;
         }
 
@@ -197,18 +204,36 @@ class GameView extends WatchUi.View {
         var colour = Graphics.COLOR_BLUE;
 
         if (_model.onIce()) {
-            var target = _model.shiftTargetMs;
-            if (elapsed >= (target * 13) / 10) {
-                colour = Graphics.COLOR_RED;
-            } else if (elapsed >= target) {
-                colour = Graphics.COLOR_ORANGE;
-            } else {
-                colour = Graphics.COLOR_GREEN;
-            }
+            colour = shiftColour(elapsed, _model.shiftTargetMs);
         }
 
         drawFitted(dc, label + " " + Fmt.clock(elapsed), Y_SHIFT, w, h, colour,
             [Graphics.FONT_LARGE, Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY]);
+    }
+
+    // Ring stroke widths: the normal one, and the heavier one used past the
+    // shift target so that being over is visible without relying on colour.
+    private const PEN_RING = 5;
+    private const PEN_OVER = 11;
+
+    //! How a shift of this length against this target should be coloured.
+    //!
+    //! Read by both the shift line and the ring around it. They used to carry
+    //! their own copies of the thresholds and the copies had drifted apart -
+    //! the ring turned red at twice the target while the number turned red at
+    //! 1.3x, so a 90-second shift against a 60-second target showed a red
+    //! number inside an orange ring. One function, one answer.
+    private function shiftColour(elapsed as Number, target as Number) as Graphics.ColorValue {
+        if (target <= 0) {
+            return Graphics.COLOR_GREEN;
+        }
+        if (elapsed >= (target * 13) / 10) {
+            return Graphics.COLOR_RED;
+        }
+        if (elapsed >= target) {
+            return Graphics.COLOR_ORANGE;
+        }
+        return Graphics.COLOR_GREEN;
     }
 
     //! Heart rate and shift count, the two numbers worth a glance mid-game.
@@ -238,46 +263,52 @@ class GameView extends WatchUi.View {
     //! On the bench it is left as a bare track. A bench spell has no target to
     //! fill against, and inventing one would make the ring mean two different
     //! things depending on a state the player cannot see from the ring itself.
-    private function drawPeriodArc(dc as Graphics.Dc, w as Number, h as Number) as Void {
+    private function drawShiftRing(dc as Graphics.Dc, w as Number, h as Number) as Void {
         if (!_isRound || _model.state == STATE_READY) {
             return;
         }
 
         var centreX = w / 2;
         var centreY = h / 2;
-        var radius = ((w < h ? w : h) / 2) - 3;
+        // Leave room for the widest pen used below, measured from the centre of
+        // the stroke, so the outer edge stays inside the glass on a display
+        // that crops its outermost row.
+        var radius = ((w < h ? w : h) / 2) - (PEN_OVER / 2) - 2;
 
-        dc.setPenWidth(5);
-        dc.setColor(0x555555, Graphics.COLOR_TRANSPARENT);
+        // The empty track. Brighter than it was: at 0x555555 this was a 2.9:1
+        // stroke at the very edge of the screen, which through rink glare at
+        // arm's length read as no ring at all - the same as the bench.
+        dc.setPenWidth(PEN_RING);
+        dc.setColor(0x999999, Graphics.COLOR_TRANSPARENT);
         dc.drawCircle(centreX, centreY, radius);
 
         var target = _model.shiftTargetMs;
-        if (!_model.onIce() || target <= 0) {
+        var elapsed = _model.segmentMs();
+        if (!_model.onIce() || target <= 0 || elapsed <= 0) {
             dc.setPenWidth(1);
             return;
         }
 
-        var fraction = _model.segmentMs().toFloat() / target.toFloat();
-        if (fraction <= 0.0) {
+        dc.setColor(shiftColour(elapsed, target), Graphics.COLOR_TRANSPARENT);
+
+        if (elapsed >= target) {
+            // Past the target the ring is full, so it cannot grow any further
+            // and colour alone would carry the whole "get off" signal - no use
+            // to a red-green colour-blind player. A thicker stroke says it
+            // again without relying on hue.
+            //
+            // Drawn as a circle rather than a 360-degree arc deliberately: a
+            // full turn asks drawArc for an arc whose start equals its end, and
+            // what it does with that is undocumented. A circle is the same
+            // shape with defined behaviour.
+            dc.setPenWidth(PEN_OVER);
+            dc.drawCircle(centreX, centreY, radius);
             dc.setPenWidth(1);
             return;
         }
-        if (fraction > 1.0) { fraction = 1.0; }
 
-        // The same three steps the segment line uses, so the ring and the
-        // number below it can never disagree about how the shift is going.
-        var arcColour = Graphics.COLOR_GREEN;
-        var over = _model.segmentMs();
-        if (over >= target * 2) {
-            arcColour = Graphics.COLOR_RED;
-        } else if (over >= target) {
-            arcColour = Graphics.COLOR_ORANGE;
-        }
-
-        var sweep = 360.0 * fraction;
-        var end = 90.0 - sweep;
-        dc.setColor(arcColour, Graphics.COLOR_TRANSPARENT);
-        dc.drawArc(centreX, centreY, radius, Graphics.ARC_CLOCKWISE, 90, end.toNumber());
+        var sweep = 360.0 * (elapsed.toFloat() / target.toFloat());
+        dc.drawArc(centreX, centreY, radius, Graphics.ARC_CLOCKWISE, 90, 90.0 - sweep);
         dc.setPenWidth(1);
     }
 
@@ -288,6 +319,7 @@ class GameView extends WatchUi.View {
             [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]);
 
         var rows = [
+            [_txtGame, Fmt.clock(_model.totalPlayedMs())],
             [_txtShifts, _model.shiftCount.toString()],
             [_txtIce, Fmt.clock(_model.iceTimeMs())],
             [_txtAvg, Fmt.clock(_model.averageShiftMs())],
@@ -295,8 +327,9 @@ class GameView extends WatchUi.View {
             [_txtIceHr, hrText()]
         ];
 
-        var top = 0.270;
-        var step = 0.128;
+        // Six rows rather than five, so the spacing is tighter than it was.
+        var top = 0.255;
+        var step = 0.112;
         for (var i = 0; i < rows.size(); i++) {
             var row = rows[i] as Array<String>;
             drawFitted(dc, row[0] + "  " + row[1], top + (step * i), w, h,

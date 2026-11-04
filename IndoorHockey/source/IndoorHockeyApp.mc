@@ -1,9 +1,9 @@
 //
 // Ice Hockey Shifts - a hands-free game tracker for Garmin watches.
 //
-// Records a hockey activity to Garmin Connect while keeping the period clock
-// and working out every shift and every spell on the bench by itself. One
-// press starts the game; nothing else needs to be touched until it ends.
+// Records a hockey activity to Garmin Connect, timing the whole session and
+// working out every shift and every spell on the bench by itself. One press
+// starts the game; nothing else needs to be touched until it ends.
 //
 
 import Toybox.Application;

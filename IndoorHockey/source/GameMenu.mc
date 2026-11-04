@@ -74,16 +74,24 @@ class GameMenuDelegate extends WatchUi.Menu2InputDelegate {
     public function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId();
 
-        if (id == :discard) {
-            // The one irreversible item here, so it asks first. Everything
-            // else either saves the game or can simply be done again.
-            var prompt = WatchUi.loadResource($.Rez.Strings.ConfirmDiscard) as String;
+        // The two items that cannot be taken back both ask first.
+        //
+        // Ending used to go straight through. On a touchscreen watch that put
+        // a finished, saved game three taps from a running one with nothing in
+        // the way - and because the stop menu is where an accidental pause
+        // lands you, those three taps are reachable without ever meaning to
+        // press anything. STATE_FINISHED is terminal, so there is no way back
+        // from it mid-game.
+        if (id == :discard || id == :end) {
+            var keep = (id == :end);
+            var prompt = WatchUi.loadResource(
+                keep ? $.Rez.Strings.ConfirmEnd : $.Rez.Strings.ConfirmDiscard) as String;
             // Drop the menu before raising the prompt, so answering it lands
             // back on the game rather than on a menu describing a game that
-            // has just been thrown away.
+            // has just been ended.
             WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
             WatchUi.pushView(new WatchUi.Confirmation(prompt),
-                new $.DiscardConfirmDelegate(_model), WatchUi.SLIDE_UP);
+                new $.EndConfirmDelegate(_model, keep), WatchUi.SLIDE_UP);
             return;
         }
 
@@ -93,8 +101,6 @@ class GameMenuDelegate extends WatchUi.Menu2InputDelegate {
             _model.toggleRun();
         } else if (id == :mark) {
             _model.markSwitch();
-        } else if (id == :end) {
-            _model.endGame(true);
         }
 
         WatchUi.popView(WatchUi.SLIDE_DOWN);
@@ -103,21 +109,25 @@ class GameMenuDelegate extends WatchUi.Menu2InputDelegate {
 }
 
 //! Yes/no on throwing the game away.
-class DiscardConfirmDelegate extends WatchUi.ConfirmationDelegate {
+class EndConfirmDelegate extends WatchUi.ConfirmationDelegate {
 
     private var _model as GameModel;
+    private var _keep as Boolean;
 
-    //! Constructor.
-    public function initialize(model as GameModel) {
+    //! keep is what endGame() is told: true saves the game, false throws it
+    //! away. One delegate for both so the two irreversible items cannot drift
+    //! apart in how they confirm.
+    public function initialize(model as GameModel, keep as Boolean) {
         ConfirmationDelegate.initialize();
         _model = model;
+        _keep = keep;
     }
 
-    //! Discard on yes, nothing on no. The system pops the prompt either way,
+    //! Act on yes, nothing on no. The system pops the prompt either way,
     //! which lands back on the game screen.
     public function onResponse(response as WatchUi.Confirm) as Boolean {
         if (response == WatchUi.CONFIRM_YES) {
-            _model.endGame(false);
+            _model.endGame(_keep);
         }
         WatchUi.requestUpdate();
         return true;

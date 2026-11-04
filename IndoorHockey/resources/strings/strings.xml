@@ -16,7 +16,6 @@
     <string id="FitBenchLap">Bench Time</string>
     <string id="FitOnIce">On Ice</string>
     <string id="FitShiftLive">Shift Time (live)</string>
-    <string id="FitShiftChart">Shift Length</string>
     <string id="FitOnIceChart">On Ice / On Bench</string>
     <string id="FitMotion">Wrist Motion</string>
     <string id="FitMotionChart">Wrist Motion</string>
@@ -47,6 +46,7 @@
     <string id="MenuDiscard">Discard Game</string>
 
     <!-- Summary -->
+    <string id="SummaryGame">Game</string>
     <string id="SummaryShifts">Shifts</string>
     <string id="SummaryIce">Ice</string>
     <string id="SummaryAvgShift">Avg Shift</string>

@@ -116,7 +116,7 @@ Run app transfers. Nothing here is needed during normal play.
 | `START` / `STOP` | Start the game. **Press twice** to stop into the stop menu — resume, save, discard — exactly as stopping a run does. |
 | `BACK` (`LAP`) | Line change. `BACK` is the lap key in every Garmin activity, and a lap here *is* a shift, so this is the button that corrects the detector when it has the state wrong. |
 | `UP` / `DOWN` | Nothing. There is one data screen by design, so there is nothing to page through. |
-| `MENU` (hold `UP`) | Correct the shift state, pause, end or discard the game. |
+| `MENU` (hold `UP`) | Correct the shift state, pause, end or discard the game. Only while a game is open. |
 
 Two things follow from that, and both are deliberate departures from where this
 app started:
@@ -126,14 +126,23 @@ app started:
   game. Ending now goes through the stop menu: `START`, then *End & Save*.
 - **`DOWN` does nothing.** It used to end the period, and a mis-press inside a
   glove could burn one. There are no periods now, so there is nothing to burn.
-- **Pausing takes two presses, and the screen ignores taps.** This watch has a
-  touchscreen, and Connect IQ turns a tap into the same `SELECT` behaviour as
-  the `START` button — so a glove or a sleeve across the glass used to stop the
-  recording. A game on 2026-11-03 lost seven minutes that way, in two pauses
-  nobody meant to make. The first press now buzzes and shows `PRESS AGAIN`
-  without stopping anything, and lapses after three seconds if the second never
-  comes. There is nothing on the game screen meant to be tapped, so taps do
-  nothing at all while a game is live.
+- **Pausing takes two presses.** The first buzzes twice and shows `PRESS AGAIN`
+  without stopping anything, and lapses after five seconds if the second never
+  comes.
+- **The glass is ignored while a game is live.** This watch maps touch straight
+  onto the same behaviours as the buttons — a tap arrives as `SELECT`, exactly
+  like `START`, and a swipe right arrives as `BACK` — so a glove or a sleeve
+  across the display used to stop the recording or fake a line change. A game on
+  2026-11-03 lost seven minutes that way, in two pauses nobody meant to make.
+
+  Touch is told apart from the buttons by what precedes it: a physical button
+  raises a key event immediately before its behaviour, and the touchscreen
+  raises none. While a game is running or paused, a behaviour that arrives
+  without one is dropped. The menus are separate screens and still take touch
+  normally, so this costs nothing once a menu is deliberately open.
+- **Ending a game asks first.** *End & Save* is irreversible mid-game and the
+  stop menu is where an accidental pause lands you, so it now confirms — as
+  *Discard* always did.
 
 ## Settings
 

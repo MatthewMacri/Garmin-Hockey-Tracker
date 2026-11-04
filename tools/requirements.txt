@@ -1,0 +1,14 @@
+# Dependencies for the FIT and screenshot tooling in this directory.
+#
+#   python3 -m venv .venv-fit
+#   .venv-fit/bin/pip install -r tools/requirements.txt
+#
+# Nothing here is needed to build or run the watch app itself - that only
+# needs the Connect IQ SDK. These are for inspecting recorded games and
+# regenerating the images in docs/.
+
+# Reads .fit files, including the developer fields this app writes.
+fitdecode>=0.10
+
+# Crops and assembles the simulator captures in docs/screenshots/.
+Pillow>=10.0

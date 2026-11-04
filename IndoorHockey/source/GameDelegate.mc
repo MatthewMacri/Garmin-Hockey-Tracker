@@ -24,22 +24,47 @@
 // DOWN used to end the period. There are no periods any more - a game is one
 // continuous recording - so there is nothing for it to end.
 //
-// Pausing takes two presses rather than one, and screen taps do nothing at all
+// Pausing takes two presses rather than one, and touch does nothing at all
 // while a game is live. Both are there because a single press was too easy to
-// make by accident: SELECT fires on a touchscreen tap as well as on the button,
-// and a game on 2026-11-03 lost seven minutes to two pauses nobody meant to
-// make.
+// make by accident: a game on 2026-11-03 lost seven minutes to two pauses
+// nobody meant to make.
+//
+// How touch is told apart from the buttons, since this is the part that is easy
+// to get wrong: on this watch the touchscreen does NOT deliver onTap() to an
+// app that handles behaviours. Garmin's own device definition maps the gestures
+// straight onto behaviours -
+//
+//   tap        -> onSelect      (the same entry point as the START button)
+//   swipeRight -> onBack        (the same entry point as the BACK button)
+//
+// so overriding onTap() swallows nothing, and a glove on the glass runs the
+// same code a deliberate press does. Confirmed in the simulator rather than
+// inferred: a tap produces onSelect with no key event of any kind, while the
+// START button produces onKeyPressed(KEY_ENTER) immediately before onSelect.
+//
+// That ordering is the whole discriminator. onKeyPressed() fires only for
+// physical buttons, so a behaviour arriving without one just before it came
+// from the glass.
 //
 // None of this is needed during normal play. The app is built to be left alone
 // once the game starts.
 //
 
 import Toybox.Lang;
+import Toybox.System;
 import Toybox.WatchUi;
 
 class GameDelegate extends WatchUi.BehaviorDelegate {
 
     private var _model as GameModel;
+
+    // When a physical button was last pressed, and whether one ever has been.
+    private var _lastKeyAt as Number = -1;
+    private var _sawRealKey as Boolean = false;
+
+    // A behaviour follows its key event in the same input dispatch, so the gap
+    // is reliably zero. A whole second is far more slack than that needs.
+    private const KEY_GRACE_MS = 1000;
 
     //! Constructor.
     public function initialize(model as GameModel) {
@@ -47,10 +72,46 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
         _model = model;
     }
 
-    //! START/STOP, as on a stock activity: start, then stop into the stop menu,
-    //! then resume. During an intermission it skips the rest of the break.
+    //! Physical buttons, and only physical buttons, come through here.
+    public function onKeyPressed(keyEvent as WatchUi.KeyEvent) as Boolean {
+        _lastKeyAt = System.getTimer();
+        _sawRealKey = true;
+        return false;   // Let the behaviour mapping run as usual.
+    }
+
+    //! True when the behaviour being handled came from a button rather than
+    //! from the glass.
+    //!
+    //! Fails open deliberately. If a watch never delivers onKeyPressed() at
+    //! all, every press would otherwise look like a tap and the app would stop
+    //! responding to its own START button - unusable, and unusable in a way
+    //! that only shows up on hardware nobody tested. So touch is only ever
+    //! rejected once a real key event has been seen at least once, which on
+    //! this app is always: the press that starts the game is a button press.
+    private function fromButton() as Boolean {
+        if (!_sawRealKey) {
+            return true;
+        }
+        if (_lastKeyAt < 0) {
+            return false;
+        }
+        var age = System.getTimer() - _lastKeyAt;
+        if (age < 0) {
+            return false;   // System.getTimer() wrapped; treat it as stale.
+        }
+        return age <= KEY_GRACE_MS;
+    }
+
+    //! START/STOP, as on a stock activity: start, then stop into the stop
+    //! menu, then resume. Pausing takes two presses - see requestPause().
     public function onSelect() as Boolean {
         var state = _model.state;
+
+        // A tap while a game is live can only be an accident: one data page, no
+        // paging, no on-screen controls, and the player is wearing gloves.
+        if ((state == STATE_RUNNING || state == STATE_PAUSED) && !fromButton()) {
+            return true;    // Handled, meaning: ignored.
+        }
 
         if (state == STATE_RUNNING) {
             // Two presses, not one. The first arms and buzzes; the second,
@@ -78,6 +139,16 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     //! through and leaves the app as BACK normally would.
     public function onBack() as Boolean {
         var state = _model.state;
+
+        // A swipe right arrives here exactly as the BACK button does. Letting
+        // it through is worse than an accidental pause: markSwitch() flips the
+        // detector, so the player carries on skating while the app records
+        // bench, and the on-ice heart rate split - the thing the app exists to
+        // produce - is quietly wrong for the rest of the shift. An accidental
+        // pause at least shows on the screen.
+        if ((state == STATE_RUNNING || state == STATE_PAUSED) && !fromButton()) {
+            return true;    // Handled, meaning: ignored.
+        }
 
         if (state == STATE_RUNNING) {
             _model.markSwitch();
@@ -107,12 +178,11 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
 
     //! Screen taps, swallowed while a game is live.
     //!
-    //! On a touchscreen watch WatchUi turns a tap into the SELECT behaviour,
-    //! which is the same path as the START button - so without this, brushing
-    //! the display with a glove runs the pause code. There is nothing on this
-    //! screen to tap: one data page, no paging, no on-screen controls. So a tap
-    //! during a game can only be an accident, and the cheapest way to honour
-    //! "I never touch the watch during a game" is to make the glass inert.
+    //! Belt and braces. This watch never calls it - it turns a tap into the
+    //! SELECT behaviour instead, which is why onSelect() carries the real guard
+    //! - but the app ships to 202 device variants and the gesture mapping is
+    //! per-device. On any of them that does deliver a tap here, this stops it
+    //! before it becomes a behaviour at all.
     //!
     //! The menus are their own delegates and still take touch normally, so
     //! this costs nothing once a menu is actually open and deliberate.
@@ -125,7 +195,15 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     }
 
     //! MENU (hold UP): everything the buttons no longer do.
+    //!
+    //! Only while a game is open. On READY and FINISHED every item the menu
+    //! builds is gated on a running or paused game, so it would push a titled
+    //! menu with nothing in it - a screen whose only way out is BACK.
     public function onMenu() as Boolean {
+        var state = _model.state;
+        if (state != STATE_RUNNING && state != STATE_PAUSED) {
+            return false;
+        }
         WatchUi.pushView(GameMenus.build(_model), new $.GameMenuDelegate(_model), WatchUi.SLIDE_UP);
         return true;
     }

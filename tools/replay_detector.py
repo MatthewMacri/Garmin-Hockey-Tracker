@@ -32,7 +32,7 @@ class Learner:
     """The threshold rule as currently shipped in ShiftDetector.learn()."""
     MOTION_FLOOR = 85
 
-    def __init__(self, band=0.45, rest=40.0, work=400.0,
+    def __init__(self, band=0.27, rest=40.0, work=400.0,
                  down_fast=0.15, up_slow=0.01, min_gap=60.0):
         self.rest, self.work, self.band = rest, work, band
         self.down_fast, self.up_slow, self.min_gap = down_fast, up_slow, min_gap
@@ -74,10 +74,22 @@ def live(rows):
     return out
 
 
+# The band the recording was made with, which is NOT the band currently
+# shipped. Validation replays the recorded motion through the rule the watch
+# was running at the time and compares against the threshold it actually
+# wrote; replaying at today's band would compare against a threshold no watch
+# ever computed and report a disagreement that is really just a settings
+# difference. Bump this only when a game is recorded on a newer build.
+RECORDED_BAND = 0.45
+
 if __name__ == '__main__':
     rows = live(load(sys.argv[1]))
     print("samples: %d" % len(rows))
-    lr = Learner()
+    if not rows:
+        print("No motion/threshold developer fields in this file - it was")
+        print("recorded by a build that did not write them. Nothing to replay.")
+        sys.exit(1)
+    lr = Learner(band=RECORDED_BAND)
     err = 0
     mine, theirs = [], []
     for r in rows:
@@ -124,17 +136,26 @@ class Detector:
             self.base = float(hr) if self.base <= 0 else \
                 self.base + (hr - self.base) * 0.0055
 
+    # These two mirror ShiftDetector.hrSlope() and hrOffset() exactly, and the
+    # word "exactly" is doing real work. This harness used to compute the slope
+    # by least squares over the window and to skip the size guard on the offset.
+    # Both are better statistics than the watch's - which is the problem. The
+    # harness exists to answer "what would the watch have done", so where the
+    # watch is crude the harness has to be crude in the same way. Matching them
+    # took the harness from reproducing 98.3% of the watch's own on-ice
+    # decisions to 100.0%.
+
     def _slope(self):
+        """Two-point endpoint slope over the window, as the watch computes it."""
         n = len(self.hr)
-        if n < 5:
+        if n < 8:
             return 0.0
-        xm, ym = (n - 1) / 2.0, sum(self.hr) / float(n)
-        num = sum((i - xm) * (self.hr[i] - ym) for i in range(n))
-        den = sum((i - xm) ** 2 for i in range(n))
-        return num / den if den else 0.0
+        return (self.hr[-1] - self.hr[0]) / float(n - 1)
 
     def _offset(self):
-        return (self.hr[-1] - self.base) if self.hr and self.base > 0 else 0.0
+        if len(self.hr) < 8 or self.base <= 0:
+            return 0.0
+        return self.hr[-1] - self.base
 
     def tick(self, sample, hr):
         self.observe(hr)

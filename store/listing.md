@@ -5,7 +5,12 @@ Field-by-field answers for the upload form at
 already up is <https://apps-developer.garmin.com>.
 
 **Step 1** — attach `IndoorHockey/bin/IndoorHockey.iq`, built by
-`IndoorHockey/export.sh`.
+`IndoorHockey/package.sh`.
+
+Build it with that script and nothing else. It stages the source to a neutral
+path first, because a plain `-e` build writes the absolute path of every source
+file into a debug record for all 202 device variants - about 180,000 copies of
+the builder's home directory, shipped inside the package.
 
 **Step 2** — the fields below.
 
@@ -13,7 +18,7 @@ already up is <https://apps-developer.garmin.com>.
 |---|---|
 | Title | `Ice Hockey Shifts` (17 of 50 chars) |
 | Description | The block under *Description* below (2,825 of 4,000 chars) |
-| What's New | Leave blank — it is the first release |
+| What's New | See below — this is an update, not the first release |
 | Hero Image (optional) | `store/images/hero-1440x720.jpg` (1440x720, 75 KB of 2048 KB) |
 | Category | Health & Fitness — then the closest subcategory to hockey or winter sports |
 | Does your app collect user data? | **No** — it sends nothing anywhere |
@@ -139,6 +144,25 @@ Health & Fitness
 hockey, ice hockey, shifts, shift timer, line change, on-ice heart rate,
 bench, shifts, rink, skating
 
+## What's New (version 2.0.0)
+
+```
+A game is now one continuous recording. The period and intermission clock
+is gone, along with the settings for it - the activity runs until you stop
+it, however long that takes. The previous version ended a game by itself at
+the end of the third period, which cut a recording short mid-play.
+
+Pausing now takes two presses, and the touchscreen is ignored while a game
+is running: a tap arrived as the same button behaviour as START, so a glove
+on the glass could stop the recording. Ending a game asks for confirmation.
+
+A pause no longer counts toward the shift and bench clocks, which could
+record a whole intermission as a single enormous shift.
+
+The shift detector has been retuned against a recorded game, and the shift
+ring on the watch face now tracks the current shift against the target.
+```
+
 ## Screenshots
 
 In order, from `docs/screenshots/` (390x390 PNG):
@@ -146,7 +170,7 @@ In order, from `docs/screenshots/` (390x390 PNG):
 1. `01-ready.png` — ready to start
 2. `02-on-ice.png` — on the ice, shift clock green
 3. `03-bench.png` — on the bench
-4. `04-bench.png` — on the bench between shifts
+4. `04-press-again.png` — the first of the two presses needed to pause
 5. `05-menu.png` — the stop menu
 6. `06-summary.png` — the post-game summary
 

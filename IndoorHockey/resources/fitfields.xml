@@ -33,9 +33,8 @@
 
         <!-- One row per segment in the Splits tab: alternating shifts and
              spells on the bench, so the lap table reads as a shift chart. -->
-        <fitField id="8" sortOrder="8" displayInActivityLaps="true" displayInChart="true"
-                  precision="0" fillColor="#FF8800"
-                  chartTitle="@Strings.FitShiftChart"
+        <fitField id="8" sortOrder="8" displayInActivityLaps="true"
+                  precision="0"
                   dataLabel="@Strings.FitShiftTime" unitLabel="@Strings.UnitSeconds" />
         <fitField id="9" sortOrder="9" displayInActivityLaps="true" precision="0"
                   dataLabel="@Strings.FitBenchLap" unitLabel="@Strings.UnitSeconds" />

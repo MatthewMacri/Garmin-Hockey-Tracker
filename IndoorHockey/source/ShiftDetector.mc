@@ -202,6 +202,17 @@ class ShiftDetector {
         _listening = false;
     }
 
+    //! Throw away samples collected but not yet judged.
+    //!
+    //! Used on resume. Samples that arrived before a pause describe a player
+    //! standing on the bench with the clock stopped; averaged into the first
+    //! second of play they would describe neither that nor this.
+    public function flushPending() as Void {
+        _pendingSum = 0;
+        _pendingCount = 0;
+        staleSeconds = 0;
+    }
+
     //! The fastest rate this watch will give us, capped: the decision only
     //! needs gross limb movement, and a high rate costs battery for nothing.
     private function pickSampleRate() as Number {
