@@ -25,22 +25,24 @@ SIDE = (90, 101, 114)
 EDGE = (10, 12, 15)
 GREEN = (0, 200, 120)
 DIM = (150, 160, 172)
+BODY = (26, 28, 33)
+RIM = (205, 214, 224)
 
 SS = 4   # supersample
 
 
-def puck(draw, cx, cy, half_width, ss=1):
-    """The same puck as the launcher icon, at an arbitrary size."""
-    rx = half_width
-    ry = int(rx * 0.39)
-    depth = int(rx * 0.52)
-    top, bot = cy - depth // 2, cy + depth // 2
-    line = max(1, int(rx * 0.055))
-    draw.ellipse([cx - rx, bot - ry, cx + rx, bot + ry], fill=SIDE, outline=EDGE, width=line)
-    draw.rectangle([cx - rx, top, cx + rx, bot], fill=SIDE)
-    draw.line([cx - rx, top, cx - rx, bot], fill=EDGE, width=line)
-    draw.line([cx + rx, top, cx + rx, bot], fill=EDGE, width=line)
-    draw.ellipse([cx - rx, top - ry, cx + rx, top + ry], fill=FACE, outline=EDGE, width=line)
+def mark(draw, cx, cy, r):
+    """The launcher icon at an arbitrary size: a puck inside the shift ring.
+
+    Kept in the same proportions as tools/make-launcher-icons.py draws it, so
+    the store artwork and the icon on the watch are the same mark rather than
+    two drawings that drifted apart. r is the radius of the ring itself.
+    """
+    ring = max(1, int(r * 0.342))
+    draw.arc([cx - r, cy - r, cx + r, cy + r], -215, 35, fill=GREEN, width=ring)
+    pr = int(r * 0.711)
+    draw.ellipse([cx - pr, cy - pr, cx + pr, cy + pr],
+                 fill=BODY, outline=RIM, width=max(1, int(r * 0.092)))
 
 
 def centred(draw, text, font, cy, width, fill, cx=None):
@@ -64,13 +66,7 @@ def cover(path):
     img = Image.new("RGB", (w, h), BG)
     d = ImageDraw.Draw(img)
 
-    # A shift ring round the edge, the app's one visual signature, drawn as the
-    # period clock draws it: most of the way round, and green.
-    # Only over the puck: a ring sweeping behind the wordmark reads as clutter.
-    pad = int(30 * SS)
-    d.arc([pad, pad, w - pad, h - pad], start=183, end=357, fill=GREEN, width=int(10 * SS))
-
-    puck(d, w // 2, int(h * 0.44), int(w * 0.255))
+    mark(d, w // 2, int(h * 0.40), int(w * 0.25))
 
     title = ImageFont.truetype(BOLD, int(46 * SS))
     sub = ImageFont.truetype(REG, int(23 * SS))
@@ -105,11 +101,7 @@ def hero(path, shots):
         x += size + gap
 
     # Left: the mark over the wordmark, both centred on the column.
-    puck_y = int(h * 0.30)
-    r = int(w * 0.048)
-    d.arc([col - int(r * 1.6), puck_y - int(r * 1.6), col + int(r * 1.6), puck_y + int(r * 1.6)],
-          start=183, end=357, fill=GREEN, width=int(7 * SS))
-    puck(d, col, puck_y, r)
+    mark(d, col, int(h * 0.30), int(w * 0.072))
 
     title = ImageFont.truetype(BOLD, int(44 * SS))
     sub = ImageFont.truetype(REG, int(23 * SS))

@@ -32,35 +32,40 @@ SUPERSAMPLE = 8
 
 
 def draw(width, height):
-    """A hockey puck, seen slightly from above.
+    """A puck inside the shift ring, which is the app's own signature.
 
-    The shape has to survive being scaled to 26x26, so it is drawn wide, with a
-    heavy outline and no interior detail. The body is a mid slate rather than
-    the true black of a real puck: black loses its edges against the dark
-    background a watch draws its app list on, leaving the pale top face
-    floating on its own.
+    The ring is what the watch face draws around the edge while a shift runs,
+    so the icon and the running app share a mark. The gap at the bottom keeps
+    it from reading as a plain record button.
+
+    Two things constrain the drawing, and both are about 26x26, the smallest
+    size any supported watch asks for. There is no interior detail, because at
+    26px it turns to mush. And the puck is dark with a pale rim rather than the
+    pale body it used to have: a light shape reads on the dark background of an
+    app list and disappears on a light one, while a dark shape with a rim reads
+    on either.
     """
     w, h = width * SUPERSAMPLE, height * SUPERSAMPLE
     n = min(w, h)
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    cx = w // 2
-    rx = int(n * 0.40)
-    ry = int(n * 0.155)
-    top = int(h * 0.42)
-    bot = top + int(n * 0.21)
+    cx, cy = w // 2, h // 2
 
-    EDGE = (10, 12, 15, 255)
-    SIDE = (90, 101, 114, 255)
-    FACE = (236, 240, 244, 255)
-    line = max(1, int(n * 0.024))
+    GREEN = (0, 200, 120, 255)
+    BODY = (26, 28, 33, 255)
+    RIM = (205, 214, 224, 255)
 
-    d.ellipse([cx - rx, bot - ry, cx + rx, bot + ry], fill=SIDE, outline=EDGE, width=line)
-    d.rectangle([cx - rx, top, cx + rx, bot], fill=SIDE)
-    d.line([cx - rx, top, cx - rx, bot], fill=EDGE, width=line)
-    d.line([cx + rx, top, cx + rx, bot], fill=EDGE, width=line)
-    d.ellipse([cx - rx, top - ry, cx + rx, top + ry], fill=FACE, outline=EDGE, width=line)
+    # The ring, drawn as an arc with a gap at the bottom.
+    ring = max(SUPERSAMPLE, int(n * 0.13))
+    pad = int(n * 0.055) + ring // 2
+    d.arc([cx - n // 2 + pad, cy - n // 2 + pad, cx + n // 2 - pad, cy + n // 2 - pad],
+          -215, 35, fill=GREEN, width=ring)
+
+    # The puck, seen from above.
+    r = int(n * 0.27)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r],
+              fill=BODY, outline=RIM, width=max(SUPERSAMPLE, int(n * 0.035)))
 
     return img.resize((width, height), Image.LANCZOS)
 
@@ -111,6 +116,13 @@ def main():
 
     with open(os.path.join(APP, "icons.jungle"), "w") as fh:
         fh.write("\n".join(lines))
+
+    # The fallback the manifest points at, used by any device without a folder
+    # of its own above. It was drawn by hand once and then never updated, so it
+    # went on shipping the previous mark after this script changed; writing it
+    # here means the two cannot drift apart again.
+    base = os.path.join(APP, "resources", "drawables", "launcher_icon.png")
+    draw(60, 60).save(base)
 
     print("%d sizes for %d devices" % (len(wanted), len(products) - len(missing)))
     if missing:
