@@ -101,11 +101,12 @@ WHAT IT DOES
 
 WHY ON-ICE HEART RATE MATTERS
 
-Measured on the same players in the same game, average heart rate came out at
-76% of maximum over the whole game, and 84% counting only the seconds actually
-on the ice — a 21-point difference produced by nothing but the averaging
-window. A game average is diluted by every minute spent on the bench. This app
-knows when you were on the ice, so it reports both.
+In a study of simulated elite match play, average heart rate on the ice was 84%
+of maximum and peaked at 97%. A game average is a different number entirely,
+because it blends skating with sitting and the weighting is your bench time
+rather than your effort. Two players who skated identically can post different
+game averages purely because one got more rest. This app knows when you were on
+the ice, so it reports both.
 
 HOW THE DETECTION WORKS
 

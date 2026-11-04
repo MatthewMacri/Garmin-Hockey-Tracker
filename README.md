@@ -95,16 +95,24 @@ numbers and what one game does not prove.
 
 ## Why on-ice heart rate is the point
 
-Measured on the same sixteen players in the same game, average heart rate came
-out at **76 % of maximum over the whole game and 84 % counting only the seconds
-actually on the ice** — a 21-percentage-point difference produced by nothing but
-the averaging window.¹ A game average is diluted by every minute spent on the
-bench, and a chest-strap system with no idea when you were on the ice cannot do
-anything about it.
+In a simulated game of elite U20 players, average heart rate **on the ice** was
+**84 ± 2 % of maximum**, peaking at **97 ± 2 %**.¹ Those are on-ice numbers: the
+study reports no whole-game average, because once bench time is averaged in the
+figure stops describing the skating and starts describing the proportion of the
+night you spent sitting down.
+
+That is the problem with a game average. It is a weighted blend of two states,
+and the weighting is your bench time, not your effort. Two players who skated
+identically can post different game averages purely because one got more rest.
+A chest strap with no idea when you were on the ice cannot separate them.
 
 This app knows when you were on the ice, so it reports both.
 
-<sub>¹ Vigh-Larsen et al., <i>Medicine & Science in Sports & Exercise</i>, 2020.</sub>
+<sub>¹ Vigh-Larsen et al., "Muscle Metabolism and Fatigue during Simulated Ice
+Hockey Match-Play in Elite Players", <i>Medicine & Science in Sports &
+Exercise</i> 52(10):2162-2171, 2020. Thirty U20 national-team players, three
+periods of eight one-minute shifts with two-minute recoveries - a fixed shift
+structure, not a real game's ragged one.</sub>
 
 ## Controls
 
