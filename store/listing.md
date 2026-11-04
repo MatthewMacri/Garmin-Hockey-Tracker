@@ -27,7 +27,7 @@ the builder's home directory, shipped inside the package.
 | Cover Image (500x500) | `store/images/cover-500x500.png` (46 KB of 300 KB) |
 | Add icons for app store on device? | **No** — optional, and the launcher icon already covers every device |
 | Screen Images | The six PNGs in `docs/screenshots/`, in filename order (390x390, ~47 KB each, limit 150 KB) |
-| Preview Video | `https://youtu.be/b-NZduxCrtI` |
+| Preview Video | A new YouTube link — the old one shows the period clock. See *Preview Video* below |
 | Email Address | Shown publicly, so use an address you are happy to publish rather than your personal one |
 | Source Code URL | `https://github.com/MatthewMacri/Garmin-Hockey-Tracker` |
 | Review Notification | **Yes** |
@@ -187,7 +187,12 @@ file on the watch, which syncs to Garmin Connect the way any activity does.
 
 ## Preview Video
 
-Uploaded: **https://youtu.be/b-NZduxCrtI**
+**The YouTube link below is the OLD recording and must be replaced.** It shows
+the period clock (`P1/3`) that this version removes, so it advertises the exact
+behaviour that cut a game short. Upload `store/video/demo-1080p.mp4` to YouTube
+as unlisted, then put the new link in the Preview Video field and here.
+
+Previous link, now stale: ~~https://youtu.be/b-NZduxCrtI~~
 
 The form accepts YouTube and Vimeo links only, so a file hosted anywhere else
 cannot go in that field. The source files are kept here for re-uploading.
@@ -198,12 +203,23 @@ cannot go in that field. The source files are kept here for re-uploading.
 | `store/video/demo-square-780.mp4` | 780x780, the watch screen alone, for the web |
 | `store/video/poster-1080p.jpg` | Thumbnail |
 
-Both are a real recording of the app in the Connect IQ simulator, sped up 2x:
-the game starting, the shift clock running, the state flipping between ice and
-bench, the stop menu, and the saved summary. Heart rate reads `--` because the
-simulator has no heart rate sensor.
+Re-record all four, including the README GIF, with `tools/record-demo.sh`. It
+needs the simulator already running on the current build and sitting on READY.
 
-One thing was changed for the recording and changed back afterwards: the red
-`NO MOTION DATA` warning was suppressed. The simulator has no accelerometer,
-so that warning is on screen permanently there and never appears on a watch
-that works. Nothing else was altered and no number was invented.
+A real recording of the app in the Connect IQ simulator, with the waiting sped
+up: the game starting, ice and bench alternating, the two presses that pause,
+the stop menu, the confirmation, and the saved summary. Everything with a
+button press in it runs at 2x so it stays readable; play runs at 4x.
+
+Two things about the simulator, neither of which is a fault in the app:
+
+Heart rate reads a constant 162 because the simulator has no heart rate sensor.
+
+The shifts are driven by the lap key rather than detected. The app reads raw
+accelerometer samples and the simulator delivers a flat zero, so there is no
+wrist motion to detect; left alone the detector correctly decides the player is
+sitting down and backdates every shift away, and the summary reads Ice 0:00.
+The lap key is a real feature - it is how a player corrects a boundary the
+detector got wrong - so the recording uses it to produce the shift boundaries
+the simulator cannot. No number on screen is invented; the clocks, totals and
+summary are all the app's own arithmetic.

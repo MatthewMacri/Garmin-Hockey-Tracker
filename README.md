@@ -9,11 +9,11 @@ Built and tested on the **Forerunner 570**. The layout is resolution-independent
 so the same build runs across the Garmin watch range.
 
 <p align="center">
-  <img src="docs/demo.gif" width="300" alt="A game being tracked: the shift clock opens and closes by itself, and the summary lands at the end" />
+  <img src="docs/demo.gif" width="300" alt="A game being tracked: the game clock runs unbroken, the shift clock opens and closes, and the summary lands at the end" />
 </p>
 <p align="center">
-  <sub>A short game tracked end to end, in real time &middot;
-  <a href="https://youtu.be/b-NZduxCrtI">the same clip in 1080p</a></sub>
+  <sub>A short game tracked end to end &middot;
+  <a href="store/video/demo-1080p.mp4">the same clip in 1080p</a></sub>
 </p>
 
 <p align="center">
