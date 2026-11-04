@@ -108,7 +108,7 @@ Run app transfers. Nothing here is needed during normal play.
 
 | Button | Action |
 |---|---|
-| `START` / `STOP` | Start the game. Press again to stop into the stop menu — resume, save, discard — exactly as stopping a run does. Skips the rest of an intermission. |
+| `START` / `STOP` | Start the game. **Press twice** to stop into the stop menu — resume, save, discard — exactly as stopping a run does. Skips the rest of an intermission. |
 | `BACK` (`LAP`) | Line change. `BACK` is the lap key in every Garmin activity, and a lap here *is* a shift, so this is the button that corrects the detector when it has the state wrong. |
 | `UP` / `DOWN` | Nothing. There is one data screen by design, so there is nothing to page through. |
 | `MENU` (hold `UP`) | Correct the shift state, pause, end the period, end or discard the game. |
@@ -121,6 +121,14 @@ app started:
   game. Ending now goes through the stop menu: `START`, then *End & Save*.
 - **`DOWN` no longer ends the period.** A mis-press inside a glove should not be
   able to burn a period. It is still in the menu.
+- **Pausing takes two presses, and the screen ignores taps.** This watch has a
+  touchscreen, and Connect IQ turns a tap into the same `SELECT` behaviour as
+  the `START` button — so a glove or a sleeve across the glass used to stop the
+  recording. A game on 2026-11-03 lost seven minutes that way, in two pauses
+  nobody meant to make. The first press now buzzes and shows `PRESS AGAIN`
+  without stopping anything, and lapses after three seconds if the second never
+  comes. There is nothing on the game screen meant to be tapped, so taps do
+  nothing at all while a game is live.
 
 ## Settings
 
@@ -136,12 +144,26 @@ Editable in Garmin Connect; the defaults are a regulation game.
 | Shift alerts | on | |
 | Lap per shift | on | |
 | Count period down | on | |
+| Auto-end game | **off** | |
 | Use GPS | on | |
 | Activity type | Ice Hockey | Ice Hockey / Ice Skate |
 
 **Shift sensitivity** moves the decision boundary within the learned band. High
 means less movement counts as being on the ice — raise it if shifts are being
 missed, lower it if standing on the bench is being counted as a shift.
+
+**Auto-end game** decides what happens when the last period's clock runs out.
+Off — the default — the game carries on into overtime: the clock counts up from
+zero, the activity keeps recording, and the game ends when you end it. The
+header reads `OT` and the clock turns orange.
+
+It is off by default because the alternative lost a game. Until 2026-11-03 the
+app saved and closed the activity the moment the last period expired, and it
+did exactly that at 3600.79 seconds of clock time — three twenty-minute periods,
+to the second — while the game was still being played. A real game always runs
+longer than the sum of its periods: stoppages, overtime, a running clock nobody
+told the watch about. Turn this on only if a game that stops itself on schedule
+is genuinely what you want.
 
 **Use GPS** is on because speed and distance are worth having when a fix exists.
 Expect no fix inside most arenas; the app degrades quietly to motion-only
