@@ -119,13 +119,31 @@ class ShiftDetector {
 
     //! Move the decision boundary within the learned band. A high sensitivity
     //! puts it closer to the resting level, so less movement counts as a shift.
+    //!
+    //! Fitted to the game of 2026-11-03 with tools/replay_detector.py, which
+    //! replays a recorded game through this state machine offline. The band
+    //! used to sit at 0.45 on normal, which was a guess and was wrong: the
+    //! working level is dragged up by collisions and board contact - that game
+    //! peaked at 2450 mg against a median of 75 - so a boundary 45% of the way
+    //! up the band landed at the 82nd percentile of the player's own motion.
+    //! At most 18% of the game could be counted as ice time whatever happened
+    //! on it, and the shifts that were found had their beginnings and ends
+    //! clipped off: 25 shifts, but a median of 17 seconds each.
+    //!
+    //! 0.27 was chosen because four independent checks agree on it at once:
+    //! ice time 34% against the ~33% a three-line bench implies, 23 shifts
+    //! against the 22 cycles heart rate shows by itself, a 45-second median
+    //! shift, and a 147-second shift cycle against 141 from heart rate and the
+    //! ~160 this player actually plays. It is one game, so it is a first fit
+    //! rather than a final one - but the motion and threshold are written into
+    //! every FIT file, so the next game can re-check it without a rink.
     public function setSensitivity(sensitivity as Number) as Void {
         if (sensitivity <= 0) {
-            _band = 0.55;
-        } else if (sensitivity >= 2) {
             _band = 0.35;
+        } else if (sensitivity >= 2) {
+            _band = 0.21;
         } else {
-            _band = 0.45;
+            _band = 0.27;
         }
     }
 
