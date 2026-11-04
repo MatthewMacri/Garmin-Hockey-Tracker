@@ -1,16 +1,15 @@
 # Garmin Hockey Tracker
 
 A Connect IQ watch app that tracks an ice hockey game from your wrist **without
-being touched**. One press at the opening faceoff; after that the app runs the
-periods, runs the intermissions, and works out every shift and every spell on
-the bench by itself. It records a real hockey activity that syncs to Garmin
-Connect.
+being touched**. One press at the opening faceoff; after that it works out
+every shift and every spell on the bench by itself and keeps recording until
+you stop it. It records a real hockey activity that syncs to Garmin Connect.
 
 Built and tested on the **Forerunner 570**. The layout is resolution-independent,
 so the same build runs across the Garmin watch range.
 
 <p align="center">
-  <img src="docs/demo.gif" width="300" alt="A game being tracked: the period clock runs, the shift clock opens and closes by itself, and the summary lands at the end" />
+  <img src="docs/demo.gif" width="300" alt="A game being tracked: the shift clock opens and closes by itself, and the summary lands at the end" />
 </p>
 <p align="center">
   <sub>A short game tracked end to end, in real time &middot;
@@ -23,12 +22,12 @@ so the same build runs across the Garmin watch range.
   <img src="docs/screenshots/03-bench.png" width="32%" alt="On the bench" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/04-intermission.png" width="32%" alt="Intermission counting down" />
+  <img src="docs/screenshots/04-press-again.png" width="32%" alt="Pausing asks for a second press" />
   <img src="docs/screenshots/05-menu.png" width="32%" alt="The stop menu" />
   <img src="docs/screenshots/06-summary.png" width="32%" alt="Post-game summary" />
 </p>
 <p align="center">
-  <sub>Ready &middot; on the ice &middot; on the bench &middot; intermission &middot; the stop menu &middot; final summary</sub>
+  <sub>Ready &middot; on the ice &middot; on the bench &middot; pausing asks twice &middot; the stop menu &middot; final summary</sub>
 </p>
 
 ---
@@ -38,24 +37,26 @@ so the same build runs across the Garmin watch range.
 - **Automatic shift detection** — no button per line change. The app decides
   when you are on the ice and when you are on the bench, and splits the
   activity accordingly.
-- **Period clock** — 3 × 20 minutes by default, ends itself at zero with a
-  double buzz, and starts the next period after a one-minute intermission
-  without being asked.
+- **One continuous game clock** — no periods to set up and nothing that ends
+  the activity on a schedule. A real game runs longer than the sum of its
+  periods, so the recording stops when you stop it and not before.
 - **Shift clock** — green → amber → red as the shift runs long, with a long,
-  full-strength buzz at your target length so it is felt through a glove.
+  full-strength buzz at your target length so it is felt through a glove. The
+  ring around the screen fills with it, readable without reading a number.
+- **Total ice time on screen all game**, not only in the summary afterwards.
 - **On-ice heart rate, separated from bench heart rate** — the number this app
   exists to produce. See below.
 - **GPS on** — speed and distance are recorded when a fix is available.
 - **One screen** — everything visible at a glance, no paging mid-game.
 
 ```
-         P2/3                period
+       Ice 14:06            total time on the ice so far
       ┌─────────────┐
-         12:34              period clock (or the intermission countdown)
+         42:18              the game clock, counting up
        ON 0:42              green → amber → red; BENCH in blue
       148 bpm  9 sh         heart rate and shifts so far
       └─────────────┘
-          the outer ring fills as the period runs out
+          the outer ring fills as the current shift runs toward its target
 ```
 
 ## How the shift detection works
@@ -85,8 +86,12 @@ So motion decides, and the other two only corroborate:
   happened. Without that, every shift would lose its first seconds to the bench
   and every bench spell its first seconds to the shift.
 
-It will get some boundaries wrong. `UP` flips the state by hand when it does,
-and the menu offers the same correction in words.
+It will get some boundaries wrong. `BACK` — the lap key — flips the state by
+hand when it does, and the menu offers the same correction in words.
+
+The band the boundary sits in was fitted to a real game rather than guessed;
+[docs/detector-tuning.md](docs/detector-tuning.md) records the method, the
+numbers and what one game does not prove.
 
 ## Why on-ice heart rate is the point
 
@@ -108,10 +113,10 @@ Run app transfers. Nothing here is needed during normal play.
 
 | Button | Action |
 |---|---|
-| `START` / `STOP` | Start the game. **Press twice** to stop into the stop menu — resume, save, discard — exactly as stopping a run does. Skips the rest of an intermission. |
+| `START` / `STOP` | Start the game. **Press twice** to stop into the stop menu — resume, save, discard — exactly as stopping a run does. |
 | `BACK` (`LAP`) | Line change. `BACK` is the lap key in every Garmin activity, and a lap here *is* a shift, so this is the button that corrects the detector when it has the state wrong. |
 | `UP` / `DOWN` | Nothing. There is one data screen by design, so there is nothing to page through. |
-| `MENU` (hold `UP`) | Correct the shift state, pause, end the period, end or discard the game. |
+| `MENU` (hold `UP`) | Correct the shift state, pause, end or discard the game. |
 
 Two things follow from that, and both are deliberate departures from where this
 app started:
@@ -119,8 +124,8 @@ app started:
 - **`BACK` no longer ends the game.** On a Garmin watch `BACK` is never the exit
   during an activity, and a knock against the boards should not be able to end a
   game. Ending now goes through the stop menu: `START`, then *End & Save*.
-- **`DOWN` no longer ends the period.** A mis-press inside a glove should not be
-  able to burn a period. It is still in the menu.
+- **`DOWN` does nothing.** It used to end the period, and a mis-press inside a
+  glove could burn one. There are no periods now, so there is nothing to burn.
 - **Pausing takes two presses, and the screen ignores taps.** This watch has a
   touchscreen, and Connect IQ turns a tap into the same `SELECT` behaviour as
   the `START` button — so a glove or a sleeve across the glass used to stop the
@@ -136,15 +141,10 @@ Editable in Garmin Connect; the defaults are a regulation game.
 
 | Setting | Default | Range |
 |---|---|---|
-| Periods per game | 3 | 1–9 |
-| Period length | 20 min | 1–60 |
-| Intermission | 60 s | 0–1200 |
 | Shift alert | 60 s | 15–600 |
 | Shift sensitivity | Normal | Low / Normal / High |
 | Shift alerts | on | |
 | Lap per shift | on | |
-| Count period down | on | |
-| Auto-end game | **off** | |
 | Use GPS | on | |
 | Activity type | Ice Hockey | Ice Hockey / Ice Skate |
 
@@ -152,18 +152,14 @@ Editable in Garmin Connect; the defaults are a regulation game.
 means less movement counts as being on the ice — raise it if shifts are being
 missed, lower it if standing on the bench is being counted as a shift.
 
-**Auto-end game** decides what happens when the last period's clock runs out.
-Off — the default — the game carries on into overtime: the clock counts up from
-zero, the activity keeps recording, and the game ends when you end it. The
-header reads `OT` and the clock turns orange.
-
-It is off by default because the alternative lost a game. Until 2026-11-03 the
-app saved and closed the activity the moment the last period expired, and it
-did exactly that at 3600.79 seconds of clock time — three twenty-minute periods,
-to the second — while the game was still being played. A real game always runs
-longer than the sum of its periods: stoppages, overtime, a running clock nobody
-told the watch about. Turn this on only if a game that stops itself on schedule
-is genuinely what you want.
+**There is no period setting, and that is deliberate.** The app used to run
+three twenty-minute periods and end the activity when the last one expired. It
+did exactly that on 2026-11-03, at 3600.79 seconds of clock time — three
+periods to the second — while the game was still being played, and the last
+nine minutes of it were never recorded. The periods were a fiction regardless:
+the app has no way to know the real game clock, which stops for whistles and
+penalties and everything else the watch cannot see, so they drifted from the
+game's within minutes. A game is now one continuous recording.
 
 **Use GPS** is on because speed and distance are worth having when a fix exists.
 Expect no fix inside most arenas; the app degrades quietly to motion-only
@@ -239,7 +235,7 @@ lap splits still work.
 
 ```bash
 cd IndoorHockey
-./export.sh                # builds bin/IndoorHockey.iq for every product
+./package.sh               # builds bin/IndoorHockey.iq for every product
 ```
 
 Upload that at <https://apps.garmin.com/en-US/developer/upload>; the dashboard
@@ -297,6 +293,7 @@ IndoorHockey/
   manifest.xml         app id, device list, permissions
   monkey.jungle        build config
   build.sh             compile for one device
+  package.sh           build the signed .iq for every supported device
   run-sim.sh           build + launch in the simulator
   sync-products.sh     regenerate the device list from what is installed
   source/
@@ -313,9 +310,11 @@ IndoorHockey/
     settings/          properties and their Garmin Connect settings UI
     drawables/         launcher icon
 tools/
+  replay_detector.py   replay a recorded game through the detector offline
   sdkmanager-docker/   containerised SDK Manager + simulator
 docs/
   screenshots/         simulator captures used above
+  detector-tuning.md   how the detection band was fitted, and to what
 ```
 
 ### Design notes
@@ -327,9 +326,9 @@ The 1 Hz game clock is owned by the **app**, not the view, so shift detection,
 alerts and the per-second FIT fields keep running while a menu or a confirmation
 is covering the screen.
 
-Period time is game time; **shift and bench time are wall time**. Recovery
-happens during whistles and intermissions too, so a bench spell that spans a
-stoppage really is longer than the period clock says it is.
+The game clock is game time; **shift and bench time are wall time**. Recovery
+happens during whistles too, so a bench spell that spans a stoppage really is
+longer than the game clock says it is.
 
 Clocks are "time already banked" plus "running since", measured with
 `System.getTimer()`, so pausing and resuming cannot drift.
