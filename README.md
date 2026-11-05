@@ -163,11 +163,26 @@ Editable in Garmin Connect; the defaults are a regulation game.
 | Shift alerts | on | |
 | Lap per shift | on | |
 | Use GPS | on | |
+| End game when idle | 25 min | 0–180, 0 = never |
 | Activity type | Ice Hockey | Ice Hockey / Ice Skate |
 
 **Shift sensitivity** moves the decision boundary within the learned band. High
 means less movement counts as being on the ice — raise it if shifts are being
 missed, lower it if standing on the bench is being counted as a shift.
+
+**End game when idle** saves a game nobody is playing any more. After this
+many minutes with no skating detected the watch buzzes three times and shows a
+red *ENDING GAME* countdown; any button cancels it and starts the count again.
+Left alone for thirty seconds it **saves** the activity rather than discarding
+it, because the premise of the app is that the watch is not being touched, so
+silence has to mean keep the game.
+
+This is not the period clock coming back. That ended a game on a *schedule*,
+which knows nothing about whether play is still going, and it cut a recording
+short mid-shift. This ends on *evidence that nothing is happening*. The
+distinction is why the default is twenty-five minutes: an intermission is a
+normal fifteen to eighteen minutes of sitting down, and the threshold has to
+clear it comfortably or the old bug is back. Set 0 to turn it off.
 
 **There is no period setting, and that is deliberate.** The app used to run
 three twenty-minute periods and end the activity when the last one expired. It

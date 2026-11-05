@@ -113,6 +113,14 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
             return true;    // Handled, meaning: ignored.
         }
 
+        // A pending auto-end is a question, and this is an answer to it. The
+        // press cancels and does nothing else: a player who grabs the watch to
+        // stop it ending should not find they have paused the game instead.
+        if (_model.cancelAutoEnd()) {
+            WatchUi.requestUpdate();
+            return true;
+        }
+
         if (state == STATE_RUNNING) {
             // Two presses, not one. The first arms and buzzes; the second,
             // within three seconds, pauses. See GameModel.requestPause() for
@@ -150,6 +158,13 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
             return true;    // Handled, meaning: ignored.
         }
 
+        // As in onSelect(): cancelling the auto-end is all this press does, so
+        // it cannot also flip the shift state by accident.
+        if (_model.cancelAutoEnd()) {
+            WatchUi.requestUpdate();
+            return true;
+        }
+
         if (state == STATE_RUNNING) {
             _model.markSwitch();
             WatchUi.requestUpdate();
@@ -168,11 +183,25 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     //! there is no realistic way to page through one while skating. Swallowed
     //! rather than passed on so a stray press does nothing at all.
     public function onPreviousPage() as Boolean {
-        return _model.state == STATE_READY ? false : true;
+        return swallow();
     }
 
     //! DOWN: as UP.
     public function onNextPage() as Boolean {
+        return swallow();
+    }
+
+    //! Swallow the press, but let it cancel a pending auto-end first.
+    //!
+    //! Any deliberate press is proof the watch is being worn and looked at,
+    //! which is the only thing the auto-end is trying to establish. So the two
+    //! keys that otherwise do nothing at all are the safest ones to answer it
+    //! with: there is no second meaning to get wrong.
+    private function swallow() as Boolean {
+        if (_model.cancelAutoEnd()) {
+            WatchUi.requestUpdate();
+            return true;
+        }
         return _model.state == STATE_READY ? false : true;
     }
 

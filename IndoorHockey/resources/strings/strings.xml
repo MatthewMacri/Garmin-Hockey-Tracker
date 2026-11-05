@@ -72,6 +72,9 @@
     <string id="TypeHockey">Ice Hockey</string>
     <string id="TypeSkate">Ice Skate (Strava)</string>
     <string id="LabelPressAgain">PRESS AGAIN</string>
+    <string id="SetEndIdle">End game when idle</string>
+    <string id="SetEndIdlePrompt">Minutes with no skating detected before the game saves itself, so a recording left running does not carry on for hours. It buzzes first and any button cancels. Set 0 to never end by itself. Keep this well above an intermission.</string>
+    <string id="LabelEndingGame">ENDING GAME</string>
     <string id="SetUseGps">Use GPS</string>
     <string id="SetUseGpsPrompt">Record speed and distance. Indoor rinks rarely get a fix; outdoor rinks do</string>
 </resources>

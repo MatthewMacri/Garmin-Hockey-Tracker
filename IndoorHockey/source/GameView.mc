@@ -52,6 +52,7 @@ class GameView extends WatchUi.View {
     private var _txtMotion as String = "MOTION";
     private var _txtNoSensor as String = "NO MOTION DATA";
     private var _txtPressAgain as String = "PRESS AGAIN";
+    private var _txtEndingGame as String = "ENDING GAME";
 
     //! Constructor.
     public function initialize(model as GameModel) {
@@ -78,6 +79,7 @@ class GameView extends WatchUi.View {
         _txtMotion = WatchUi.loadResource($.Rez.Strings.LabelMotion) as String;
         _txtNoSensor = WatchUi.loadResource($.Rez.Strings.LabelNoSensor) as String;
         _txtPressAgain = WatchUi.loadResource($.Rez.Strings.LabelPressAgain) as String;
+        _txtEndingGame = WatchUi.loadResource($.Rez.Strings.LabelEndingGame) as String;
     }
 
     //! Start the once-a-second redraw.
@@ -134,9 +136,23 @@ class GameView extends WatchUi.View {
     //! after the game. Paired with the segment line below it the screen now
     //! reads "this shift, and the game so far".
     private function drawHeader(dc as Graphics.Dc, w as Number, h as Number) as Void {
-        // A pause waiting for its second press is the most important thing on
-        // the screen: the player needs to know the watch heard the press, and
-        // that it has not paused yet.
+        // Outranks everything else here: it is the only message on this screen
+        // that says the watch is about to act without being asked. Red,
+        // because yellow is already the colour of "waiting for you".
+        if (_model.isEndArmed()) {
+            // With the countdown, because a message that something will happen
+            // by itself is only useful if it says how long there is to stop it.
+            // Built every second, as the running header already is.
+            var left = (_model.endArmRemainingMs() + 999) / 1000;
+            drawFitted(dc, _txtEndingGame + " " + left.toString(),
+                Y_HEADER, w, h, Graphics.COLOR_RED,
+                [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY,
+                 Graphics.FONT_XTINY]);
+            return;
+        }
+
+        // A pause waiting for its second press: the player needs to know the
+        // watch heard the press, and that it has not paused yet.
         if (_model.isPauseArmed()) {
             drawFitted(dc, _txtPressAgain, Y_HEADER, w, h, Graphics.COLOR_YELLOW,
                 [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY,

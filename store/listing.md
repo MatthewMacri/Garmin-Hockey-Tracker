@@ -139,8 +139,17 @@ is a line change. Hold UP for the menu. Nothing is needed during normal play.
 SETTINGS
 
 Shift alert target, shift sensitivity, shift alerts on or off, lap per shift,
-GPS on or off, and whether the activity is filed as ice hockey or as ice
-skating.
+GPS on or off, how long with no skating before the game saves itself, and
+whether the activity is filed as ice hockey or as ice skating.
+
+END GAME WHEN IDLE
+
+A game left running does not run all night. After 25 minutes with no skating
+detected the watch buzzes and shows a countdown; any button cancels it. Left
+alone it saves the activity rather than discarding it. This is not a schedule
+and it cannot end a game that is still being played: an intermission is a
+normal 15 to 18 minutes of sitting down, so the default clears it comfortably,
+and any second on the ice starts the count over. Set it to 0 to turn it off.
 
 NOTES
 

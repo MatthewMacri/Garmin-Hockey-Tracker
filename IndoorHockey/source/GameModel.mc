@@ -81,6 +81,9 @@ class GameModel {
     public var sensitivity as Number = 1;
     public var activityType as Number = ACTIVITY_HOCKEY;
 
+    //! Milliseconds off the ice before the game ends itself. 0 turns it off.
+    public var endIdleMs as Number = 25 * 60 * 1000;
+
     // ---- live game state ----
     public var state as GameState = STATE_READY;
     public var shiftCount as Number = 0;
@@ -166,6 +169,7 @@ class GameModel {
         // Read, but only consulted when a session is created, so changing it
         // mid-game cannot retype an activity that is already recording.
         activityType = readNumber("activityType", ACTIVITY_HOCKEY, 0, 1);
+        endIdleMs = readNumber("endIdleMinutes", 25, 0, 180) * 60 * 1000;
 
         detector.setSensitivity(sensitivity);
     }
@@ -353,6 +357,12 @@ class GameModel {
         // property of the code rather than a coincidence of the routes.
         _pauseArmedAt = -1;
 
+        // Same reasoning for the idle clock. A resume is someone touching the
+        // watch, which is the strongest possible evidence the game is not
+        // forgotten, so the count starts again from there.
+        _idleMs = 0;
+        _endArmedAt = -1;
+
         // pause() stops the accelerometer, so resuming has to start it again.
         // Both calls are no-ops when they are not needed.
         detector.start();
@@ -388,7 +398,18 @@ class GameModel {
     // pressing twice.
     private const PAUSE_MIN_GAP_MS = 250;
 
+    //! How long the auto-end warning stays on screen before it saves. Long
+    //! enough to notice a buzz, pull a sleeve back and read the screen; short
+    //! enough that a watch nobody is wearing is not waiting around.
+    private const END_PROMPT_MS = 30000;
+
     private var _pauseArmedAt as Number = -1;
+
+    //! Continuous milliseconds off the ice. Any on-ice second clears it.
+    private var _idleMs as Number = 0;
+
+    //! When the auto-end warning went up, or -1 when it is not showing.
+    private var _endArmedAt as Number = -1;
 
     //! Ask to pause. The first ask only arms; a second ask within
     //! PAUSE_ARM_MS actually pauses. Returns true when the pause happened.
@@ -470,6 +491,7 @@ class GameModel {
         }
         state = STATE_PAUSED;
         _pauseArmedAt = -1;
+        _endArmedAt = -1;
         alert(Attention.TONE_STOP, [new Attention.VibeProfile(100, 300)]);
     }
 
@@ -682,6 +704,91 @@ class GameModel {
         } else if (detector.isHealthy()) {
             _sensorWarned = false;
         }
+
+        trackIdle(onTheIce);
+    }
+
+    //! End a game nobody is playing any more.
+    //!
+    //! 2.0.0 removed a clock that ended the game on a schedule, because a
+    //! schedule knows nothing about whether play is still going and it cut
+    //! recordings short mid-shift. This is the opposite trigger: not a clock
+    //! running out, but a long absence of any skating at all. A schedule can
+    //! be wrong while the player is mid-shift; a quarter of an hour with no
+    //! detected motion cannot be, provided the threshold stays well clear of
+    //! an intermission.
+    //!
+    //! It warns before it acts, and when the warning goes unanswered it SAVES
+    //! rather than discards. The whole premise of the app is that the watch is
+    //! not being touched, so silence has to mean keep the game: the failure
+    //! this fixes is a recording left running, and throwing the game away
+    //! would be a worse one.
+    private function trackIdle(onTheIce as Boolean) as Void {
+        if (onTheIce) {
+            _idleMs = 0;
+            _endArmedAt = -1;
+            return;
+        }
+
+        if (_endArmedAt >= 0) {
+            var age = System.getTimer() - _endArmedAt;
+            // A negative age means the millisecond clock wrapped, so the
+            // warning can no longer be timed. Saving is the safe outcome of an
+            // untimeable warning, exactly as "not armed" is the safe outcome
+            // of an untimeable pause arm: both pick the option that cannot
+            // lose a game.
+            if (age < 0 || age >= END_PROMPT_MS) {
+                endGame(true);
+            }
+            return;
+        }
+
+        if (endIdleMs <= 0) {
+            return;
+        }
+
+        // onTick runs once a second. Counting in whole seconds here keeps this
+        // on the same footing as _hardSeconds rather than inventing a second
+        // notion of elapsed time.
+        _idleMs += 1000;
+        if (_idleMs >= endIdleMs) {
+            _endArmedAt = System.getTimer();
+            // Three pulses, distinct from the shift alert's two and the pause
+            // arm's double tap. This one is saying something is about to
+            // happen on its own, which nothing else in the app does.
+            alert(Attention.TONE_ALERT_LO,
+                [new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
+                 new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
+                 new Attention.VibeProfile(100, 400)]);
+        }
+    }
+
+    //! True while the auto-end warning is on screen.
+    public function isEndArmed() as Boolean {
+        return _endArmedAt >= 0 && state == STATE_RUNNING;
+    }
+
+    //! Milliseconds left before the game saves itself, for the countdown.
+    public function endArmRemainingMs() as Number {
+        if (!isEndArmed()) {
+            return 0;
+        }
+        var left = END_PROMPT_MS - sinceMs(_endArmedAt);
+        return (left > 0) ? left : 0;
+    }
+
+    //! Call off a pending auto-end. Returns true when there was one to call
+    //! off, so the press that dismissed it can be swallowed rather than also
+    //! pausing the game.
+    public function cancelAutoEnd() as Boolean {
+        if (_endArmedAt < 0) {
+            return false;
+        }
+        _endArmedAt = -1;
+        // Start the idle clock over, or the next tick would re-arm instantly
+        // and the warning the player just dismissed would come straight back.
+        _idleMs = 0;
+        return true;
     }
 
     //! Maximum heart rate from the top of the user's zone 5. There is no
@@ -788,6 +895,7 @@ class GameModel {
         _segmentAccumMs = 0;
         _segmentSince = -1;
         _pauseArmedAt = -1;
+        _endArmedAt = -1;
 
         detector.stop();
         disableGps();
