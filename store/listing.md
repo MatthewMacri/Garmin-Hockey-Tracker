@@ -13,7 +13,7 @@ file into a debug record for all 202 device variants - about 180,000 copies of
 the builder's home directory, shipped inside the package.
 
 Step 1 also asks for **App Version**, a free text box. Type the version there -
-`2.0.0`, then `2.1.0`, and so on.
+`2.1.0`, then `2.2.0`, and so on.
 
 **Nothing in the build carries the version.** `manifest.xml` has no version
 attribute and never has; the packaged `.iq` has none either, only `apiVersion`,
@@ -171,23 +171,25 @@ Health & Fitness
 hockey, ice hockey, shifts, shift timer, line change, on-ice heart rate,
 bench, shifts, rink, skating
 
-## What's New (version 2.0.0)
+## What's New (version 2.1.0)
 
 ```
-A game is now one continuous recording. The period and intermission clock
-is gone, along with the settings for it - the activity runs until you stop
-it, however long that takes. The previous version ended a game by itself at
-the end of the third period, which cut a recording short mid-play.
+A game left running no longer runs all night. After 25 minutes with no
+skating detected the watch buzzes and shows a countdown; any button press
+calls it off, and left alone the game is saved rather than discarded. It
+works on a paused game too, which is the likeliest way to forget one -
+pause at the final whistle, put the gloves away, remember hours later.
 
-Pausing now takes two presses, and the touchscreen is ignored while a game
-is running: a tap arrived as the same button behaviour as START, so a glove
-on the glass could stop the recording. Ending a game asks for confirmation.
+It cannot end a game still being played. A single second on the ice
+restarts the count, the default comfortably clears an intermission, and
+the setting will not accept anything shorter than twenty minutes. If the
+accelerometer stops delivering, the count stops with it rather than
+reading a dead sensor as a player sitting still. Set it to 0 to turn the
+whole thing off.
 
-A pause no longer counts toward the shift and bench clocks, which could
-record a whole intermission as a single enormous shift.
-
-The shift detector has been retuned against a recorded game, and the shift
-ring on the watch face now tracks the current shift against the target.
+Also: a watch whose accelerometer delivered samples in very small batches
+could read as having no accelerometer at all, which disabled shift
+detection for the whole game. Those batches are now used.
 ```
 
 ## Screenshots
