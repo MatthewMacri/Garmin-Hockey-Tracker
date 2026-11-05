@@ -50,9 +50,20 @@ github.com/MatthewMacri/Garmin-Hockey-Tracker
 - No speed, no distance. GPS doesn't fix in most rinks and an accelerometer
   alone won't give you a skating speed worth printing. If that's your main
   thing, this isn't your app.
-- No goalie mode, no scorekeeping, no per-shift heart rate zones.
+- No goalie mode, no scorekeeping.
 - It's new. The detection is tuned against one recorded game, mine. That's the
   single biggest weakness and it's the reason I'm posting.
+
+**One thing I had listed here as missing, and it turned out not to be.**
+Somebody asked about per-shift heart rate zones. The watch doesn't show them
+and neither does Garmin Connect, so I said no — and then went and looked.
+Every shift in this app is a lap, and Garmin's own firmware writes a zone
+breakdown for every lap. Fifty laps and fifty-one of those records in the game
+I checked. It had been recording the thing I'd just said it couldn't do, on
+every game ever played with it. There's a script in the repo that reads them
+out of a saved activity now, including zone time on the ice against zone time
+on the bench, which Connect can't show you because it doesn't know which laps
+were shifts.
 
 Shift alerts buzz at your target length and can be switched off entirely.
 Pausing takes two presses of start, because the screen is a touchscreen and one

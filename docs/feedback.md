@@ -55,6 +55,23 @@ chart could be settled from a file already on disk. The other two need one real
 game and ten minutes in Garmin Connect afterwards, which is worth more than any
 amount of reasoning from the SDK documentation.
 
+## A claim of ours went stale in under a day
+
+The launch drafts both carried the line *"no goalie mode, no scorekeeping, no
+per-shift heart rate zones."* It was true when it was written and false about
+four hours later, when `tools/fit/shift-zones.py` shipped in v2.1.0. Nothing
+flagged it. It was caught only because the line was read back to us.
+
+The speed and distance half of that section is still exactly right and stays
+as written - that one is a deliberate choice, not a todo, and it will not
+change. The zone half was a todo that got done.
+
+Worth remembering in both directions: a "what it doesn't do" list ages faster
+than a feature list, because the whole point of writing one is to name the
+things you intend to fix. Anything in `docs/` that tells a player what this app
+cannot do needs re-reading against the code before it goes anywhere public,
+and this file is where that check gets recorded.
+
 The zone question turned out to be worth more than an answer. Looking for
 evidence that the overall chart worked turned up a per-lap breakdown nobody had
 noticed, already recorded on every game ever played with this app - so the

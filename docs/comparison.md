@@ -148,7 +148,7 @@ Stated plainly, because a comparison that only flatters is worth nothing.
 | Shot counting | Ice Hockey Tracker |
 | Goalie mode, save percentage | RinkPulse |
 | Scorekeeping - goals, assists, plus/minus | RinkPulse |
-| Heart rate zones per shift | RinkPulse |
+| Heart rate zones per shift, *on a screen* | RinkPulse |
 | A history and charts app of its own | RinkPulse |
 | Field testing by anyone but the author | RinkPulse, Ice Hockey Tracker |
 
@@ -157,6 +157,12 @@ hockey players finding its edges; Ice Hockey Tracker has 100+ downloads and a
 4.0 rating. This app has shipped to nobody and its shift detection has been
 tuned against a single recorded game. Everything above about auditability is a
 reason to believe it can be *fixed* quickly, not a claim that it is right.
+
+The per-shift zone row is narrower than it was. RinkPulse shows them in its own
+app; this one records them and ships a script that reads them out of the saved
+activity, plus the on-ice-against-bench split RinkPulse cannot do because it
+does not separate the two. On a screen, mid-season, RinkPulse still wins that
+row - a script you run on a laptop is not a feature most players will use.
 
 The speed and distance gap is a deliberate choice rather than a todo: GPS does
 not fix indoors, and an accelerometer alone cannot produce a trustworthy skating

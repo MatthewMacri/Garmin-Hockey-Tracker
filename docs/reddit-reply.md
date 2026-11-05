@@ -36,7 +36,12 @@ Being straight about the trade-offs:
 
 - No speed or distance at all. GPS doesn't fix indoors and I'd rather report
   nothing than a number I don't trust.
-- No goalie mode, no scorekeeping, no per-shift HR zones.
+- No goalie mode, no scorekeeping.
+- Per-shift HR zones aren't on the watch — but it turns out the watch has been
+  recording them all along, because every shift here is a lap and Garmin writes
+  a zone breakdown per lap. There's a script in the repo that pulls them out of
+  a saved game, including on-ice zone time against bench zone time, which
+  Connect can't show because it doesn't know which laps were shifts.
 - It's brand new. Shift detection is tuned against one recorded game, so it
   will get boundaries wrong. The lap button flips the state by hand when it
   does.
