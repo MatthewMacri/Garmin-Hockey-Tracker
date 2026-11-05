@@ -102,11 +102,10 @@ WHAT IT DOES
 WHY ON-ICE HEART RATE MATTERS
 
 In a study of simulated elite match play, average heart rate on the ice was 84%
-of maximum and peaked at 97%. A game average is a different number entirely,
-because it blends skating with sitting and the weighting is your bench time
-rather than your effort. Two players who skated identically can post different
-game averages purely because one got more rest. This app knows when you were on
-the ice, so it reports both.
+of maximum. A game average is a different number, because it blends skating
+with sitting and the weighting is your bench time rather than your effort. Two
+players who skated identically post different game averages when one got more
+rest. This app knows when you were on the ice, so it reports both.
 
 HOW THE DETECTION WORKS
 
@@ -145,15 +144,16 @@ whether the activity is filed as ice hockey or as ice skating.
 END GAME WHEN IDLE
 
 A game left running does not run all night. After 25 minutes with no skating
-detected the watch buzzes and shows a countdown; any button press cancels it.
-Left alone it saves the activity rather than discarding it. It waits while a
-menu is open or the motion sensor is not reporting, because neither is evidence
-that nobody is playing. This is not a schedule
-and it cannot end a game that is still being played: an intermission is a
-normal 15 to 18 minutes of sitting down, so the default clears it comfortably,
-and any second on the ice starts the count over. Set it to 0 to turn it off.
+detected the watch buzzes and shows a countdown; any button press cancels it,
+and left alone it saves rather than discards. It cannot end a game still being
+played: any second on the ice restarts the count, and the default clears a full
+intermission. Set it to 0 to turn it off.
 
 NOTES
+
+Wear the watch on your wrist. Shifts come from wrist motion, so a watch in a
+vest or a bag has nothing to detect and records one long shift. A paired chest
+strap is fine and is used for heart rate as normal.
 
 GPS is on by default, but expect no fix inside most arenas. The app degrades
 quietly to motion-only detection and records the game normally.

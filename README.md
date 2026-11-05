@@ -152,6 +152,15 @@ app started:
   stop menu is where an accidental pause lands you, so it now confirms — as
   *Discard* always did.
 
+## Wear it on your wrist
+
+Shifts come from wrist motion, so the watch has to be on the arm. Carried in a
+vest pocket or a bag it has nothing to detect: the detector never flips, and
+the game records as one shift the length of the game. This comes up because
+plenty of players wear a chest strap and stow the watch - the strap is fine and
+is used for heart rate exactly as normal, but it cannot stand in for the one
+signal the detection actually runs on.
+
 ## Settings
 
 Editable in Garmin Connect; the defaults are a regulation game.
