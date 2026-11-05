@@ -39,7 +39,7 @@ player would hit the same thing here, and most of them this app already answers.
 | "Reported speeds seem low" / indoor speed | **Not doing.** No speed, no distance. GPS does not fix indoors and an accelerometer alone cannot produce a skating speed worth printing. |
 | "Does it work for goalies?" | **Not doing yet.** See [#4](../../issues/4). |
 | Scorekeeping - goals, assists, plus/minus | **Not doing yet.** See [#5](../../issues/5). |
-| Per-shift HR zones | **Data exists, not surfaced.** Every shift is its own lap and the watch already writes a `time_in_zone` per lap. See [#6](../../issues/6). |
+| Per-shift HR zones | **Added** - `tools/fit/shift-zones.py` reads them out of a saved game, plus the ice-versus-bench zone split Connect cannot draw. See [#6](../../issues/6). |
 | "I wear a chest strap and put the watch in a sports vest" | **Will not work, now documented.** Detection is wrist motion, so the watch has to be on the wrist. The docs implied this and never said it. |
 | Not compatible with vivoactive 3 / FR245 / 645 / 945 / fenix 5X | **In the app.** All present in `manifest.xml`; `minApiLevel` is 3.1.0. 126 products covering 202 device variants. |
 | Ports to Apple / Samsung / Pixel | **Not doing.** See `comparison.md`. On Apple the metrics have nowhere to live - HealthKit's types are a closed set - so the port loses the thing that makes this app worth using. |
@@ -52,3 +52,10 @@ never tested": chest straps, zone charts, intensity minutes. Only the zone
 chart could be settled from a file already on disk. The other two need one real
 game and ten minutes in Garmin Connect afterwards, which is worth more than any
 amount of reasoning from the SDK documentation.
+
+The zone question turned out to be worth more than an answer. Looking for
+evidence that the overall chart worked turned up a per-lap breakdown nobody had
+noticed, already recorded on every game ever played with this app - so the
+feature a player asked for had existed for months with nothing reading it. The
+cost of answering from memory is not only a wrong answer; it is never finding
+out what is already in the file.

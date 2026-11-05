@@ -17,6 +17,11 @@ BASE = {
 
 RECORD, SESSION, LAP, FILE_ID, EVENT, FIELD_DESC = 20, 18, 19, 0, 21, 206
 
+# Written by the watch firmware, not by this app: one per lap and one for the
+# session. Every shift is a lap here, so this is a heart rate zone breakdown
+# per shift - which Garmin Connect records and never shows.
+TIME_IN_ZONE = 216
+
 # field number -> name, for the messages we care about
 NAMES = {
     RECORD: {253:'timestamp', 0:'lat', 1:'lon', 2:'altitude', 3:'heart_rate',
@@ -34,7 +39,20 @@ NAMES = {
     FIELD_DESC: {0:'developer_data_index', 1:'field_definition_number',
                  2:'fit_base_type_id', 3:'field_name', 8:'units',
                  14:'native_mesg_num'},
+    TIME_IN_ZONE: {253:'timestamp', 0:'reference_mesg', 1:'reference_index',
+                   2:'time_in_hr_zone', 5:'time_in_power_zone',
+                   6:'hr_zone_high_boundary', 9:'time_in_speed_zone',
+                   10:'hr_calc_type', 11:'max_heart_rate',
+                   12:'resting_heart_rate', 13:'threshold_heart_rate',
+                   14:'pwr_calc_type', 15:'functional_threshold_power'},
 }
+
+# Fields whose value is an array whose POSITION is its meaning - zone 3 is
+# wherever index 3 is. The ordinary decode drops invalid entries, which for
+# these silently renumbers the zones: a file with no time in zone 1 would
+# report zone 2's seconds as zone 1's. They have to keep their holes.
+POSITIONAL = {(TIME_IN_ZONE, 2), (TIME_IN_ZONE, 5), (TIME_IN_ZONE, 6),
+              (TIME_IN_ZONE, 9)}
 
 SPORT = {0:'generic',1:'running',2:'cycling',4:'fitness_equipment',5:'swimming',
          6:'basketball',7:'soccer',10:'training',11:'walking',15:'rowing',
@@ -62,6 +80,18 @@ def _decode(raw, base, endian):
     return vals[0] if len(vals) == 1 else vals
 
 
+def _decode_positional(raw, base, endian):
+    """Decode an array field keeping every slot, invalid ones included as None."""
+    code, size, invalid = BASE.get(base, ('B', 1, 0xFF))
+    if code == 's':
+        return _decode(raw, base, endian)
+    n = len(raw) // size
+    if n == 0:
+        return []
+    vals = struct.unpack(endian + code * n, raw[:n * size])
+    return [None if (invalid is not None and v == invalid) else v for v in vals]
+
+
 def parse(path):
     data = open(path, 'rb').read()
     hdr = data[0]
@@ -72,7 +102,7 @@ def parse(path):
     defs = {}          # local msg type -> definition
     devdefs = {}       # (dev_index, field_num) -> {'name','base','units'}
     out = {'record': [], 'session': [], 'lap': [], 'file_id': [],
-           'event': [], 'devfields': devdefs}
+           'event': [], 'time_in_zone': [], 'devfields': devdefs}
 
     while pos < end:
         h = data[pos]; pos += 1
@@ -111,7 +141,10 @@ def parse(path):
         for fnum, fsize, ftype in fields:
             raw = data[pos:pos + fsize]; pos += fsize
             name = NAMES.get(gnum, {}).get(fnum, 'f%d' % fnum)
-            msg[name] = _decode(raw, ftype, endian)
+            if (gnum, fnum) in POSITIONAL:
+                msg[name] = _decode_positional(raw, ftype, endian)
+            else:
+                msg[name] = _decode(raw, ftype, endian)
         for fnum, fsize, didx in devs:
             raw = data[pos:pos + fsize]; pos += fsize
             meta = devdefs.get((didx, fnum))
@@ -134,6 +167,8 @@ def parse(path):
             out['file_id'].append(msg)
         elif gnum == EVENT:
             out['event'].append(msg)
+        elif gnum == TIME_IN_ZONE:
+            out['time_in_zone'].append(msg)
     return out
 
 

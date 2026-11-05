@@ -264,6 +264,43 @@ against real skating rather than guesswork.
 Developer fields only render once the app is on the store — a Beta upload is
 enough. A sideloaded build writes them correctly and displays them nowhere.
 
+### Heart rate zones per shift
+
+There is one more thing in the file that neither the app nor Garmin Connect
+shows you, and it was found by looking rather than by building: **the watch
+writes a heart rate zone breakdown for every lap.** Every shift in this app is
+a lap, so a per-shift zone split has been recorded on every game ever played
+with it — fifty laps and fifty-one `time_in_zone` messages in the game this was
+checked against, one per lap plus one for the session.
+
+Connect records it and shows neither half: the Splits tab gives lap duration
+and average heart rate, and the zone chart covers the whole activity.
+
+```
+tools/fit/shift-zones.py data/2026-11-03-game/2026-11-03-22-11-07.fit
+tools/fit/shift-zones.py GAME.fit --all-laps --csv shifts.csv
+```
+
+It prints a zone table and a bar per shift, and then the number that exists
+nowhere else — zone time **on the ice** against zone time **on the bench**:
+
+```
+            total        Z1      Z2      Z3      Z4      Z5
+  Ice        9:46      1:10    0:51    2:46    4:16    0:43
+  Bench     49:34      0:56   10:24   16:41   19:07    2:26
+  Game      59:20      2:07   11:14   19:27   23:23    3:09
+```
+
+The Game row is Connect's zone chart. The two rows above it are the same
+seconds split by where they were spent, which Connect cannot do because it does
+not know which laps were shifts — this app wrote that onto every lap itself.
+
+Two cautions, both printed by the tool. The ice row is a claim about the
+detector as much as about the player: a missed line change moves seconds from
+one row to the other and nothing in the file records that it happened. And the
+per-lap breakdown is firmware behaviour, not something this app controls, so it
+was confirmed on a Forerunner 570 and may differ elsewhere.
+
 ## Install
 
 **From the Connect IQ Store** — the ordinary way, and the only way the developer
