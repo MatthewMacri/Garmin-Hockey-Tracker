@@ -169,7 +169,18 @@ class GameModel {
         // Read, but only consulted when a session is created, so changing it
         // mid-game cannot retype an activity that is already recording.
         activityType = readNumber("activityType", ACTIVITY_HOCKEY, 0, 1);
-        endIdleMs = readNumber("endIdleMinutes", 25, 0, 180) * 60 * 1000;
+        // 0 is off; anything else is floored at END_IDLE_MIN_MINUTES. The
+        // numeric setting control cannot express "zero, or twenty and up", so
+        // the floor is applied here rather than left to the prompt text. A
+        // player who types 10 means "end it promptly", not "end it during the
+        // second intermission" - and an auto-save mid-game is the one failure
+        // this feature must never cause, because it is the failure 2.0.0
+        // removed the period clock to fix.
+        var endIdleMinutes = readNumber("endIdleMinutes", 25, 0, 180);
+        if (endIdleMinutes > 0 && endIdleMinutes < END_IDLE_MIN_MINUTES) {
+            endIdleMinutes = END_IDLE_MIN_MINUTES;
+        }
+        endIdleMs = endIdleMinutes * 60 * 1000;
 
         detector.setSensitivity(sensitivity);
     }
@@ -403,6 +414,11 @@ class GameModel {
     //! enough that a watch nobody is wearing is not waiting around.
     private const END_PROMPT_MS = 30000;
 
+    //! The shortest idle setting that is not "off". An intermission is a
+    //! normal 15 to 18 minutes of sitting down and a player may well sit
+    //! longer, so anything under this would end live games between periods.
+    private const END_IDLE_MIN_MINUTES = 20;
+
     private var _pauseArmedAt as Number = -1;
 
     //! True while GameView is the screen on top. The app owns the game tick,
@@ -497,6 +513,13 @@ class GameModel {
         state = STATE_PAUSED;
         _pauseArmedAt = -1;
         _endArmedAt = -1;
+        // Restart the idle window rather than carrying the bench spell into
+        // it. A player who sits out an intermission and then pauses the watch
+        // partway through has done nothing wrong, and carrying over would
+        // spend most of the window before the pause even began - the full
+        // window has to clear an intermission from the moment of the pause,
+        // which is the whole reason the default is longer than one.
+        _idleMs = 0;
         alert(Attention.TONE_STOP, [new Attention.VibeProfile(100, 300)]);
     }
 
@@ -641,6 +664,11 @@ class GameModel {
             return;
         }
 
+        if (state == STATE_PAUSED) {
+            trackPausedIdle();
+            return;
+        }
+
         if (state != STATE_RUNNING) {
             return;
         }
@@ -755,6 +783,32 @@ class GameModel {
             return;
         }
 
+        advanceIdle();
+    }
+
+    //! The paused counterpart, and the case the auto-end originally missed.
+    //!
+    //! A paused game has no clocks running, but it is still an open recording
+    //! - and pausing is the likeliest route to a forgotten one. "Pause at the
+    //! final whistle, put the gloves away, remember four hours later" is the
+    //! exact complaint this feature was built for, and it was the one path
+    //! that never reached the idle clock: onTick() returned early on anything
+    //! that was not STATE_RUNNING.
+    //!
+    //! There is no isHealthy() gate here, unlike trackIdle(). That gate exists
+    //! because a held detector state is an absence of evidence, and absence
+    //! must not be read as a signal. A pause is the opposite: a deliberate act
+    //! by the player, with a timestamp. Gating on the detector would in fact
+    //! disable this path outright, because pause() stops the accelerometer on
+    //! purpose, so isHealthy() is false for every paused game by design.
+    private function trackPausedIdle() as Void {
+        advanceIdle();
+    }
+
+    //! Advance the idle clock by one second and arm, or fire, the warning.
+    //! Shared so the running and paused paths cannot drift apart - the two
+    //! differ in what counts as idle, not in what happens once it is.
+    private function advanceIdle() as Void {
         // Nothing can be shown or cancelled while a menu or confirmation
         // covers the game screen: the countdown lives in GameView's header and
         // every cancel path runs through GameDelegate, neither of which is
@@ -812,7 +866,12 @@ class GameModel {
 
     //! True while the auto-end warning is on screen.
     public function isEndArmed() as Boolean {
-        return _endArmedAt >= 0 && state == STATE_RUNNING;
+        // PAUSED counts: a paused game can arm the warning now, and the header
+        // in GameView is the only place it is ever shown. Leaving this at
+        // RUNNING would arm a countdown that nothing draws and then save the
+        // game with no warning at all - worse than not having the feature.
+        return _endArmedAt >= 0
+            && (state == STATE_RUNNING || state == STATE_PAUSED);
     }
 
     //! Milliseconds left before the game saves itself, for the countdown.
@@ -820,7 +879,17 @@ class GameModel {
         if (!isEndArmed()) {
             return 0;
         }
-        var left = END_PROMPT_MS - sinceMs(_endArmedAt);
+        // Deliberately not sinceMs(): it reports 0 for a wrapped millisecond
+        // clock, which here would read as a full thirty seconds remaining on
+        // the exact tick advanceIdle() decides an untimeable warning has
+        // expired and saves the game. The screen would freeze on ENDING GAME
+        // 30 and then the game would be gone. A wrap has to mean "no time
+        // left" in both places or one of them is lying.
+        var age = System.getTimer() - _endArmedAt;
+        if (age < 0) {
+            return 0;
+        }
+        var left = END_PROMPT_MS - age;
         return (left > 0) ? left : 0;
     }
 
@@ -835,6 +904,14 @@ class GameModel {
         // Start the idle clock over, or the next tick would re-arm instantly
         // and the warning the player just dismissed would come straight back.
         _idleMs = 0;
+        // Disarm any pause question underneath as well. The red ENDING GAME
+        // header draws over PRESS AGAIN, so a player who armed a pause and
+        // then got the auto-end warning cannot see that the pause question is
+        // still live. Their dismissal press is swallowed here, the header
+        // reverts to PRESS AGAIN, and the screen is now asking for a press
+        // that would pause the game - so "cancelling is all that press does"
+        // would be false for the one press after this one.
+        _pauseArmedAt = -1;
         return true;
     }
 

@@ -96,6 +96,19 @@ class ShiftDetector {
     // as a player who is standing very still.
     public var staleSeconds as Number = 0;
 
+    //! Sample magnitudes from a batch too short to measure, held over for the
+    //! next batch. See onSensorData().
+    private var _carry as Array<Float> = [] as Array<Float>;
+
+    //! The fewest samples a mean absolute deviation is worth taking over.
+    //! Below this the figure is dominated by whichever one sample happened to
+    //! sit furthest from the mean.
+    private const MIN_SAMPLES = 4;
+
+    //! And the most to take one over. Accelerometer rates on supported devices
+    //! top out at 25 Hz, so a window past this is a backlog, not a second.
+    private const MAX_WINDOW = 32;
+
     private var _rest as Float = 40.0;
     private var _work as Float = 400.0;
     private var _band as Float = 0.45;
@@ -210,6 +223,10 @@ class ShiftDetector {
     public function flushPending() as Void {
         _pendingSum = 0;
         _pendingCount = 0;
+        // Including the carried leftovers, which are stale for the same
+        // reason and would otherwise be the oldest part of the first window
+        // measured after the resume.
+        _carry = [] as Array<Float>;
         staleSeconds = 0;
     }
 
@@ -252,31 +269,63 @@ class ShiftDetector {
         var count = xs.size();
         if (count > ys.size()) { count = ys.size(); }
         if (count > zs.size()) { count = zs.size(); }
-        if (count < 4) {
+        if (count < 1) {
             return;
         }
 
-        var sum = 0.0;
+        // Magnitudes first, and only then the deviation. A magnitude depends
+        // on nothing but its own sample, which is what makes it safe to carry
+        // leftovers across callbacks; the deviation is taken about the mean of
+        // its window, so it has to wait until there is a window to take it
+        // over.
         var i;
-        var magnitudes = new Array<Float>[count];
+        var magnitudes = _carry;
         for (i = 0; i < count; i++) {
             var x = xs[i].toFloat();
             var y = ys[i].toFloat();
             var z = zs[i].toFloat();
-            var m = Math.sqrt((x * x) + (y * y) + (z * z));
-            magnitudes[i] = m.toFloat();
-            sum += m;
+            magnitudes.add(Math.sqrt((x * x) + (y * y) + (z * z)).toFloat());
         }
 
-        var mean = sum / count;
+        var n = magnitudes.size();
+        if (n < MIN_SAMPLES) {
+            // Too few to take a deviation over, so hold them for the next
+            // callback instead of dropping them. Dropping them was the old
+            // behaviour and it had a nasty failure: a device that delivers
+            // samples in twos would discard every batch, never touch
+            // _pendingCount, and so register as an accelerometer that is not
+            // delivering at all. staleSeconds would climb past 10 and stay
+            // there, isHealthy() would be false for the whole game, the
+            // sensor-failure buzz would fire, the shift detector would hold
+            // one state from the opening faceoff - and the auto-end would be
+            // disabled too, since it refuses to run on an unhealthy detector.
+            // A whole game lost to a batch size, on hardware that was working.
+            _carry = magnitudes;
+            return;
+        }
+
+        if (n > MAX_WINDOW) {
+            // A backlog this long means the callbacks bunched up, and the
+            // oldest samples in it describe a second that has already been
+            // reported. Keep the newest window and let the rest go.
+            magnitudes = magnitudes.slice(n - MAX_WINDOW, null);
+            n = MAX_WINDOW;
+        }
+        _carry = [] as Array<Float>;
+
+        var sum = 0.0;
+        for (i = 0; i < n; i++) {
+            sum += magnitudes[i];
+        }
+        var mean = sum / n;
         var deviation = 0.0;
-        for (i = 0; i < count; i++) {
+        for (i = 0; i < n; i++) {
             var d = magnitudes[i] - mean;
             deviation += (d < 0) ? -d : d;
         }
 
         // Add rather than replace. Two callbacks between ticks both count.
-        _pendingSum += (deviation / count).toNumber();
+        _pendingSum += (deviation / n).toNumber();
         _pendingCount++;
     }
 
@@ -471,6 +520,7 @@ class ShiftDetector {
         _speed = null;
         _pendingSum = 0;
         _pendingCount = 0;
+        _carry = [] as Array<Float>;
         motion = 0;
         threshold = MOTION_FLOOR;
         staleSeconds = 0;

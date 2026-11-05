@@ -33,6 +33,10 @@
         <setting propertyKey="@Properties.useGps" title="@Strings.SetUseGps" prompt="@Strings.SetUseGpsPrompt">
             <settingConfig type="boolean" />
         </setting>
+        <!-- min stays 0 because 0 is how the feature is turned off, and the
+             numeric control cannot express "zero, or twenty and up". The real
+             floor is END_IDLE_MIN_MINUTES in GameModel.loadSettings(), which
+             raises anything from 1 to 19 up to 20. -->
         <setting propertyKey="@Properties.endIdleMinutes" title="@Strings.SetEndIdle" prompt="@Strings.SetEndIdlePrompt">
             <settingConfig type="numeric" min="0" max="180" />
         </setting>
