@@ -74,22 +74,38 @@ def live(rows):
     return out
 
 
-# The band the recording was made with, which is NOT the band currently
-# shipped. Validation replays the recorded motion through the rule the watch
-# was running at the time and compares against the threshold it actually
-# wrote; replaying at today's band would compare against a threshold no watch
-# ever computed and report a disagreement that is really just a settings
-# difference. Bump this only when a game is recorded on a newer build.
-RECORDED_BAND = 0.45
+# The band the recording was made with, which is NOT necessarily the band
+# currently shipped. Validation replays the recorded motion through the rule
+# the watch was running AT THE TIME and compares against the threshold it
+# actually wrote; replaying at a different band compares against a threshold no
+# watch ever computed and reports a disagreement that is really a settings
+# difference.
+#
+#   0.45  builds before b20a726 - the 2026-11-03 recording
+#   0.27  v2.0.0 onwards, normal sensitivity
+#   0.35  low sensitivity        0.21  high sensitivity
+#
+# Default is the shipped value, so a game recorded today replays correctly
+# without an argument. Pass --band 0.45 for the 2026-11-03 file.
+RECORDED_BAND = 0.27
 
 if __name__ == '__main__':
-    rows = live(load(sys.argv[1]))
-    print("samples: %d" % len(rows))
+    args = [a for a in sys.argv[1:]]
+    band = RECORDED_BAND
+    if '--band' in args:
+        i = args.index('--band')
+        band = float(args[i + 1])
+        del args[i:i + 2]
+    if not args:
+        print("usage: replay_detector.py GAME.fit [--band 0.27]")
+        sys.exit(2)
+    rows = live(load(args[0]))
+    print("samples: %d   replaying at band %.2f" % (len(rows), band))
     if not rows:
         print("No motion/threshold developer fields in this file - it was")
         print("recorded by a build that did not write them. Nothing to replay.")
         sys.exit(1)
-    lr = Learner(band=RECORDED_BAND)
+    lr = Learner(band=band)
     err = 0
     mine, theirs = [], []
     for r in rows:
