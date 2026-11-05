@@ -88,6 +88,9 @@ class GameView extends WatchUi.View {
             _timer = new Timer.Timer();
         }
         (_timer as Timer.Timer).start(method(:onTick), 1000, true);
+        // The auto-end only runs while this screen can show its countdown and
+        // GameDelegate can take the press that cancels it. See trackIdle().
+        _model.viewVisible = true;
     }
 
     //! Stop redrawing while the view is off screen. The game clock itself is
@@ -97,6 +100,7 @@ class GameView extends WatchUi.View {
         if (timer != null) {
             timer.stop();
         }
+        _model.viewVisible = false;
     }
 
     //! Once a second: ask for a redraw.

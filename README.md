@@ -171,11 +171,25 @@ means less movement counts as being on the ice — raise it if shifts are being
 missed, lower it if standing on the bench is being counted as a shift.
 
 **End game when idle** saves a game nobody is playing any more. After this
-many minutes with no skating detected the watch buzzes three times and shows a
-red *ENDING GAME* countdown; any button cancels it and starts the count again.
-Left alone for thirty seconds it **saves** the activity rather than discarding
-it, because the premise of the app is that the watch is not being touched, so
-silence has to mean keep the game.
+many minutes with no skating detected the watch buzzes long-short-long and
+shows a red *ENDING GAME* countdown; any button press cancels it and starts the
+count again. Left alone for thirty seconds it **saves** the activity rather
+than discarding it, because the premise of the app is that the watch is not
+being touched, so silence has to mean keep the game.
+
+Three things hold it back, and each is there because the alternative is ending
+a game that is still being played:
+
+- **A press has to be a press.** A swipe arrives as the same behaviour as a
+  button on some devices, so cloth moving against the glass in a bag would
+  otherwise reset the clock forever and the recording would run all night.
+- **It stops while the accelerometer is unhealthy.** The detector holds its
+  last state through a silent sensor rather than guessing, so reading that held
+  state as stillness would turn a dead sensor into an ended game. No data is
+  not the same as no movement.
+- **It suspends while a menu is open**, because the countdown cannot be shown
+  there and no press can reach it. Failing to end a game is recoverable;
+  ending one silently is not.
 
 This is not the period clock coming back. That ended a game on a *schedule*,
 which knows nothing about whether play is still going, and it cut a recording

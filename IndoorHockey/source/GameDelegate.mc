@@ -191,14 +191,16 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
         return swallow();
     }
 
-    //! Swallow the press, but let it cancel a pending auto-end first.
+    //! Swallow the press, but let a real button cancel a pending auto-end.
     //!
-    //! Any deliberate press is proof the watch is being worn and looked at,
-    //! which is the only thing the auto-end is trying to establish. So the two
-    //! keys that otherwise do nothing at all are the safest ones to answer it
-    //! with: there is no second meaning to get wrong.
+    //! The fromButton() guard matters more here than anywhere else in this
+    //! file. On any variant that maps a vertical swipe onto these behaviours,
+    //! cloth brushing the glass in a gear bag would reach cancelAutoEnd() and
+    //! reset the idle clock - over and over, indefinitely - which is exactly
+    //! the forgotten recording the auto-end exists to stop. A press has to be
+    //! a press before it can count as somebody answering the question.
     private function swallow() as Boolean {
-        if (_model.cancelAutoEnd()) {
+        if (fromButton() && _model.cancelAutoEnd()) {
             WatchUi.requestUpdate();
             return true;
         }
@@ -233,6 +235,11 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
         if (state != STATE_RUNNING && state != STATE_PAUSED) {
             return false;
         }
+        // Opening the menu answers a pending auto-end rather than hiding it.
+        // Someone who feels the buzz and holds UP to reach Discard is reaching
+        // for the opposite of what the countdown would do, and the countdown
+        // cannot follow them onto the menu screen.
+        _model.cancelAutoEnd();
         WatchUi.pushView(GameMenus.build(_model), new $.GameMenuDelegate(_model), WatchUi.SLIDE_UP);
         return true;
     }

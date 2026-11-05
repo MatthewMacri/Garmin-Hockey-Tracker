@@ -405,6 +405,11 @@ class GameModel {
 
     private var _pauseArmedAt as Number = -1;
 
+    //! True while GameView is the screen on top. The app owns the game tick,
+    //! so onTick keeps running under a menu; this is how the model knows
+    //! whether anything it does could be seen or answered.
+    public var viewVisible as Boolean = false;
+
     //! Continuous milliseconds off the ice. Any on-ice second clears it.
     private var _idleMs as Number = 0;
 
@@ -724,8 +729,48 @@ class GameModel {
     //! this fixes is a recording left running, and throwing the game away
     //! would be a worse one.
     private function trackIdle(onTheIce as Boolean) as Void {
+        // The detector's state is only evidence about the player while the
+        // accelerometer is actually delivering. ShiftDetector.tick() HOLDS its
+        // state through a silent sensor rather than guessing, and the file says
+        // why: silence is a fault in its own right, not a player standing very
+        // still. Reading a held state as stillness would turn a dead sensor
+        // into an auto-end - the detector pins OFF_ICE on the bench, the
+        // listener dies, and twenty-five minutes of real play later the game
+        // saves itself mid-shift. That is the period clock's failure wearing a
+        // different hat, so the idle clock stops dead while the sensor is
+        // unhealthy rather than counting evidence it does not have.
+        //
+        // This also means the feature cannot work at all on a watch whose
+        // accelerometer never delivers, which is correct: start() forces
+        // ON_ICE there, so there is no bench to time in the first place. Better
+        // to do nothing than to end games on a signal that does not exist.
+        if (!detector.isHealthy()) {
+            _endArmedAt = -1;
+            return;
+        }
+
         if (onTheIce) {
             _idleMs = 0;
+            _endArmedAt = -1;
+            return;
+        }
+
+        // Nothing can be shown or cancelled while a menu or confirmation
+        // covers the game screen: the countdown lives in GameView's header and
+        // every cancel path runs through GameDelegate, neither of which is
+        // reachable then. Acting anyway would save the game out from under an
+        // open menu with no warning at all, so the clock freezes until the
+        // screen comes back. A menu left open therefore suspends the feature,
+        // which is the right way round - failing to end a game is recoverable
+        // and ending one silently is not.
+        if (!viewVisible) {
+            return;
+        }
+
+        // The disable switch is checked before the armed branch, not after, so
+        // turning the setting off in Garmin Connect during the countdown
+        // actually calls the end off instead of watching it happen.
+        if (endIdleMs <= 0) {
             _endArmedAt = -1;
             return;
         }
@@ -743,23 +788,25 @@ class GameModel {
             return;
         }
 
-        if (endIdleMs <= 0) {
-            return;
-        }
-
         // onTick runs once a second. Counting in whole seconds here keeps this
         // on the same footing as _hardSeconds rather than inventing a second
         // notion of elapsed time.
         _idleMs += 1000;
         if (_idleMs >= endIdleMs) {
             _endArmedAt = System.getTimer();
-            // Three pulses, distinct from the shift alert's two and the pause
-            // arm's double tap. This one is saying something is about to
-            // happen on its own, which nothing else in the app does.
+            // Long-short-long-short-long. This has to be unmistakable against
+            // the sensor warning in particular, which is the alert most likely
+            // to be felt in the same minute and which used to share this
+            // array byte for byte: three equal 400ms pulses. A player who
+            // cannot tell them apart through a jersey reads "sensor unhappy
+            // again", ignores it, and loses the game thirty seconds later.
+            // Tone alone is not enough to separate them - tones are routinely
+            // silenced, and alert() honours tonesOn and vibrateOn
+            // independently - so the rhythm has to carry the difference.
             alert(Attention.TONE_ALERT_LO,
-                [new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
-                 new Attention.VibeProfile(100, 400), new Attention.VibeProfile(0, 150),
-                 new Attention.VibeProfile(100, 400)]);
+                [new Attention.VibeProfile(100, 700), new Attention.VibeProfile(0, 200),
+                 new Attention.VibeProfile(100, 150), new Attention.VibeProfile(0, 200),
+                 new Attention.VibeProfile(100, 700)]);
         }
     }
 
