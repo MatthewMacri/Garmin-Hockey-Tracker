@@ -1,4 +1,4 @@
-# v2.3.0 — stride rate, and why the activity page has been blank
+# v2.3.0 — stride rate, and the watch was running a sideload
 
 Released 2026-11-06.
 <https://github.com/MatthewMacri/Garmin-Hockey-Tracker/releases/tag/v2.3.0>
@@ -78,7 +78,7 @@ both appear. The speed field is called **Speed While Striding** because its
 denominator is the measured seconds, not your ice time: dividing by ice time
 would quietly claim a speed for every second the app could not read.
 
-## Why the activity page has been blank, traced
+## Why the activity page was blank, traced
 
 Every FIT file carries a `developer_data_id` message whose `application_id` is
 the app's store UUID. Garmin Connect joins its rendering metadata against
@@ -91,21 +91,28 @@ watch writes its real UUID and the store's internal version counter. (Confirmed
 against the store API: that app's FIT says version 54 and its listing says
 `latestInternalVersion` 54.)
 
-Two consequences, and the second one is the unwelcome one:
+Confirmed on the watch. `GARMIN/GarminDevice.xml` lists one `<App>` per
+store-installed app, with a `StoreId` and a `Version`. RinkPulse appears as
+`036b4e61-…` version 39 and its recordings carry exactly that id and version,
+with an October file from before its last update carrying 38. This app has no
+entry at all, and every one of its recordings carries zeros and version 0.
 
-- A sideloaded build writes every field correctly and Connect renders none of
-  them, because there is no listing with an id of all zeros.
-- **Games already recorded cannot be fixed by publishing later.** They carry an
-  id that will never match a listing. Only games recorded after a store install
-  will render. The numbers are not lost — they are in the files, and
+So the app being on the store was never the problem — it has been live as
+*Ice Hockey Shifts* since 4 November. **The watch was running a sideload.**
+Delete it, install from the Connect IQ store, and the next game renders.
+
+Two things that does not fix:
+
+- **Games already recorded cannot be rescued.** They carry an id that matches
+  no listing. The numbers are not lost — they are in the files, and
   `tools/replay_detector.py` still reads them.
+- **The listing's rendering metadata is from 4 November**, which means
+  `work_rest` as an integer, the milli-g diagnostics charted, and no stride
+  fields. Whether this upload replaces it or whether Connect keeps the
+  first-upload copy is reported both ways on the forums and is the one thing
+  this release cannot verify from outside.
 
-This is also why the stride fields ship now rather than in a later release:
-Connect stores a listing's fit-contributions metadata at first upload, and
-fields added afterwards are not reliably picked up.
-
-`docs/store-2.3.0.md` carries the full trace, the sources, and a way to confirm
-the diagnosis over USB in five minutes before spending a store submission.
+`docs/store-2.3.0.md` carries the full trace and the sources.
 
 ## Also
 

@@ -375,8 +375,10 @@ graphs labelled "mg" under every activity. They stay in the file, where
 which is all an integer FIT field can carry — and Connect dutifully rendered a
 3.2 ratio as the number `317`.
 
-**Developer fields only render once the app is on the store, and only for
-games recorded after it is installed from there.** Every FIT file carries a
+**Developer fields only render for games recorded by a build installed from
+the store.** Not merely published — *installed*. The app has been live as
+*Ice Hockey Shifts* since 4 November; the games that showed nothing were
+recorded by a sideloaded `.prg`, which is a different thing entirely. Every FIT file carries a
 `developer_data_id` message whose `application_id` is the UUID the **store**
 assigned the listing — not the one in your manifest — and that is what Garmin
 Connect joins its rendering metadata against; its own web API returns
@@ -392,9 +394,9 @@ all, and every one of its recordings carries zeros and version 0.
 
 Two consequences. A sideloaded game shows no Connect IQ section at all, which
 is exactly what happens here while the rival app's fields render with names and
-units on the same watch. And **games already recorded cannot be fixed by
-publishing later** — they carry an id that will never match a listing. The
-numbers are still in the files, and `tools/replay_detector.py` still reads
+units on the same watch. And **games already recorded cannot be rescued** —
+they carry an id that will never match a listing, whatever is published later.
+The numbers are still in the files, and `tools/replay_detector.py` still reads
 them.
 
 `docs/store-2.3.0.md` has the full trace, including a way to confirm it over

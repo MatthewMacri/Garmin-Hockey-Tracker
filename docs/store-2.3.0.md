@@ -5,33 +5,55 @@ asks for that has changed since the live listing, in the order the form asks
 for it. The full field-by-field reference lives in `store/listing.md`; this
 file exists so the text can be copied without reading around it.
 
-**Nothing appears to be live on the store**, and the only way to be certain is
-the dashboard. Garmin Connect renders none of this app's developer fields on a
-recorded game while rendering another store app's fields on the same watch,
-which is the behaviour of an app the store does not know, and the app's own
-recordings carry an `application_id` of sixteen zero bytes where a
-store-installed app carries a real one. Whatever became of the 2.0.0 upload —
-the one that showed `Status: Verified` beside `Signature check failed` — it
-does not look like it ended in a listing. **Check the dashboard before
-assuming this is an update rather than a first publish**, because the form
-differs.
+**This is an update, not a first publish.** The dashboard shows the listing
+live: *Ice Hockey Shifts* by KernelOPs, **version 2.1.0 (Internal: 3)**,
+initial release 4 November 2026, latest release 4 November 2026, 100+
+downloads and one five-star review — left against 2.0.0, so that upload reached
+the public despite showing `Status: Verified` beside `Signature check failed`.
 
-An earlier draft of this file argued from a 404 on
+Earlier drafts of this file said the opposite, at length, and were wrong on
+every count: that nothing was live, that 2.0.0 never ended in a listing, and
+that 2.1.0 was tagged on GitHub and never uploaded. 2.1.0 **is** the live
+version. Two bad arguments got there. One was a 404 on
 <https://apps.garmin.com/en-US/apps/d979409c-45c9-41b6-a1ec-092f51bd6006>, the
-manifest's application id. **That argument was wrong and is withdrawn.** The
-store assigns its own UUID to a listing, and it is not the manifest id.
-RinkPulse proves it on this very watch: `GarminDevice.xml` lists it with
-`StoreId` `036b4e61-…` and `AppId` `c46ee819-…`, and only `036b4e61-…` returns
-200 from the store API — `c46ee819-…` 404s exactly as ours does. So a 404 on a
-manifest id is the normal state of affairs, published or not, and it proves
-nothing either way.
+manifest's application id — but the store assigns a listing its own UUID, and
+RinkPulse proves it on this watch: `GarminDevice.xml` gives it
+`StoreId 036b4e61-…` and `AppId c46ee819-…`, and only `036b4e61-…` answers 200
+from the store API while `c46ee819-…` 404s exactly as ours does. A 404 on a
+manifest id is the normal state of affairs, published or not. The other was
+the absent Connect IQ section on recorded games, which has a different cause
+entirely, below.
 
-2.1.0 and 2.2.0 were tagged and released on GitHub and never uploaded either,
-so this upload carries everything since 2.0.0 and the What's New below covers
-all three releases. The version is 2.3.0 rather than 2.2.0 because `v2.2.0` is
-already a published GitHub tag pointing at the code *before* stride rate
-existed; reusing the number would have put a different app behind it on the
-store than the one behind it on GitHub, which is the mistake 2.1.0 made.
+So: **Upload New Version**, not the first-publish form.
+
+## Why the games still show nothing, with the app live
+
+The watch is not running the store build. It is running a **sideload**, and a
+sideload writes an `application_id` of sixteen zero bytes into every FIT file
+where a store install writes the listing's UUID — which is the key Garmin
+Connect joins its rendering metadata against. `GARMIN/GarminDevice.xml` lists
+one `<App>` entry per store-installed app and has **no entry for this one**.
+
+RinkPulse, on the same watch, is the control: registry `StoreId 036b4e61-…`
+version 39, and its recordings carry `application_id 036b4e61-…`,
+`application_version 39`, with an October file from before its last update
+carrying 38. Every recording from this app carries zeros and version 0.
+
+The fix is therefore not "publish" — that already happened. It is **delete the
+sideloaded `.prg` and install Ice Hockey Shifts from the Connect IQ store on
+the phone**. The next game recorded that way will render the 2.1.0 field set
+immediately, without waiting for this release to clear review.
+
+Two things do not follow from that:
+
+- **The games already in Connect cannot be fixed.** Nov 1, 3 and 5 carry an id
+  that matches no listing. The numbers are intact in the FIT files and
+  `tools/replay_detector.py` still reads them; the activity pages stay bare.
+- **Rendering the 2.1.0 field set is not rendering this one.** The live listing
+  carries the fit-contributions metadata from the first upload: `work_rest` as
+  an integer, so Rest per Work will read `317` rather than `3.2`, the two
+  milli-g diagnostics charted, and no stride fields at all. Those need this
+  upload.
 
 **Paste the description as well as What's New.** The live listing still carries
 the heart rate claim that was corrected in `537d491`, has no wrist note and no
@@ -39,95 +61,81 @@ warm-up note, and describes a detector that no longer behaves that way.
 
 ---
 
-## Why nothing renders today, and what publishing can and cannot fix
+## The mechanism, in full
 
-**Developer fields only render in Garmin Connect for an app the store knows
-about.** A sideloaded build writes every field correctly and Connect displays
-none of them — which is exactly what the 2026-11-05 activity shows: no Connect
-IQ section at all, while a game recorded on the same watch with a
-store-published hockey app shows its own fields with names and units.
-
-The mechanism is now traced rather than guessed. Every FIT file carries a
-`developer_data_id` message whose `application_id` is, in Garmin's own words,
-a *"16-byte identifier for the developer"* used to *"uniquely identify
-developer data field sources"* ([FIT Protocol](https://developer.garmin.com/fit/protocol/),
-Table 9). Connect's web backend joins on exactly that: its splits API returns
+Every FIT file carries a `developer_data_id` message whose `application_id` is,
+in Garmin's own words, a *"16-byte identifier for the developer"* used to
+*"uniquely identify developer data field sources"*
+([FIT Protocol](https://developer.garmin.com/fit/protocol/), Table 9). Connect's
+web backend joins on exactly that: its splits API returns
 `"connectIQMeasurement": [{"appID": "…", "developerFieldNumber": 0, …}]` per
-value. Decoding our own recordings — and the simulator's — shows
-`application_id` written as **sixteen zero bytes**, with `application_version`
-0, where a store-installed app writes its real UUID and the store's internal
-version counter. (Checked against the store API: Ice Hockey Tracker's FIT says
-version 54 and its listing says `latestInternalVersion` 54.)
+value. A sideloaded build writes **sixteen zero bytes** there and
+`application_version` 0, so there is nothing to match and Connect draws no
+Connect IQ section at all.
 
-Two consequences, and the first one is the unwelcome one:
+The watch confirms every link of it. `GARMIN/GarminDevice.xml` lists one
+`<App>` entry per store-installed app, each with a `StoreId`, an `AppId` and an
+integer `Version`:
 
-- **The games already in Connect cannot be made to render by publishing.**
-  They carry an app id of all zeros. There is no listing with that id and
-  never will be. The numbers are not lost — they are intact in the FIT files
-  and `tools/replay_detector.py` still reads them — but the activity pages for
-  the games recorded so far will stay bare. Only games recorded after a store
-  install will render.
-- **The fields have to be complete before the first upload.** Connect stores
-  the listing's fit-contributions metadata when the app is first uploaded;
-  fields added to the XML afterwards are not reliably picked up. This is the
-  reason the stride fields (ids 14–20) went in now rather than in a later
-  release.
+| | registry | its FIT files |
+|---|---|---|
+| RinkPulse | `StoreId 036b4e61-…`, Version **39** | `application_id 036b4e61-…`, version **39** |
+| …an October file, before its last update | | version **38** |
+| Ice Hockey Tracker, since uninstalled | — | `8e916921-…`, version **54** |
+| **This app** | **no entry at all** | **zeros, version 0** |
 
-### Confirm the diagnosis for free, before spending a submission
+It is the `StoreId` that lands in the FIT, not the `AppId` and not the
+manifest's application id. Checked against the store API, `036b4e61-…` returns
+200 and `c46ee819-…` returns 404.
 
-Plug the FR570 in over USB and read `GARMIN/GARMINDEVICE.XML`. The device keeps
-one `<App>` entry per store-installed app, each with an `<AppId>` UUID and an
-integer `<Version>` — the same two values that land in `developer_data_id`.
-Sideloaded PRGs get no entry at all. Expect to find entries for Ice Hockey
-Tracker and RinkPulse, and **no entry for
-`D979409C-45C9-41B6-A1EC-092F51BD6006`**. That confirms the whole chain in five
-minutes.
+One caveat: no Garmin document or staff post states in writing that a sideload
+writes a zero `application_id`. The decode is ours, the FIT spec and the
+Connect API shape are official, and a developer who re-uploaded an identical
+sideloaded app as a Beta reported the fields appearing immediately afterwards
+([thread 299371](https://forums.garmin.com/developer/connect-iq/f/discussion/299371/sideloaded-datafield-app-doesn-t-seem-to-save-fit-contributor-fields-to-fit-file)).
+Everything converges; that single sentence does not exist in Garmin's docs.
 
-One caveat on the above: no Garmin document or staff post states in writing
-that a sideload writes a zero `application_id`. The decode is ours, the FIT
-spec and the Connect API shape are official, and a developer who re-uploaded
-the identical sideloaded app as a Beta reported the fields appearing
-immediately afterwards ([thread 299371](https://forums.garmin.com/developer/connect-iq/f/discussion/299371/sideloaded-datafield-app-doesn-t-seem-to-save-fit-contributor-fields-to-fit-file)).
-Everything converges; the single sentence does not exist in Garmin's docs.
+### Does a later upload update the rendering metadata?
 
-### A Beta proves rendering, but its games are throwaway
+Unknown, and it is the one open question that matters for this release. Forum
+reports say Connect stores a listing's fit-contributions metadata at first
+upload and that fields added later are not reliably picked up. This listing's
+metadata was set on 4 November by 2.0.0, which had fields 0–13 only, `work_rest`
+as an integer, and the two milli-g diagnostics charted.
 
-A Beta upload does get fields rendering and skips public review, so it is the
-cheap way to prove the pipeline end to end. The catch is in Garmin's own
+If those reports are right, approving 2.3.0 fixes nothing and the stride fields
+never appear. If they are wrong, everything in this release renders. There is
+no way to tell from outside, and no second chance either — so upload it, record
+a game, and read the activity page. **If the stride fields do not appear after
+2.3.0 is live, that is the answer, not a build problem**: the packaged
+`fit_contributions.json` has been verified to carry all 21 fields with the
+right labels, units, precision and chart flags.
+
+### A Beta, if you want the new fields before review clears
+
+Not needed to prove rendering any more — installing the live 2.1.0 from the
+store does that today, for free. A Beta is only worth it to see *this release's*
+fields without waiting for review, and it is a dead end for real games: Garmin's
 [Beta Apps](https://developer.garmin.com/connect-iq/core-topics/beta-apps)
-instructions: a Beta requires **an alternate app id in the manifest**, created
-with a UUID generator. So a Beta can never share an id with the real listing,
-and every game recorded against it carries the throwaway id — those activities
-will not render once the Beta is gone, any more than the sideloaded ones do.
+instructions require **an alternate app id in the manifest**, created with a
+UUID generator, so a Beta can never share an id with the listing and its games
+stop rendering when it goes away.
 
-So use a Beta to answer "does it render and does Rest per Work read `3.2`
-rather than `324`", and not for a game worth keeping:
+1. Copy the manifest, replace the application id with a fresh UUID, and build
+   the `.iq` from that. Do not commit it.
+2. Upload it as a Beta, and delete the sideloaded `.prg` from the watch first.
+3. Install it from <https://apps.garmin.com> in a desktop browser while signed
+   in. Beta apps do not appear in the Connect IQ mobile app's search; the
+   website, or Garmin Express, is how they reach the watch.
+4. Record two minutes of waving an arm around, sync, and decode the file:
+   `developer_data_id` should carry a real UUID and a non-zero version.
+5. The activity should read Shifts, Ice Time, Bench Time, Avg Shift, Longest
+   Shift, Rest per Work (as `3.2`, not `317`), On-Ice Avg HR, Time above 85%
+   HR, Avg Stride Rate and Stride Coverage.
 
-1. Copy the manifest to a scratch branch, replace the application id with a
-   fresh UUID, and build the `.iq` from that. Do not commit it.
-2. Upload it as a Beta.
-3. **Delete the sideloaded copy from the watch first** — `GARMIN/Apps/IndoorHockey.prg`
-   over USB. A sideload and a store install share the manifest ID, and having
-   both is a known source of confusion about which one is running.
-4. Install the Beta from <https://apps.garmin.com> in a desktop browser while
-   signed in. Beta apps do not appear in the Connect IQ mobile app's search;
-   the website, or Garmin Express, is how they reach the watch.
-5. Record anything — two minutes of waving an arm around is enough — and sync.
-   Then decode the file: `developer_data_id` should carry a real UUID and a
-   non-zero version, which is the proof the install path is right.
-6. The activity should carry a Connect IQ section reading Shifts, Ice Time,
-   Bench Time, Avg Shift, Longest Shift, Rest per Work, On-Ice Avg HR, Time
-   above 85% HR, Avg Stride Rate and Stride Coverage.
-7. Then publish publicly under the real manifest id, uninstall the Beta, and
-   record the games you actually want to keep against the published app. Note
-   that the id landing in those FIT files will be the UUID the **store**
-   assigns the listing, not `d979409c-…`; read it out of the first file, or
-   out of `GarminDevice.xml`, rather than assuming it.
-
-If the Beta renders nothing, the problem is the listing's fit contributions,
-not the app: the labels and units Connect draws come from
-`IndoorHockey/resources/fitfields.xml` as packaged into each device's
-`-fit_contributions.json` inside the `.iq`, not from the FIT file.
+A Beta is also the only clean way to answer the caching question above without
+risking the real listing, because it is a brand-new listing whose metadata has
+never been set.
 
 ---
 
@@ -137,6 +145,15 @@ Attach `IndoorHockey/dist/IndoorHockey.iq`, built by `IndoorHockey/package.sh`.
 All 202 device variants, signed, with no build paths in the 812 packaged files.
 
 **App Version:** type `2.3.0`
+
+The live listing reads `2.1.0 (Internal: 3)`, so this is the fourth upload and
+will come back as Internal 4 — which is the number that lands in every FIT
+file's `application_version`, and a free way to tell a game recorded against
+this release from one recorded against 2.1.0.
+
+2.2.0 is skipped on purpose: `v2.2.0` is already a published GitHub tag
+pointing at the code from before stride rate existed, and reusing the number
+would put different code behind it on the store than on GitHub.
 
 Nothing in the build carries a version. `manifest.xml` has no version attribute
 and the packaged `.iq` has none either — only `apiVersion`, `connectIqVersion`

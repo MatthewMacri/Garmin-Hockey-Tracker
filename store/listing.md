@@ -33,7 +33,7 @@ you anything while a release is queued.
 |---|---|
 | Title | `Ice Hockey Shifts` (17 of 50 chars) |
 | Description | The block under *Description* below (2,825 of 4,000 chars) |
-| What's New | See below. **Check first whether this is an update or a first publish** — as of 2026-11-06 nothing is live: the public page for this app's UUID is a 404 |
+| What's New | See below. This is an **update**: the dashboard shows *Ice Hockey Shifts* live at 2.1.0 (Internal: 3) since 2026-11-04. A 404 on the manifest's application id means nothing — the store assigns a listing its own UUID |
 | Hero Image (optional) | `store/images/hero-1440x720.jpg` (1440x720, 75 KB of 2048 KB) |
 | Category | Health & Fitness — then the closest subcategory to hockey or winter sports |
 | Does your app collect user data? | **No** — it sends nothing anywhere |
