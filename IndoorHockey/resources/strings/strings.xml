@@ -22,6 +22,22 @@
     <string id="FitThreshold">Detection Threshold</string>
     <string id="FitThresholdChart">Detection Threshold</string>
     <string id="UnitMilliG">mg</string>
+    <string id="UnitPushes">pushes/min</string>
+    <string id="UnitPercent">%</string>
+    <string id="UnitMetres">m</string>
+    <string id="UnitKph">km/h</string>
+    <!-- "pushes", not "strides". The skating literature uses "stride" for
+         both one leg's push and a full two-leg cycle, and the two differ by
+         a factor of two, so a number labelled "strides" is ambiguous before
+         anyone even asks whether it is right. -->
+    <string id="FitStrideRate">Stride Rate</string>
+    <string id="FitStrideRateChart">Stride Rate</string>
+    <string id="FitStrideAvg">Avg Stride Rate</string>
+    <string id="FitStrideCover">Stride Coverage</string>
+    <string id="FitStrideR">Stride Confidence</string>
+    <string id="FitStrideLag">Stride Lag</string>
+    <string id="FitDistEst">Distance (estimated)</string>
+    <string id="FitSpeedEst">Speed While Striding</string>
     <string id="UnitSeconds">s</string>
     <string id="UnitBpm">bpm</string>
     <string id="UnitNone"> </string>
@@ -75,6 +91,8 @@
     <string id="SetEndIdle">End game when idle</string>
     <string id="SetEndIdlePrompt">Minutes with no skating detected before the game saves itself, so a recording left running does not carry on for hours. It buzzes first and any button cancels. Set 0 to never end by itself. Anything else is held to 20 minutes or more, because an intermission is 15 to 18 minutes of sitting down and a shorter setting would end a game that is still being played.</string>
     <string id="LabelEndingGame">ENDING GAME</string>
+    <string id="SetStrideLength">Stride length (cm)</string>
+    <string id="SetStrideLengthPrompt">How far one skating push carries you, in centimetres. Leave at 0 and the app reports stride rate only. Set it and it also reports an estimated distance and on-ice speed - which are only as good as this number, and nothing on the watch can measure it for you. A skating push is typically 260-360 cm, far longer than a walking step.</string>
     <string id="SetUseGps">Use GPS</string>
     <string id="SetUseGpsPrompt">Record speed and distance. Indoor rinks rarely get a fix; outdoor rinks do</string>
 </resources>

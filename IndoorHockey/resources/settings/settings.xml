@@ -11,6 +11,11 @@
              which is a normal 15 to 18 minutes of sitting down, or this would
              end live games - the exact bug 2.0.0 removed. -->
         <property id="endIdleMinutes" type="number">25</property>
+        <!-- 0 means "do not estimate distance at all", which is the default
+             and the honest setting. There is no published stride length for
+             skating and no way to measure one from the wrist, so a number
+             here is the player's claim, not the app's. -->
+        <property id="strideLengthCm" type="number">0</property>
     </properties>
 
     <settings>
@@ -29,6 +34,9 @@
         </setting>
         <setting propertyKey="@Properties.autoLap" title="@Strings.SetAutoLap" prompt="@Strings.SetAutoLapPrompt">
             <settingConfig type="boolean" />
+        </setting>
+        <setting propertyKey="@Properties.strideLengthCm" title="@Strings.SetStrideLength" prompt="@Strings.SetStrideLengthPrompt">
+            <settingConfig type="numeric" min="0" max="500" />
         </setting>
         <setting propertyKey="@Properties.useGps" title="@Strings.SetUseGps" prompt="@Strings.SetUseGpsPrompt">
             <settingConfig type="boolean" />

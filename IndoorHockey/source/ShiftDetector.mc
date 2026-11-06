@@ -121,6 +121,12 @@ class ShiftDetector {
     public var threshold as Number = MOTION_FLOOR;
     public var hasMotionSensor as Boolean = false;
 
+    //! Stride rate, measured from the same samples the motion index is taken
+    //! over. Kept as its own object because it is a different question with
+    //! a different confidence: the motion index decides where a shift starts
+    //! and is trusted, this counts strides and is on trial.
+    public var stride as StrideMeter = new StrideMeter();
+
     // Seconds since the accelerometer last delivered anything. The listener
     // can fail to register, or stop delivering, without raising an error -
     // so silence has to be treated as a fault in its own right rather than
@@ -277,6 +283,7 @@ class ShiftDetector {
         // measured after the resume.
         _carry = [] as Array<Float>;
         staleSeconds = 0;
+        stride.reset();
     }
 
     //! The fastest rate this watch will give us, capped: the decision only
@@ -333,7 +340,12 @@ class ShiftDetector {
             var x = xs[i].toFloat();
             var y = ys[i].toFloat();
             var z = zs[i].toFloat();
-            magnitudes.add(Math.sqrt((x * x) + (y * y) + (z * z)).toFloat());
+            var magnitude = Math.sqrt((x * x) + (y * y) + (z * z)).toFloat();
+            magnitudes.add(magnitude);
+            // Every sample, exactly once, whatever happens to the window
+            // below - the stride meter keeps its own six-second history and
+            // must not see a sample twice or miss one.
+            stride.push(magnitude);
         }
 
         var n = magnitudes.size();
@@ -442,6 +454,14 @@ class ShiftDetector {
             if (_iceStreak > 0) { _iceStreak--; }
             if (_benchStreak > 0) { _benchStreak--; }
         }
+
+        // Only judge a stride while the player is on the ice and actually
+        // moving. The shift detector's own verdict is a free pre-gate: it
+        // removes every bench and standing second before any of the
+        // autocorrelation arithmetic runs, which keeps the average cost far
+        // below the worst case on a device whose watchdog is a bytecode
+        // budget rather than a clock.
+        stride.update(state == ON_ICE && sample >= threshold);
 
         if (state == OFF_ICE) {
             var needed = corroboratesIce() ? CONFIRM_ICE_FAST : CONFIRM_ICE;

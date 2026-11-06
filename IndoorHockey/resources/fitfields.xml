@@ -67,5 +67,36 @@
                   dataLabel="@Strings.FitMotion" unitLabel="@Strings.UnitMilliG" />
         <fitField id="13" sortOrder="13" precision="0"
                   dataLabel="@Strings.FitThreshold" unitLabel="@Strings.UnitMilliG" />
+
+        <!-- Stride rate, and the two numbers needed to decide whether to
+             believe it. The rate is charted because a per-second rhythm is
+             only legible as a trace; the confidence and the winning lag are
+             written and not displayed, because they exist so that a recorded
+             game can settle the gate thresholds without going back to a rink.
+             That is the same reason motion and motion_threshold are in the
+             file, and it is the only way this metric gets validated. -->
+        <fitField id="14" sortOrder="14" displayInChart="true" precision="0"
+                  fillColor="#FFAA00"
+                  chartTitle="@Strings.FitStrideRateChart"
+                  dataLabel="@Strings.FitStrideRate" unitLabel="@Strings.UnitPushes" />
+        <fitField id="15" sortOrder="15" precision="0"
+                  dataLabel="@Strings.FitStrideR" unitLabel="@Strings.UnitPercent" />
+        <fitField id="16" sortOrder="16" precision="0"
+                  dataLabel="@Strings.FitStrideLag" unitLabel="@Strings.UnitNone" />
+
+        <!-- Session summary. Coverage is not decoration: a stride rate
+             measured over 12% of the seconds on the ice is a different claim
+             from one measured over 80%, and no other hockey app reports it. -->
+        <fitField id="17" sortOrder="17" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitStrideAvg" unitLabel="@Strings.UnitPushes" />
+        <fitField id="18" sortOrder="18" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitStrideCover" unitLabel="@Strings.UnitPercent" />
+
+        <!-- Only written when the player has set a stride length. Left at the
+             default they stay absent rather than reporting a zero. -->
+        <fitField id="19" sortOrder="19" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitDistEst" unitLabel="@Strings.UnitMetres" />
+        <fitField id="20" sortOrder="20" displayInActivitySummary="true" precision="1"
+                  dataLabel="@Strings.FitSpeedEst" unitLabel="@Strings.UnitKph" />
     </fitContributions>
 </resources>

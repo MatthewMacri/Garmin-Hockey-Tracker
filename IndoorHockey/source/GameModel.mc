@@ -72,6 +72,24 @@ class GameModel {
     // itself the signal the detector runs on is gone the moment the game ends.
     private const FIELD_MOTION      = 12;
     private const FIELD_THRESHOLD   = 13;
+    private const FIELD_STRIDE_R    = 15;
+    private const FIELD_STRIDE_LAG  = 16;
+
+    // Stride rate, measured by autocorrelating wrist acceleration. The rate is
+    // charted; the confidence and winning lag above are diagnostics on the same
+    // footing as FIELD_MOTION - they are what a recorded game needs to settle
+    // the acceptance gates against real skating rather than synthetic signals.
+    private const FIELD_STRIDE_RATE = 14;
+    private const FIELD_STRIDE_AVG  = 17;
+    private const FIELD_STRIDE_COV  = 18;
+
+    // Distance and speed are only written when the player has set a stride
+    // length. There is no published stride length for skating, nothing on the
+    // wrist can measure one, and GPS cannot calibrate it indoors - so the
+    // alternative to asking is inventing a number, and these fields stay
+    // absent instead.
+    private const FIELD_DIST_EST    = 19;
+    private const FIELD_SPEED_EST   = 20;
 
     // ---- settings, refreshed whenever Garmin Connect pushes a change ----
     public var shiftTargetMs as Number = 60 * 1000;
@@ -83,6 +101,10 @@ class GameModel {
 
     //! Milliseconds off the ice before the game ends itself. 0 turns it off.
     public var endIdleMs as Number = 25 * 60 * 1000;
+
+    //! Centimetres covered by one skating push, as supplied by the player.
+    //! 0 means "do not estimate distance", which is the default.
+    public var strideLengthCm as Number = 0;
 
     // ---- live game state ----
     public var state as GameState = STATE_READY;
@@ -142,6 +164,13 @@ class GameModel {
     private var _curShiftField as FitContributor.Field? = null;
     private var _motionField as FitContributor.Field? = null;
     private var _thresholdField as FitContributor.Field? = null;
+    private var _strideRateField as FitContributor.Field? = null;
+    private var _strideRField as FitContributor.Field? = null;
+    private var _strideLagField as FitContributor.Field? = null;
+    private var _strideAvgField as FitContributor.Field? = null;
+    private var _strideCovField as FitContributor.Field? = null;
+    private var _distEstField as FitContributor.Field? = null;
+    private var _speedEstField as FitContributor.Field? = null;
 
     // Whether the player has already been warned that motion data stopped.
     private var _sensorWarned as Boolean = false;
@@ -181,6 +210,10 @@ class GameModel {
             endIdleMinutes = END_IDLE_MIN_MINUTES;
         }
         endIdleMs = endIdleMinutes * 60 * 1000;
+        // Read once per settings change, but only consulted when the session is
+        // created: the distance and speed fields either exist for a game or
+        // they do not, and a field cannot be added to a session already running.
+        strideLengthCm = readNumber("strideLengthCm", 0, 0, 500);
 
         detector.setSensitivity(sensitivity);
     }
@@ -1176,6 +1209,24 @@ class GameModel {
         if (thresholdField != null) {
             thresholdField.setData(detector.threshold);
         }
+
+        // 0 is written, not skipped, for a second that produced no rate. A gap
+        // in the trace would be read as "the watch missed it"; a zero is the
+        // app saying it looked and found no rhythm, which is the truth during a
+        // glide, a faceoff or a scrum.
+        var strideRateField = _strideRateField;
+        if (strideRateField != null) {
+            strideRateField.setData(detector.stride.rate);
+        }
+        var strideRField = _strideRField;
+        if (strideRField != null) {
+            var r = detector.stride.strength;
+            strideRField.setData(r > 255 ? 255 : r);
+        }
+        var strideLagField = _strideLagField;
+        if (strideLagField != null) {
+            strideLagField.setData(detector.stride.lag);
+        }
     }
 
     //! Drop every developer-field handle. Called whenever the session they
@@ -1195,6 +1246,13 @@ class GameModel {
         _curShiftField = null;
         _motionField = null;
         _thresholdField = null;
+        _strideRateField = null;
+        _strideRField = null;
+        _strideLagField = null;
+        _strideAvgField = null;
+        _strideCovField = null;
+        _distEstField = null;
+        _speedEstField = null;
     }
 
     //! The FIT sport the activity is filed under.
@@ -1296,6 +1354,34 @@ class GameModel {
             FitContributor.DATA_TYPE_UINT16,
             {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "mg"});
 
+        _strideRateField = session.createField("stride_rate", FIELD_STRIDE_RATE,
+            FitContributor.DATA_TYPE_UINT16,
+            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "ppm"});
+        _strideRField = session.createField("stride_r", FIELD_STRIDE_R,
+            FitContributor.DATA_TYPE_UINT8,
+            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "%"});
+        _strideLagField = session.createField("stride_lag", FIELD_STRIDE_LAG,
+            FitContributor.DATA_TYPE_UINT8,
+            {:mesgType => FitContributor.MESG_TYPE_RECORD});
+
+        _strideAvgField = session.createField("stride_avg", FIELD_STRIDE_AVG,
+            FitContributor.DATA_TYPE_UINT16,
+            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "ppm"});
+        _strideCovField = session.createField("stride_coverage", FIELD_STRIDE_COV,
+            FitContributor.DATA_TYPE_UINT8,
+            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "%"});
+
+        // Not created at all when the player has not calibrated, so an
+        // uncalibrated game carries no distance field rather than a zero one.
+        if (strideLengthCm > 0) {
+            _distEstField = session.createField("distance_est", FIELD_DIST_EST,
+                FitContributor.DATA_TYPE_UINT32,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "m"});
+            _speedEstField = session.createField("speed_est", FIELD_SPEED_EST,
+                FitContributor.DATA_TYPE_FLOAT,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "kph"});
+        }
+
         writeSessionFields();
     }
 
@@ -1317,6 +1403,40 @@ class GameModel {
         if (field != null) { field.setData(iceAverageHr()); }
         field = _hardTimeField;
         if (field != null) { field.setData(_hardSeconds); }
+        field = _strideAvgField;
+        if (field != null) { field.setData(detector.stride.averageRate()); }
+        field = _strideCovField;
+        if (field != null) { field.setData(detector.stride.coveragePercent()); }
+
+        // Distance is pushes times the player's own stride length, so it only
+        // covers the seconds the rhythm was actually measured over - which is
+        // why stride_coverage sits beside it. Speed divides by those same
+        // seconds and no others, hence the label "Speed While Striding": a
+        // denominator of total ice time would quietly claim a speed for every
+        // second the app could not measure.
+        field = _distEstField;
+        if (field != null) { field.setData(estimatedDistanceM()); }
+        field = _speedEstField;
+        if (field != null) { field.setData(estimatedSpeedKph()); }
+    }
+
+    //! Metres, from counted pushes and the player's calibration. 0 when
+    //! uncalibrated.
+    public function estimatedDistanceM() as Number {
+        if (strideLengthCm <= 0) {
+            return 0;
+        }
+        return ((detector.stride.strideCount * strideLengthCm.toFloat()) / 100.0).toNumber();
+    }
+
+    //! km/h over the measured seconds only. 0 when uncalibrated or when
+    //! nothing was measured.
+    public function estimatedSpeedKph() as Float {
+        var seconds = detector.stride.measuredSeconds();
+        if (strideLengthCm <= 0 || seconds < 1) {
+            return 0.0;
+        }
+        return (estimatedDistanceM().toFloat() / seconds.toFloat()) * 3.6;
     }
 
     //! Grab heart rate and calories while the activity still has them.
