@@ -33,7 +33,13 @@ passes the new one.
 
 ## What's New
 
-931 characters. Paste verbatim.
+1,127 characters. Paste verbatim.
+
+It was 931 before the two Connect-rendering fixes were added to the end.
+No character limit for this field is documented anywhere I could find, so
+the form's own counter is the authority: if it refuses this, drop the
+closing paragraph about the two fixes first - it is the least important of
+the three and the only one that is not about losing a game.
 
 ```
 A game left running no longer runs all night. After 25 minutes with no
@@ -52,6 +58,10 @@ whole thing off.
 Also: a watch whose accelerometer delivered samples in very small batches
 could read as having no accelerometer at all, which disabled shift
 detection for the whole game. Those batches are now used.
+
+Also in this version: Rest per Work reads as a ratio - 3.2 - instead of as
+the number 317, and the detector's own motion diagnostics are still
+recorded but no longer charted under your activity.
 ```
 
 ---

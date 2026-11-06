@@ -429,10 +429,18 @@ can address.
 
 ## The proposed fix for the false positives, and the test that sized it
 
-Seven zone-2 shifts survive the veto on 11-05. Tracing them: **all seven are
+Nine zone-2 shifts survive the veto on 11-05. Tracing them: **all nine are
 moments the player was not in the game.** Five fall before the first genuine
 shift, three in the 2.4 minutes after the last one, and one sits inside a
-3.5-minute mid-game rest. Their motion is not weak - median 85-514 mg against
+3.5-minute mid-game rest.
+
+(Nine over the whole file; seven over the warm-up-excluded window the ice-share
+table above uses, because two of the five sit inside the first thirteen
+minutes. An earlier draft of this section said seven and then listed nine,
+having taken each number from a different replay. Re-measured: the full file
+gives 36 detected shifts at 43.8% ice, nine of them peaking below 144; the
+excluded window gives 32 and seven. The structural claim is the same either
+way, and so is "eight of these are outside the run of real shifts".) Their motion is not weak - median 85-514 mg against
 7-254 mg for real shifts, because a real defenceman's shift is mostly glide.
 Two have a walking signature: 200-290 mg every second for 45 s, rhythmic, no
 impacts. **No absolute motion statistic separates the classes**, in either
@@ -491,7 +499,13 @@ nothing was happening. 11-03 has almost none of them because its timer was
 paused at every break. **Starting at the first shift instead of in the warm-up
 removes more of this problem than any constant can**, and it is the only thing
 that touches the 261 seconds of warm-up skate the zone-2 test cannot even see,
-because during a warm-up the heart rate genuinely does reach zone 3.
+because during a warm-up the heart rate genuinely does reach zone 3. (It does
+here: the two warm-up segments peak at 161.)
+
+That half is done - it is written up in the README under *Start it at the
+faceoff, not in the warm-up*, and in the store listing's notes, which is where
+a player will actually meet it. It is advice rather than code because there is
+no signal to act on: the detector sees a warm-up as a game it is doing well at.
 
 ### The opposite error, which is the same size
 

@@ -24,7 +24,9 @@
                   dataLabel="@Strings.FitAvgShift" unitLabel="@Strings.UnitSeconds" />
         <fitField id="4" sortOrder="4" displayInActivitySummary="true" precision="0"
                   dataLabel="@Strings.FitMaxShift" unitLabel="@Strings.UnitSeconds" />
-        <fitField id="5" sortOrder="5" displayInActivitySummary="true" precision="0"
+        <!-- precision="1" because this one is a float, not a count: the
+             ratio is written as 3.2, not as 317. -->
+        <fitField id="5" sortOrder="5" displayInActivitySummary="true" precision="1"
                   dataLabel="@Strings.FitWorkRest" unitLabel="@Strings.UnitNone" />
         <fitField id="6" sortOrder="6" displayInActivitySummary="true" precision="0"
                   dataLabel="@Strings.FitIceHr" unitLabel="@Strings.UnitBpm" />
@@ -50,15 +52,20 @@
                   dataLabel="@Strings.FitShiftLive" unitLabel="@Strings.UnitSeconds" />
 
         <!-- Diagnostics: the signal the shift detector actually ran on, and
-             the learned boundary it was compared against. Charted together
-             they show every decision the app made and why. -->
-        <fitField id="12" sortOrder="12" displayInChart="true" precision="0"
-                  fillColor="#AA66FF"
-                  chartTitle="@Strings.FitMotionChart"
+             the learned boundary it was compared against. Together they show
+             every decision the app made and why, which is exactly as useful
+             for tuning the detector as it is baffling to someone who just
+             played a game. Charted, they put two unexplained graphs labelled
+             "mg" under everyone's activity.
+
+             So they are written but not charted. They stay in the FIT file,
+             tools/replay_detector.py still reads them, and anyone curious can
+             export the file; nobody has to scroll past them. Dropping
+             displayInChart means dropping fillColor and chartTitle too - the
+             compiler only demands those of a field that is charted. -->
+        <fitField id="12" sortOrder="12" precision="0"
                   dataLabel="@Strings.FitMotion" unitLabel="@Strings.UnitMilliG" />
-        <fitField id="13" sortOrder="13" displayInChart="true" precision="0"
-                  fillColor="#888888"
-                  chartTitle="@Strings.FitThresholdChart"
+        <fitField id="13" sortOrder="13" precision="0"
                   dataLabel="@Strings.FitThreshold" unitLabel="@Strings.UnitMilliG" />
     </fitContributions>
 </resources>

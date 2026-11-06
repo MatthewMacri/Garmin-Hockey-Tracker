@@ -168,6 +168,28 @@ plenty of players wear a chest strap and stow the watch - the strap is fine and
 is used for heart rate exactly as normal, but it cannot stand in for the one
 signal the detection actually runs on.
 
+## Start it at the faceoff, not in the warm-up
+
+One press, at the opening faceoff. Starting it earlier and skating a warm-up
+with the game already running is the largest single source of wrong shifts in
+every game recorded so far, and it is the one fault here that costs nothing to
+fix.
+
+A warm-up looks like hockey to a wrist. Circling the zone, standing in a line
+of shooters, leaning on a stick between reps - the motion sits in the same
+range a defenceman's glide does, and the heart rate climbs into the same zone
+a real shift does, so neither signal can rule it out afterwards. On 2026-11-05
+the watch ran for seventeen minutes before the first shift of the game. Of the
+nine detected shifts in that game whose heart rate never left zone 2 - the
+ones the player's own body says were not shifts - **five fall in that opening
+window and three more in the two minutes after the last real shift.** Eight of
+the nine are time he was not in a game. The game on 2026-11-03, whose timer was
+paused at every break, has almost none of them.
+
+No setting fixes this. The detector can only compare a second against the
+seconds around it, and a warm-up gives it nothing to object to. The press does
+fix it.
+
 ## Settings
 
 Editable in Garmin Connect; the defaults are a regulation game.
@@ -253,7 +275,7 @@ calories, time and — where there was a fix — GPS. On top of that:
 | Ice Time | session | Total seconds on the ice |
 | Bench Time | session | Total seconds on the bench |
 | Avg Shift / Longest Shift | session | Shift lengths in seconds |
-| Rest per Work (×100) | session | Bench seconds per ice second, ×100 |
+| Rest per Work | session | Bench seconds per ice second, to one decimal — `2.4` means nearly two and a half minutes of bench for every minute of ice |
 | On-Ice Avg HR | session | Average heart rate over on-ice seconds only |
 | Time above 85 % HR | session | Seconds above 85 % of max heart rate |
 | Shift Time / Bench Time | lap | One lap per shift and one per bench spell, so the Splits tab reads as a shift chart |
@@ -262,11 +284,19 @@ calories, time and — where there was a fix — GPS. On top of that:
 | Wrist Motion | record | The raw signal the detector ran on, in milli-g |
 | Detection Threshold | record | The learned boundary it was judged against |
 
-The last two are diagnostics. Garmin does not record wrist acceleration into a
-FIT file, so unless the app writes it itself the signal the detector ran on is
-gone the moment the game ends. Charted against each other they show every
-decision the app made and why, which is what makes the thresholds tunable
-against real skating rather than guesswork.
+The last two are diagnostics, and deliberately **written but not charted**.
+Garmin does not record wrist acceleration into a FIT file, so unless the app
+writes it itself the signal the detector ran on is gone the moment the game
+ends; plotted against each other they show every decision the app made and
+why, which is what makes the thresholds tunable against real skating rather
+than guesswork. But that is a use for the person tuning the detector, not for
+the person who just played a game, and charting them put two unexplained
+graphs labelled "mg" under every activity. They stay in the file, where
+`tools/replay_detector.py` reads them; nobody has to scroll past them.
+
+`Rest per Work` is a float. It was a UINT16 holding the ratio times 100 —
+which is all an integer FIT field can carry — and Connect dutifully rendered a
+3.2 ratio as the number `317`.
 
 Developer fields only render once the app is on the store — a Beta upload is
 enough. A sideloaded build writes them correctly and displays them nowhere.

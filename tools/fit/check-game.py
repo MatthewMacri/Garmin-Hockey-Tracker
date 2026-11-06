@@ -87,7 +87,10 @@ def check(path):
     for k in ('shifts', 'ice_time', 'bench_time', 'avg_shift', 'max_shift',
               'work_rest', 'ice_avg_hr', 'hard_time'):
         v = sess.get('dev:' + k)
-        print('  %-11s %s' % (k, 'MISSING' if v is None else v))
+        # work_rest is a float field, and a FIT float32 read back as a Python
+        # double prints as 5.199999809265137. Show what the field means.
+        shown = 'MISSING' if v is None else ('%.1f' % v if isinstance(v, float) else v)
+        print('  %-11s %s' % (k, shown))
         if v is None:
             WARN.append('session field "%s" missing' % k)
     if (sess.get('dev:shifts') or 0) < 2:

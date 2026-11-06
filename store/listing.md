@@ -154,6 +154,12 @@ intermission. Set it to 0 to turn it off.
 
 NOTES
 
+Start the game at the opening faceoff rather than during the warm-up. A
+warm-up skate produces the same wrist motion and the same heart rate as a
+shift does, so a game started early collects shifts nobody played, and nothing
+in the recording can tell them apart afterwards. The app is built around a
+single press; that press belongs at the faceoff.
+
 Wear the watch on your wrist. Shifts come from wrist motion, so a watch in a
 vest or a bag has nothing to detect and records one long shift. A paired chest
 strap is fine and is used for heart rate as normal.
@@ -193,6 +199,10 @@ whole thing off.
 Also: a watch whose accelerometer delivered samples in very small batches
 could read as having no accelerometer at all, which disabled shift
 detection for the whole game. Those batches are now used.
+
+Also in this version: Rest per Work reads as a ratio - 3.2 - instead of as
+the number 317, and the detector's own motion diagnostics are still
+recorded but no longer charted under your activity.
 ```
 
 ## Screenshots

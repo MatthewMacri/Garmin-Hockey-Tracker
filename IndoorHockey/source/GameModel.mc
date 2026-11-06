@@ -284,22 +284,34 @@ class GameModel {
         return _benchMs + (onIce() ? 0 : segmentMs());
     }
 
-    //! Rest per unit of work, times 100 so it survives integer FIT fields.
-    //! 100 means a minute of bench for every minute of ice.
-    public function workRestX100() as Number {
+    //! Rest per unit of work: 1.0 is a minute of bench for every minute of
+    //! ice, 2.4 is nearly two and a half minutes of bench per minute of ice.
+    //!
+    //! It goes into the FIT file as a float, shown to one decimal place. It
+    //! was a UINT16 carrying the ratio times 100 - which is all an integer
+    //! field can do - and Garmin Connect duly rendered a 3.17 ratio as the
+    //! number 317: correct data, meaningless on screen.
+    public function workRest() as Float {
         var ice = iceTimeMs();
         if (ice < 1000) {
-            return 0;
+            return 0.0;
         }
-        // Computed in seconds, not milliseconds: bench * 100 in ms overflows a
-        // 32-bit Number after about six minutes of bench time.
-        var ratio = ((benchTimeMs() / 1000) * 100) / (ice / 1000);
-        // The FIT field is a UINT16. A first shift almost entirely eaten by the
-        // detector backdate leaves a tiny ice time and sends this past 65535.
-        if (ratio > 65535) {
-            ratio = 65535;
+        // Divided down to seconds before anything else, because bench * 100
+        // in milliseconds overflowed a 32-bit Number after about six minutes
+        // of bench time. Both divisions are integer, so the ice < 1000 guard
+        // above is what keeps the denominator off zero.
+        var ratio = (benchTimeMs() / 1000).toFloat() / (ice / 1000).toFloat();
+        // A first shift almost entirely eaten by the detector backdate leaves
+        // a tiny ice time and an absurd ratio. Cap it rather than publish it.
+        if (ratio > 999.9) {
+            ratio = 999.9;
         }
-        return ratio.toNumber();
+        return ratio;
+    }
+
+    //! The same ratio in hundredths, for the watch's own "1:2.4" display.
+    public function workRestX100() as Number {
+        return (workRest() * 100.0).toNumber();
     }
 
     //! Average heart rate counting only the seconds actually spent on the ice.
@@ -1257,7 +1269,7 @@ class GameModel {
             FitContributor.DATA_TYPE_UINT16,
             {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
         _workRestField = session.createField("work_rest", FIELD_WORK_REST,
-            FitContributor.DATA_TYPE_UINT16, {:mesgType => FitContributor.MESG_TYPE_SESSION});
+            FitContributor.DATA_TYPE_FLOAT, {:mesgType => FitContributor.MESG_TYPE_SESSION});
         _iceHrField = session.createField("ice_avg_hr", FIELD_ICE_HR,
             FitContributor.DATA_TYPE_UINT8,
             {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
@@ -1300,7 +1312,7 @@ class GameModel {
         field = _maxShiftField;
         if (field != null) { field.setData((_longestShiftMs / 1000).toNumber()); }
         field = _workRestField;
-        if (field != null) { field.setData(workRestX100()); }
+        if (field != null) { field.setData(workRest()); }
         field = _iceHrField;
         if (field != null) { field.setData(iceAverageHr()); }
         field = _hardTimeField;
