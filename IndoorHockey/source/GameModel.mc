@@ -631,15 +631,33 @@ class GameModel {
         // Round rather than truncate. Integer division threw away whatever was
         // left under a second on every lap, and a game is mostly laps: across
         // the 95 laps of 2026-11-05 the per-lap fields came to 5028 seconds
-        // against 5121 of lap timer time, and about half of that gap was this.
+        // against 5121 of lap timer time.
         //
-        // The other half is not a defect and does not belong here. These fields
-        // describe the segment as the detector finally decided it happened,
-        // backdated to where the shift really began, while the lap boundary is
-        // where the change was confirmed - several seconds later. So a lap's
-        // own timer time and the shift_time written on it are answers to two
-        // different questions and are not meant to match. They do cancel across
-        // a game to within the rounding this line used to lose.
+        // That truncation was ALL of the 93.5-second gap, not half of it as
+        // this comment first claimed, and it was losing a whole second per lap
+        // rather than the half-second an even spread would give - 0.984 s/lap
+        // measured. The reason is that `elapsed` lands a few tens of
+        // milliseconds BELOW a whole second almost every time: _segmentSince is
+        // set inside one onTick() and read from a later one, so the interval is
+        // always a hair under an exact multiple of 1000 ms, and floor() takes
+        // the whole second rather than a fraction of one.
+        //
+        // The backdate contributes exactly zero, which is worth knowing because
+        // it looks like it should contribute a lot. It telescopes: each segment
+        // is banked as `available - backdate` and the next one opens with
+        // _segmentAccumMs = backdate, so every backdated second is carried into
+        // the following segment rather than lost. The per-lap differences are
+        // large and signed - the confirmation windows, plus or minus - and they
+        // sum to zero by construction.
+        //
+        // What the backdate does do is make these fields and the lap BOUNDARY
+        // answer different questions. These describe the segment as the
+        // detector finally decided it happened; the lap boundary is where the
+        // change was confirmed, several seconds later. Garmin Connect's Splits
+        // tab reads boundaries, so it overstates total ice time by about 11.5%
+        // and gets a lap's average heart rate wrong by 2.2 bpm on average and
+        // 15 bpm at worst. That is not fixable here - addLap() cannot be
+        // backdated - but it should not be filed under "not a defect" either.
         var seconds = ((elapsedMs + 500) / 1000).toNumber();
         var shiftField = _lapShiftField;
         if (shiftField != null) {

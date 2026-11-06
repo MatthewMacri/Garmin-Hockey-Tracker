@@ -52,6 +52,14 @@ properties of the data rather than of the algorithm:
 - **501 of 3605 seconds in the 2026-11-03 game - 13.9% - were stale.** The
   detector holds state and learns nothing across them. That is a separate
   problem from tuning and is not fixed here.
+- **That repeat test has a false-positive rate, and it fooled this document.**
+  At low motion a settled threshold repeats on its own, so a fresh second can
+  look stale. The decisive test is whether including a row *improves* the
+  replay: feed every row of 11-05 to the learner and the recorded threshold
+  reproduces to **0 mg**, better than the 3 mg you get by dropping its 74
+  "stale" rows. Feed every row of 11-03 and the error blows out to **72 mg**.
+  So 11-03's 500 are real dropouts and **11-05's 74 are not: that game lost
+  nothing.**
 
 ## What was wrong
 
@@ -126,8 +134,26 @@ starts. Leaving it in gives 36 shifts and 43.2% ice rather than 32 and 42.9%,
 and the difference is not a detector result. Dropping it is a judgement about
 where the game began, so it is stated rather than buried: an audit of this
 document failed to reproduce these numbers for exactly this reason. It is also a much cleaner
-recording than the first - **74 stale seconds out of 5122, 1.4%, against
-13.9%** - so there is very little to argue about in the input.
+recording than the first - **nothing dropped at all, against 13.9% on
+11-03** - so there is very little to argue about in the input.
+
+It is worth saying plainly what that is *not*. It was tempting to credit a
+tighter strap, and that is wrong. **Heart rate never drops out in either
+game** - no missing samples in 3605 or 5122 seconds - so the watch kept
+optical contact throughout both, and a strap does not come loose for one game
+and not the next while the heart rate sensor notices nothing. A 452-second
+recording made the same evening as 11-03, on the same build, dropped
+**nothing**. What 11-03 actually shows is a cadence: 492 of its 496 stale runs
+are single seconds, spaced 5 or 6 apart, starting abruptly at second 181 and
+then holding flat for the remaining 57 minutes. That is one batch per 1.171 s
+against a 1.000 s tick - the accelerometer delivering about 21.4 Hz where 25
+was asked for. Connect IQ clocks delivery by *samples taken*, not by
+wall-clock seconds, so pairing one batch to one tick is an assumption the API
+never makes.
+
+Its measured cost is smaller than the fuss: injecting 11-03's cadence into
+11-05 moves ice time down about 3.4 points and leaves the shift count
+unchanged.
 
 At the shipped 0.27 it came back wrong in three ways at once:
 
@@ -304,8 +330,8 @@ which is an argument for a third game rather than for a different band.
 
 One more thing the sweep established: **11-03 is the worst recording in the
 set.** A quarter of its wall-clock seconds delivered no usable sample - 501
-stale rows plus 542 seconds with no record written at all - against 1.4% on
-11-05. Its heart-rate reference is correspondingly unstable, moving between 17
+stale rows plus 542 seconds with no record written at all - against nothing
+dropped on 11-05. Its heart-rate reference is correspondingly unstable, moving between 17
 and 26 cycles depending on how peaks are picked, where 11-05 moves only 31 to
 43. The two games currently carry equal weight in the fit. They should not.
 
