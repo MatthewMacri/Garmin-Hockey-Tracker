@@ -377,13 +377,18 @@ which is all an integer FIT field can carry — and Connect dutifully rendered a
 
 **Developer fields only render once the app is on the store, and only for
 games recorded after it is installed from there.** Every FIT file carries a
-`developer_data_id` message whose `application_id` is the app's store UUID, and
-that is what Garmin Connect joins its rendering metadata against — its own web
-API returns `{"appID": …, "developerFieldNumber": …}` per value. A sideloaded
-build writes sixteen zero bytes there instead, so Connect has nothing to match.
-Decoding this app's own recordings confirms it: zeros, and
-`application_version` 0, where a store-installed rival hockey app on the same
-watch writes its real UUID and the store's internal version counter.
+`developer_data_id` message whose `application_id` is the UUID the **store**
+assigned the listing — not the one in your manifest — and that is what Garmin
+Connect joins its rendering metadata against; its own web API returns
+`{"appID": …, "developerFieldNumber": …}` per value. A sideloaded build writes
+sixteen zero bytes there instead, so Connect has nothing to match.
+
+Confirmed end to end on the watch itself. `GARMIN/GarminDevice.xml` lists one
+`<App>` per store-installed app with a `StoreId` and a `Version`; RinkPulse
+appears as `036b4e61-…` version 39, and its recordings carry
+`application_id 036b4e61-…`, `application_version 39` — with an October file
+from before its last update carrying 38. This app has no entry in that file at
+all, and every one of its recordings carries zeros and version 0.
 
 Two consequences. A sideloaded game shows no Connect IQ section at all, which
 is exactly what happens here while the rival app's fields render with names and

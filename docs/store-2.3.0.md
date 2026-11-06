@@ -5,15 +5,26 @@ asks for that has changed since the live listing, in the order the form asks
 for it. The full field-by-field reference lives in `store/listing.md`; this
 file exists so the text can be copied without reading around it.
 
-**Nothing is live on the store.** The public listing for this app's UUID,
-<https://apps.garmin.com/en-US/apps/d979409c-45c9-41b6-a1ec-092f51bd6006>,
-returns 404, where a published app's UUID returns its page; and Garmin Connect
-renders none of this app's developer fields on a recorded game while rendering
-another store app's fields on the same watch, which is the behaviour of an app
-the store does not know. Whatever became of the 2.0.0 upload — the one that
-showed `Status: Verified` beside `Signature check failed` — it did not end in
-a listing. **Check the dashboard before assuming this is an update rather than
-a first publish**, because the form differs.
+**Nothing appears to be live on the store**, and the only way to be certain is
+the dashboard. Garmin Connect renders none of this app's developer fields on a
+recorded game while rendering another store app's fields on the same watch,
+which is the behaviour of an app the store does not know, and the app's own
+recordings carry an `application_id` of sixteen zero bytes where a
+store-installed app carries a real one. Whatever became of the 2.0.0 upload —
+the one that showed `Status: Verified` beside `Signature check failed` — it
+does not look like it ended in a listing. **Check the dashboard before
+assuming this is an update rather than a first publish**, because the form
+differs.
+
+An earlier draft of this file argued from a 404 on
+<https://apps.garmin.com/en-US/apps/d979409c-45c9-41b6-a1ec-092f51bd6006>, the
+manifest's application id. **That argument was wrong and is withdrawn.** The
+store assigns its own UUID to a listing, and it is not the manifest id.
+RinkPulse proves it on this very watch: `GarminDevice.xml` lists it with
+`StoreId` `036b4e61-…` and `AppId` `c46ee819-…`, and only `036b4e61-…` returns
+200 from the store API — `c46ee819-…` 404s exactly as ours does. So a 404 on a
+manifest id is the normal state of affairs, published or not, and it proves
+nothing either way.
 
 2.1.0 and 2.2.0 were tagged and released on GitHub and never uploaded either,
 so this upload carries everything since 2.0.0 and the What's New below covers
@@ -107,8 +118,11 @@ rather than `324`", and not for a game worth keeping:
 6. The activity should carry a Connect IQ section reading Shifts, Ice Time,
    Bench Time, Avg Shift, Longest Shift, Rest per Work, On-Ice Avg HR, Time
    above 85% HR, Avg Stride Rate and Stride Coverage.
-7. Then publish publicly under the real id `d979409c-…`, uninstall the Beta,
-   and record the games you actually want to keep against the published app.
+7. Then publish publicly under the real manifest id, uninstall the Beta, and
+   record the games you actually want to keep against the published app. Note
+   that the id landing in those FIT files will be the UUID the **store**
+   assigns the listing, not `d979409c-…`; read it out of the first file, or
+   out of `GarminDevice.xml`, rather than assuming it.
 
 If the Beta renders nothing, the problem is the listing's fit contributions,
 not the app: the labels and units Connect draws come from
