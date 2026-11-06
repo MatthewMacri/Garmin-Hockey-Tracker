@@ -170,45 +170,45 @@ passes the new one.
 
 ## What's New
 
-998 characters (1013 if the form counts CRLF line endings). Paste verbatim.
+878 characters (892 if the form counts CRLF line endings). Paste verbatim.
 
 ```
 New: stride rate. The app now reads your skating rhythm off the wrist, in
 pushes per minute, second by second and as a game average - with a coverage
-figure saying how much of your ice time it rests on. Distance and speed
-stay off until you set a stride length yourself: nothing on a wrist can
-measure one, and the alternative is inventing it.
+figure saying how much of your ice time it rests on. Distance and speed stay
+off until you set a stride length yourself: nothing on a wrist can measure
+one, and the alternative is inventing it.
 
-Shift detection has been retuned, and you will see it in your numbers.
+Shift detection has been retuned, and you will see it in your own numbers.
 The old settings were fitted against a forward's share of the ice, and a
 defenceman gliding at the point kept dropping under the bar and losing the
-rest of the shift to the bench. A shift is now harder to leave than to
+rest of the shift to the bench. A shift is now harder to leave than it is to
 enter, and your heart rate can refuse one outright: while it sits well below
-its baseline for the game, no amount of arm movement will open a shift.
+its own baseline for the game, no amount of arm movement will open a shift.
 
-A game left running no longer runs all night. After 25 minutes with no
-skating the watch buzzes and counts down; any press calls it off, and left
-alone the game is saved, not discarded. Set it to 0 to turn it off.
+Also fixed: Rest per Work reads as a ratio, 3.2, rather than as the number
+317.
 ```
 
+**This covers 2.2.0 and 2.3.0 only.** The live listing is 2.1.0, so its users
+already have the idle-timeout feature and the small-batch accelerometer fix —
+the whole of the current What's New text. Repeating either would tell them
+nothing. An earlier draft of this file did repeat both, because it was written
+while believing nothing was live.
+
 No character limit for this field is documented anywhere I could find, and the
-form's own counter is the authority. This is written to land just under 1,000
-in case that is the cap. **If the form accepts more**, append this — the
-warm-up note is the only part of the release that asks anything of the player:
+form's own counter is the authority. This lands just under 1,000 in case that
+is the cap. **If the form accepts more**, append this — it is the only part of
+the release that asks anything of the player:
 
 ```
 One thing that costs nothing: start the game at the opening faceoff rather
 than in the warm-up. A warm-up skate produces the same wrist motion and the
 same heart rate as a shift does, so a game started early collects shifts
-nobody played.
-
-Also fixed: Rest per Work reads as a ratio, 3.2, rather than as the number
-317; and a watch delivering accelerometer samples in very small batches could
-read as having no accelerometer at all, disabling shift detection for a whole
-game.
+nobody played - and nothing in the recording can tell them apart afterwards.
 ```
 
-With the tail it is 1476 characters (1500 with CRLF).
+With the tail it is 1180 characters (1198 with CRLF).
 
 ---
 
