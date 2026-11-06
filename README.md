@@ -46,6 +46,8 @@ so the same build runs across the Garmin watch range.
 - **Total ice time on screen all game**, not only in the summary afterwards.
 - **On-ice heart rate, separated from bench heart rate** — the number this app
   exists to produce. See below.
+- **Stride rate from the wrist**, in pushes per minute, with a coverage figure
+  saying how much of your ice time the average actually rests on.
 - **GPS on** — speed and distance are recorded when a fix is available.
 - **One screen** — everything visible at a glance, no paging mid-game.
 
@@ -120,6 +122,70 @@ Hockey Match-Play in Elite Players", <i>Medicine & Science in Sports &
 Exercise</i> 52(10):2162-2171, 2020. Thirty U20 national-team players, three
 periods of eight one-minute shifts with two-minute recoveries - a fixed shift
 structure, not a real game's ragged one.</sub>
+
+## Stride rate
+
+The watch can tell you how fast your legs are turning over, and it does not
+need GPS to do it. Skating is periodic, and a periodic leg movement shows up in
+the arm that counterbalances it, so the rhythm is in the accelerometer the
+shift detector is already reading.
+
+Finding it is an **autocorrelation**: take six seconds of acceleration
+magnitude, subtract its mean, and compare the window against delayed copies of
+itself. A lag where the signal lines up with its own past is a period, and the
+best one is the stride. The search runs over lags of 7 to 27 samples, which at
+the ~21 Hz the sensor actually delivers is 0.8 to 3.1 Hz, or **47 to 184 pushes
+per minute** — wide enough for a glide and for a hard forecheck, narrow enough
+that an arm swing at twice the rate cannot masquerade as one.
+
+Three things keep it honest:
+
+- **A band-pass first.** Two one-pole filters, fast minus slow, which is a
+  cheap band-pass that removes gravity and the slow drift of a changing arm
+  posture without an FIR's ring buffer of coefficients.
+- **A confidence gate.** The peak has to reach 0.45 of the zero-lag energy. A
+  real skating window scores 0.7 to 0.95; noise does not get near it.
+- **A prominence gate.** The peak also has to stand 0.60 above the mean of the
+  whole lag curve. This is the one that matters: a single hard impact in an
+  otherwise quiet window scores 0.91 on confidence alone and reports a stride
+  rate that was never skated. Measured across synthetic cases, real strides
+  score 0.76 to 1.09 on prominence and a lone impact scores 0.47, so the gate
+  sits between them and every false-positive case drops to zero accepted
+  windows.
+
+It also measures its own sample rate rather than assuming one. The FR570
+reports a 100 Hz accelerometer and delivers about 21.4 Hz to a watch app; a
+hard-coded 25 would have reported every stride 17 % fast.
+
+**Coverage is reported beside the average**, and it is the point. A stride rate
+averaged over 80 % of your on-ice seconds is a different claim from one
+averaged over 12 %, and no other hockey app tells you which you are looking at.
+A second that fails either gate contributes nothing to the average and writes a
+zero to the per-second trace — the app saying it looked and found no rhythm,
+which is the truth during a glide, a faceoff or a scrum.
+
+### Why there is no distance by default
+
+Distance would be pushes times stride length, and **there is no stride length
+to use**. The walking-stride coefficients a phone pedometer seeds from your
+height are a category error for a 2.6–3.6 m skating push; GPS cannot calibrate
+one indoors, which is the whole reason this app exists; and a push-counted
+distance systematically misses glide, where you cover ground without pushing at
+all. One rival app shipped an indoor speed and then withdrew it.
+
+So the app asks. Set **Stride length** in the settings and it writes an
+estimated distance and a speed; leave it at 0, the default, and those two
+fields are not created at all — the FIT carries no distance rather than a
+fabricated one. The speed field is labelled **Speed While Striding** because
+its denominator is the measured seconds and not your ice time: dividing by ice
+time would quietly claim a speed for every second the app could not read.
+
+**What is not yet verified:** the gates were sized against synthetic signals
+and a line-for-line Python port of the shipped code, not against a recording of
+real skating. No published study has measured wrist accelerometry during
+skating, so there is no reference to check against either. Stride Confidence
+and Stride Lag are written to every record for exactly this reason — the first
+real game recorded with it is what settles the thresholds.
 
 ## Controls
 
@@ -202,6 +268,7 @@ Editable in Garmin Connect; the defaults are a regulation game.
 | Lap per shift | on | |
 | Use GPS | on | |
 | End game when idle | 25 min | 0–180, 0 = never |
+| Stride length | 0 cm (off) | 0–500 |
 | Activity type | Ice Hockey | Ice Hockey / Ice Skate |
 
 **Shift sensitivity** moves the decision boundary within the learned band. High
@@ -249,6 +316,10 @@ game's within minutes. A game is now one continuous recording.
 Expect no fix inside most arenas; the app degrades quietly to motion-only
 detection and records the game normally.
 
+**Stride length** is the one number the app asks you for, and it is off by
+default. See [Stride rate](#stride-rate) below for why there is no honest
+default to fill in.
+
 **Activity type** decides the FIT sport the finished game is filed under, and
 it is a straight trade:
 
@@ -279,12 +350,18 @@ calories, time and — where there was a fix — GPS. On top of that:
 | On-Ice Avg HR | session | Average heart rate over on-ice seconds only |
 | Time above 85 % HR | session | Seconds above 85 % of max heart rate |
 | Shift Time / Bench Time | lap | One lap per shift and one per bench spell, so the Splits tab reads as a shift chart |
+| Avg Stride Rate | session | Mean skating rhythm over the seconds that produced one, in pushes per minute |
+| Stride Coverage | session | What share of judged on-ice seconds produced a readable rhythm |
+| Distance (estimated) | session | Only written if you set a stride length |
+| Speed While Striding | session | Only written if you set a stride length |
+| Stride Rate | record | The rhythm second by second; 0 means "looked, found none" |
 | On Ice | record | 1 on the ice, 0 on the bench — a square wave against the heart rate trace |
 | Shift Time (live) | record | The running shift clock |
 | Wrist Motion | record | The raw signal the detector ran on, in milli-g |
 | Detection Threshold | record | The learned boundary it was judged against |
+| Stride Confidence / Stride Lag | record | Diagnostics: the autocorrelation peak and the lag that won it |
 
-The last two are diagnostics, and deliberately **written but not charted**.
+The motion and threshold rows are diagnostics, and deliberately **written but not charted**.
 Garmin does not record wrist acceleration into a FIT file, so unless the app
 writes it itself the signal the detector ran on is gone the moment the game
 ends; plotted against each other they show every decision the app made and
@@ -298,13 +375,25 @@ graphs labelled "mg" under every activity. They stay in the file, where
 which is all an integer FIT field can carry — and Connect dutifully rendered a
 3.2 ratio as the number `317`.
 
-Developer fields only render once the app is on the store — a Beta upload is
-enough. A sideloaded build writes them correctly and displays them nowhere.
+**Developer fields only render once the app is on the store, and only for
+games recorded after it is installed from there.** Every FIT file carries a
+`developer_data_id` message whose `application_id` is the app's store UUID, and
+that is what Garmin Connect joins its rendering metadata against — its own web
+API returns `{"appID": …, "developerFieldNumber": …}` per value. A sideloaded
+build writes sixteen zero bytes there instead, so Connect has nothing to match.
+Decoding this app's own recordings confirms it: zeros, and
+`application_version` 0, where a store-installed rival hockey app on the same
+watch writes its real UUID and the store's internal version counter.
 
-That is not a guess. A game recorded with this app shows no Connect IQ section
-at all in Garmin Connect, while a game recorded on the same watch with a
-store-published hockey app shows its developer fields with names and units.
-Both files carry their app's fields; only one of the apps is on the store.
+Two consequences. A sideloaded game shows no Connect IQ section at all, which
+is exactly what happens here while the rival app's fields render with names and
+units on the same watch. And **games already recorded cannot be fixed by
+publishing later** — they carry an id that will never match a listing. The
+numbers are still in the files, and `tools/replay_detector.py` still reads
+them.
+
+`docs/store-2.3.0.md` has the full trace, including a way to confirm it over
+USB in five minutes before spending a store submission.
 
 ### Heart rate zones per shift
 
@@ -375,7 +464,7 @@ cd IndoorHockey
 Upload that at <https://apps.garmin.com/en-US/developer/upload>; the dashboard
 for an app already up is <https://apps-developer.garmin.com>. `store/listing.md`
 holds the description, category and screenshot order to paste into the form,
-and `docs/store-2.2.0.md` holds the current release's text with its character
+and `docs/store-2.3.0.md` holds the current release's text with its character
 counts, so it can be pasted without reading around it.
 
 Launcher icons are generated, not hand-drawn, because the supported watches ask
@@ -436,6 +525,7 @@ IndoorHockey/
     IndoorHockeyApp.mc entry point, the 1 Hz game clock, settings reload
     GameModel.mc       clocks, shifts, heart rate stats, the FIT session
     ShiftDetector.mc   on-ice / on-bench detection
+    StrideMeter.mc     skating rhythm by autocorrelation
     GameView.mc        the one screen, plus the post-game summary
     GameDelegate.mc    buttons
     GameMenu.mc        in-game menu
