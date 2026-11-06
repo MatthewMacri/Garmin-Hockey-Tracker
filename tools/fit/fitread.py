@@ -17,6 +17,13 @@ BASE = {
 
 RECORD, SESSION, LAP, FILE_ID, EVENT, FIELD_DESC = 20, 18, 19, 0, 21, 206
 
+# Which Connect IQ app wrote the developer fields, and which version of it.
+# Worth reading before trusting anything in a file: an archive of games off
+# one watch can hold recordings from several different apps, and mistaking
+# another app's automatic shift detector for a player's own lap presses is
+# a mistake that survives a long way into an analysis.
+DEV_DATA_ID = 207
+
 # Written by the watch firmware, not by this app: one per lap and one for the
 # session. Every shift is a lap here, so this is a heart rate zone breakdown
 # per shift - which Garmin Connect records and never shows.
@@ -39,6 +46,8 @@ NAMES = {
     FIELD_DESC: {0:'developer_data_index', 1:'field_definition_number',
                  2:'fit_base_type_id', 3:'field_name', 8:'units',
                  14:'native_mesg_num'},
+    DEV_DATA_ID: {0:'developer_id', 1:'application_id', 2:'manufacturer_id',
+                  3:'developer_data_index', 4:'application_version'},
     TIME_IN_ZONE: {253:'timestamp', 0:'reference_mesg', 1:'reference_index',
                    2:'time_in_hr_zone', 5:'time_in_power_zone',
                    6:'hr_zone_high_boundary', 9:'time_in_speed_zone',
@@ -53,6 +62,13 @@ NAMES = {
 # report zone 2's seconds as zone 1's. They have to keep their holes.
 POSITIONAL = {(TIME_IN_ZONE, 2), (TIME_IN_ZONE, 5), (TIME_IN_ZONE, 6),
               (TIME_IN_ZONE, 9)}
+
+# Fields that are raw bytes rather than numbers, and must not be filtered at
+# all. A UUID is sixteen arbitrary bytes and 0xFF is one of the legal ones -
+# the ordinary decode treats 0xFF as "invalid" and drops it, which silently
+# shortens the UUID and makes it match nothing. Ice Hockey Tracker's really
+# does contain an 0xFF, which is how this was found.
+RAW = {(DEV_DATA_ID, 0), (DEV_DATA_ID, 1)}
 
 SPORT = {0:'generic',1:'running',2:'cycling',4:'fitness_equipment',5:'swimming',
          6:'basketball',7:'soccer',10:'training',11:'walking',15:'rowing',
@@ -102,7 +118,8 @@ def parse(path):
     defs = {}          # local msg type -> definition
     devdefs = {}       # (dev_index, field_num) -> {'name','base','units'}
     out = {'record': [], 'session': [], 'lap': [], 'file_id': [],
-           'event': [], 'time_in_zone': [], 'devfields': devdefs}
+           'event': [], 'time_in_zone': [], 'devfields': devdefs,
+           'developer_data_id': []}
 
     while pos < end:
         h = data[pos]; pos += 1
@@ -141,7 +158,9 @@ def parse(path):
         for fnum, fsize, ftype in fields:
             raw = data[pos:pos + fsize]; pos += fsize
             name = NAMES.get(gnum, {}).get(fnum, 'f%d' % fnum)
-            if (gnum, fnum) in POSITIONAL:
+            if (gnum, fnum) in RAW:
+                msg[name] = bytes(raw)
+            elif (gnum, fnum) in POSITIONAL:
                 msg[name] = _decode_positional(raw, ftype, endian)
             else:
                 msg[name] = _decode(raw, ftype, endian)
@@ -169,7 +188,26 @@ def parse(path):
             out['event'].append(msg)
         elif gnum == TIME_IN_ZONE:
             out['time_in_zone'].append(msg)
+        elif gnum == DEV_DATA_ID:
+            out['developer_data_id'].append(msg)
     return out
+
+
+def app_uuid(msg):
+    """The Connect IQ app UUID out of a developer_data_id message, or None.
+
+    FIT carries it as sixteen raw bytes; the store addresses the same app as a
+    dashed UUID, so render it that way - the point of having it is to paste it
+    into apps.garmin.com and find out whose app wrote the file.
+    """
+    raw = msg.get('application_id')
+    if not isinstance(raw, (bytes, bytearray)):
+        return None
+    b = bytes(raw)
+    if len(b) != 16:
+        return b.hex()
+    h = b.hex()
+    return '%s-%s-%s-%s-%s' % (h[0:8], h[8:12], h[12:16], h[16:20], h[20:32])
 
 
 def when(ts):
