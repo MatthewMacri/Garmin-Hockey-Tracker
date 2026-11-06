@@ -106,8 +106,12 @@ class ShiftDetector {
     // found in the game of 2026-11-05 never lifted the rate out of zone 2 at
     // all - one of them ran 53 seconds with a peak of 119 bpm - which is what
     // sitting between periods and shifting around looks like to an
-    // accelerometer. The veto removes nine of the sixteen and costs nothing on
-    // the game of 2026-11-03, which had none of them to begin with.
+    // accelerometer. On its own the veto removes six of them and costs nothing
+    // on the game of 2026-11-03, which had none to begin with. An earlier
+    // version of this comment credited it with nine, which was the combined
+    // effect of the band change, the confirmation window and the veto
+    // together - an easy and flattering mistake to make when three things
+    // change in one commit.
     private const HR_VETO = 12.0;
 
     public var state as IceState = OFF_ICE;

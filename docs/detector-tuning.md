@@ -185,9 +185,19 @@ version 2.1.0 actually shipped it.
 Everything from 0.14 to 0.20 beats 0.27 by a wide margin without any
 assumption about the bench at all. Within that window the one game whose bench
 is actually known picks 0.18: it reads 42.9% ice against a known 40%, where
-0.14 reads 46.3% and overshoots a number we have. It is a real interior
-minimum - below 0.18 the score worsens at every step down to 0.06, as shift
-counts fall under the heart-rate count and cycles stretch past 160 s.
+0.14 reads 46.3% and overshoots a number we have.
+
+**That score is not a robust band selector, and an audit of this document is
+why the sentence that used to be here is gone.** It claimed 0.18 was "a real
+interior minimum". It is not. The heart-rate reference depends on how peaks
+are picked, and the winner moves with it: at a 21-second smoothing window and
+a 6 bpm minimum rise the same score picks 0.35, and at 11 seconds and 3 bpm it
+picks 0.14. The band is only weakly constrained by heart rate alone.
+
+What actually pins it is **ice share against games the player marked by
+hand**, which no detector touched - see below. Those put him at 37-44%, which
+0.18 and 0.20 both sit inside and which 0.27 (35.6%) and 0.45 (21.4%) fall
+outside.
 
 **`CONFIRM_BENCH` 10 -> 14 seconds** (fast path 5 -> 7). Ten seconds was not
 enough for a defenceman: standing at the point, gliding, or waiting out a
@@ -200,18 +210,30 @@ heart rate only to *agree* with motion, never to contradict it, because the
 slope separation is too weak to trust alone. This is the one exception and it
 is not a slope: a rate sitting a dozen beats under its own drifting baseline is
 a player at rest, and no amount of wrist movement makes that a shift. It
-removes nine of the sixteen false shifts on 11-05 and costs nothing on 11-03,
-which had none.
+removes six of them on 11-05 on its own, and costs nothing on 11-03, which had
+none. This document previously credited the veto with nine, which was the
+combined effect of all three changes - the sort of error that three
+simultaneous changes invite, and the reason the figure is now attributed to
+the veto alone with the others held fixed.
 
 Replayed through the shipped state machine:
 
 | | 11-05 holdout | 11-03 |
 |---|---|---|
-| Shifts | 32, heart rate says 31 | 22, heart rate says 24 |
-| Shift cycle | 125 s, heart rate says 127 s | 145 s |
-| Median shift | 41 s | 76 s |
-| Ice time | **42.9% against a known 40%** | 47.5%, bench unknown |
+| Shifts | 32, heart rate says 31 | 22 |
+| Shift cycle | 125 s, heart rate says 127 s | **186 s** |
+| Median shift | 41 s | **93 s** |
+| Ice time | **42.9% against a known 40%** | **52.9%**, bench unknown |
 | Zone-2 shifts | 7 of 32 | 0 of 22 |
+
+**The 11-03 column was wrong until an audit caught it, and the reason is worth
+keeping.** That game records at **0.87 Hz, not 1 Hz** - 3605 records across
+4149 wall-clock seconds. The replay walks records and the analysis counted
+each one as a second, so every 11-03 duration came out about 15% short and the
+ice share came out 5 points low: the published figures were 47.5%, 76 s and
+145 s, which are record-index numbers wearing wall-clock units. 11-05 records
+at exactly 1.00 Hz, so none of its figures move. Any future game has to be
+checked for its record rate before anything is measured from it.
 
 ## The harness no longer has to be told the band
 
@@ -241,6 +263,51 @@ VERDICT: replay matches the watch
 Two files, two different shipped builds, each recovered to the exact value
 without being told. `--band` still overrides, for asking what a different band
 would have done.
+
+## Ground truth that no detector touched
+
+A sweep of all 40 files pulled off the watch found two games from before this
+app existed, recorded by a build where **the player marked every shift with a
+button**. No accelerometer, no band, no threshold - his own thumb.
+
+`2026-11-01-22-05-22` is the clean one. Its laps alternate bench and shift and
+carry his own `on_ice` and `shift_time`. Over the first 46.5 minutes, before
+two obviously forgotten presses at the end:
+
+| measured by | ice share | median shift |
+|---|---|---|
+| his own marked shift durations | **36.9%** | 83 s |
+| the lap boundaries around them | **44.0%** | |
+
+So **37-44%**, and the true figure is inside it. `2026-10-08-20-15-22` gives a
+second, weaker reading of about 42% - weaker because that build wrote no
+`on_ice` field at all, so which laps were shifts has to be inferred from
+alternation rather than read.
+
+This is the first independent measurement of the quantity the 0.27 fit got
+wrong, and it brackets the 40% that five defencemen imply on 11-05. It is also
+what the band is really pinned by: 0.18 and 0.20 sit inside 37-44%, while 0.27
+reads 35.6% and 0.45 reads 21.4%.
+
+Those two games cannot test a band - they carry no motion trace, so there is
+nothing to replay. **The replayable set is still exactly two games.** Of 40
+files only five carry `motion` and `motion_threshold` at all, and four of
+those are one evening in November, one of which starts 98 seconds after the
+game file ends. The archive adds ground truth, not holdouts.
+
+It also adds a population. Fourteen full-length sessions give a heart-rate
+cycle each, with motion never consulted: **median 156 s, range 107-189 s**.
+That corroborates the ~160 s this player was already known to run, and it
+places both tuning games at the extremes - 11-05 at 125 s is his shortest
+cycle, 11-03 at 186 s nearly his longest. The tuning sits on two outliers,
+which is an argument for a third game rather than for a different band.
+
+One more thing the sweep established: **11-03 is the worst recording in the
+set.** A quarter of its wall-clock seconds delivered no usable sample - 501
+stale rows plus 542 seconds with no record written at all - against 1.4% on
+11-05. Its heart-rate reference is correspondingly unstable, moving between 17
+and 26 cycles depending on how peaks are picked, where 11-05 moves only 31 to
+43. The two games currently carry equal weight in the fit. They should not.
 
 ## What this is not
 
