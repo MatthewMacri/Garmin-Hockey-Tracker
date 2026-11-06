@@ -79,7 +79,8 @@ boundary, until skating stops counting. The threshold climbed 206 - 311 mg
 across that game.
 
 **The shift count was not the problem.** The detector found 25 shifts; heart
-rate on its own shows 22 cycles. It found the shifts and **clipped** them -
+rate on its own shows 22 cycles by the peak-counting parameters used at the
+time. It found the shifts and **clipped** them -
 only the intense middle of each cleared the boundary, so getting on, the glide
 and the change were all recorded as bench. Median shift: 17 seconds.
 
@@ -115,7 +116,16 @@ wrong.
 ## The holdout that found it
 
 The game of 2026-11-05 was the first independent test: 85.4 minutes, five
-defencemen dressed, which is a known 40% share. It is also a much cleaner
+defencemen dressed, which is a known 40% share.
+
+**Every 11-05 figure below is measured on game time only - the first 13
+minutes are dropped.** The watch was started in the warm-up, and the
+per-minute trace shows why that matters: a hard warm-up skate in minutes 0-4,
+then eight minutes of standing around at 105-122 bpm before the cycling
+starts. Leaving it in gives 36 shifts and 43.2% ice rather than 32 and 42.9%,
+and the difference is not a detector result. Dropping it is a judgement about
+where the game began, so it is stated rather than buried: an audit of this
+document failed to reproduce these numbers for exactly this reason. It is also a much cleaner
 recording than the first - **74 stale seconds out of 5122, 1.4%, against
 13.9%** - so there is very little to argue about in the input.
 
@@ -125,6 +135,15 @@ At the shipped 0.27 it came back wrong in three ways at once:
 |---|---|---|
 | Ice time | 34.2% | **27.8%** against a known 40% |
 | Shifts | 23, heart rate says 22 | **45**, heart rate says 31 |
+
+The heart-rate cycle count for 11-03 is quoted as 22 above and as 24 below,
+and both are this document's own figures. They come from different runs of the
+same idea: smooth the rate, count peaks, discard any whose rise from the
+preceding trough is too small. The count moves by one or two with the
+smoothing width and the minimum rise, which is worth knowing before leaning on
+it - it is the reference the whole fit is scored against. The later figures
+use a 15-second window, a 50-second minimum separation and a 4 bpm minimum
+rise. Neither value changes which band wins.
 | Median shift | 51 s | **18 s** |
 | Shift cycle | 151 s | **93 s** |
 
@@ -157,6 +176,11 @@ come from the heart rate trace with motion never consulted:
 | 0.22 | 0.78 | 36 / 107 s | 22 / 165 s |
 | 0.27 | 1.12 | 31 / 113 s | 19 / 216 s |
 | 0.45 | 1.47 | 26 / 135 s | 17 / 235 s |
+
+Every row of that sweep is replayed with `CONFIRM_BENCH` at 14 and the veto in
+place; only `_band` varies. That is why the 0.27 row here does not match the
+0.27 column in the holdout table above, which shows the state machine as
+version 2.1.0 actually shipped it.
 
 Everything from 0.14 to 0.20 beats 0.27 by a wide margin without any
 assumption about the bench at all. Within that window the one game whose bench
@@ -201,12 +225,14 @@ So the harness recovers it instead. Exactly one band reproduces the threshold
 the watch wrote, and `replay_detector.py` now searches for it by default:
 
 ```
-$ tools/replay_detector.py data/2026-11-05.fit
+$ .venv-fit/bin/python tools/replay_detector.py \
+      data/2026-11-05-game/2026-11-05-20-06-45.fit
 samples: 5048   band recovered from the file: 0.270
 replayed threshold vs recorded: max abs difference = 3 mg
 VERDICT: replay matches the watch
 
-$ tools/replay_detector.py data/2026-11-03.fit
+$ .venv-fit/bin/python tools/replay_detector.py \
+      data/2026-11-03-game/2026-11-03-22-11-07.fit
 samples: 3104   band recovered from the file: 0.450
 replayed threshold vs recorded: max abs difference = 3 mg
 VERDICT: replay matches the watch

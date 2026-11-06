@@ -110,7 +110,10 @@ rest. This app knows when you were on the ice, so it reports both.
 HOW THE DETECTION WORKS
 
 Wrist motion is the only signal fast enough to open and close a shift, so it
-decides; heart rate and GPS only corroborate. Thresholds are learned during the
+decides, and GPS only agrees with it. Heart rate mostly only agrees too, with
+one exception: while your heart rate is sitting well below its own baseline for
+the game, no amount of arm movement will open a shift. That is a player sitting
+down, not a player skating. Thresholds are learned during the
 game rather than hard-coded, because the numbers depend on the player, where
 the watch sits and how tight the strap is. A change is believed only once it
 persists, and is then dated back to when it actually happened, so a shift does

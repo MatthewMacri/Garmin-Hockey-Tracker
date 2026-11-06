@@ -10,9 +10,11 @@
 //                   a change has to persist before it is believed.
 //   Heart rate    - reliable but slow. HR keeps climbing for 10-20 seconds after
 //                   a shift ends and falls for a minute afterwards, so it can
-//                   never open or close a shift on its own. It is used only to
+//                   never open or close a shift on its own. It is used mostly to
 //                   corroborate what motion already suspects, which lets the
-//                   confirmation window be shortened.
+//                   confirmation window be shortened - and in one place to
+//                   contradict it: see HR_VETO, which refuses a shift outright
+//                   while the rate sits far below its own baseline.
 //   GPS speed     - unambiguous when it exists (nobody reaches 3 m/s on a bench)
 //                   but indoors it usually does not exist at all. Treated as a
 //                   bonus vote, never a requirement.
@@ -78,8 +80,9 @@ class ShiftDetector {
     // slope is only about +0.2 bpm/s going on and -0.1 coming off, against a
     // background where half of all random 20-second windows already show
     // 0.23 bpm/s of drift. The separation is genuinely weak, which is the
-    // evidence for keeping heart rate as corroboration only and never letting
-    // it open or close a shift by itself.
+    // evidence for keeping heart rate as corroboration and never letting it
+    // open or close a shift by itself. It may still REFUSE one - see HR_VETO,
+    // which needs no slope and reads a level instead.
     private const HR_SLOPE = 0.25;
 
     // Heart rate's distance from its own slow baseline is a much better signal
@@ -199,7 +202,7 @@ class ShiftDetector {
     //! 0.20 beats 0.27 by a wide margin on both recorded games. Within that
     //! window the one game whose bench is actually known - 2026-11-05, five
     //! defencemen, so two of five spots and a 40% share - picks 0.18: it reads
-    //! 41.8% ice, 32 shifts against 31 heart-rate cycles, and a 125-second
+    //! 42.9% ice, 32 shifts against 31 heart-rate cycles, and a 125-second
     //! cycle against 127. 0.14 reads 46.3% and overshoots a number we know.
     //!
     //! Still two games, and only one of them with a verified ice-time target.

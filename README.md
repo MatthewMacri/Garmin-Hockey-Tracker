@@ -66,10 +66,11 @@ Three signals are available and they are not equally good:
 | Signal | Latency | What it is good for |
 |---|---|---|
 | **Wrist motion** | ~1 s | The only signal that responds fast enough, and the only one that separates skating from standing on the bench. Noisy. |
-| **Heart rate** | 20–60 s | Reliable but far too slow to open or close a shift. HR keeps climbing after a shift ends and falls for a minute afterwards. |
+| **Heart rate** | 20–60 s | Reliable but far too slow to open or close a shift. HR keeps climbing after a shift ends and falls for a minute afterwards. It can, however, *refuse* one: a rate far below its own baseline is a player at rest. |
 | **GPS speed** | instant, when it exists | Unambiguous — nobody reaches 3 m/s on a bench — but indoor rinks usually never get a fix. |
 
-So motion decides, and the other two only corroborate:
+So motion decides, and the other two only agree with it — with the single
+exception noted below, where heart rate overrules motion by refusing a shift:
 
 - The measure is the **mean absolute deviation of the acceleration magnitude**
   over each second. Taking the magnitude removes the watch's orientation from
@@ -80,8 +81,14 @@ So motion decides, and the other two only corroborate:
   strap is. The app tracks a slow estimate of your resting level and your
   working level and puts the boundary between them.
 - A change is only believed once it **persists**: six seconds to open a shift,
-  ten to close one, with a dead band around the boundary so noise cannot make
-  the state flap. Heart rate climbing, or GPS agreeing, shortens those windows.
+  fourteen to close one, with a dead band around the boundary so noise cannot
+  make the state flap. Heart rate climbing, or GPS agreeing, shortens those to
+  three and seven.
+- A shift is **refused outright** while heart rate sits 12 bpm or more below its
+  own drifting baseline, whatever the motion says. This is the one place a
+  signal other than motion overrules it, and it exists because a player sitting
+  between periods and moving their arms is indistinguishable from a shift to an
+  accelerometer alone.
 - Because a boundary is confirmed late, it is **dated back** to when it actually
   happened. Without that, every shift would lose its first seconds to the bench
   and every bench spell its first seconds to the shift.
