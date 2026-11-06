@@ -628,7 +628,19 @@ class GameModel {
     //! add: the system writes that one itself when the session is saved, and
     //! it writes it with whatever these fields hold at that moment.
     private function setLapFields(elapsedMs as Number, wasIce as Boolean) as Void {
-        var seconds = (elapsedMs / 1000).toNumber();
+        // Round rather than truncate. Integer division threw away whatever was
+        // left under a second on every lap, and a game is mostly laps: across
+        // the 95 laps of 2026-11-05 the per-lap fields came to 5028 seconds
+        // against 5121 of lap timer time, and about half of that gap was this.
+        //
+        // The other half is not a defect and does not belong here. These fields
+        // describe the segment as the detector finally decided it happened,
+        // backdated to where the shift really began, while the lap boundary is
+        // where the change was confirmed - several seconds later. So a lap's
+        // own timer time and the shift_time written on it are answers to two
+        // different questions and are not meant to match. They do cancel across
+        // a game to within the rounding this line used to lose.
+        var seconds = ((elapsedMs + 500) / 1000).toNumber();
         var shiftField = _lapShiftField;
         if (shiftField != null) {
             shiftField.setData(wasIce ? seconds : 0);

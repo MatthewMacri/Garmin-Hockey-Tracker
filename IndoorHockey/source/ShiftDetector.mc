@@ -53,12 +53,21 @@ class ShiftDetector {
     private const HYSTERESIS = 0.18;
 
     // Seconds a change must persist before it is believed.
+    //
+    // Ending a shift takes longer to believe than starting one, and the gap
+    // widened after the game of 2026-11-05. Ten seconds was not enough: a
+    // defenceman standing at the point, gliding, or waiting out a stoppage
+    // drops below the boundary for long enough to end the shift, and the
+    // detector then started a fresh one when he moved again. That game came
+    // back with 45 shifts of a median 18 seconds against the 31 cycles its
+    // own heart rate trace shows. At fourteen seconds the same game reads 32
+    // shifts of a median 41 seconds.
     private const CONFIRM_ICE = 6;
-    private const CONFIRM_BENCH = 10;
+    private const CONFIRM_BENCH = 14;
 
     // Shortened windows, used when heart rate or GPS agrees with motion.
     private const CONFIRM_ICE_FAST = 3;
-    private const CONFIRM_BENCH_FAST = 5;
+    private const CONFIRM_BENCH_FAST = 7;
 
     // Heart rate samples kept for the slope estimate.
     private const HR_WINDOW = 20;
@@ -82,6 +91,21 @@ class ShiftDetector {
     // A shift shorter than this is noise, not a line change.
     private const MIN_SHIFT_SEC = 8;
     private const MIN_BENCH_SEC = 8;
+
+    // How far below its own baseline the heart rate has to sit before a shift
+    // is refused outright, however convincing the motion looks.
+    //
+    // Everything else here uses heart rate only to agree with motion, never to
+    // contradict it - the slope separation is too weak to be trusted on its
+    // own. This is the one exception, and it is not a slope: a rate sitting a
+    // dozen beats under its drifting baseline is a player at rest, and no
+    // amount of wrist movement makes that a shift. Sixteen of the 45 shifts
+    // found in the game of 2026-11-05 never lifted the rate out of zone 2 at
+    // all - one of them ran 53 seconds with a peak of 119 bpm - which is what
+    // sitting between periods and shifting around looks like to an
+    // accelerometer. The veto removes nine of the sixteen and costs nothing on
+    // the game of 2026-11-03, which had none of them to begin with.
+    private const HR_VETO = 12.0;
 
     public var state as IceState = OFF_ICE;
 
@@ -146,30 +170,48 @@ class ShiftDetector {
     //! Move the decision boundary within the learned band. A high sensitivity
     //! puts it closer to the resting level, so less movement counts as a shift.
     //!
-    //! Fitted to the game of 2026-11-03 with tools/replay_detector.py, which
-    //! replays a recorded game through this state machine offline. The band
-    //! used to sit at 0.45 on normal, which was a guess and was wrong: the
-    //! working level is dragged up by collisions and board contact - that game
-    //! peaked at 2450 mg against a median of 75 - so a boundary 45% of the way
-    //! up the band landed at the 82nd percentile of the player's own motion.
-    //! At most 18% of the game could be counted as ice time whatever happened
-    //! on it, and the shifts that were found had their beginnings and ends
-    //! clipped off: 25 shifts, but a median of 17 seconds each.
+    //! Fitted with tools/replay_detector.py, which replays a recorded game
+    //! through this state machine offline. The history matters, because each
+    //! value was wrong for a different reason.
     //!
-    //! 0.27 was chosen because four independent checks agree on it at once:
-    //! ice time 34% against the ~33% a three-line bench implies, 23 shifts
-    //! against the 22 cycles heart rate shows by itself, a 45-second median
-    //! shift, and a 147-second shift cycle against 141 from heart rate and the
-    //! ~160 this player actually plays. It is one game, so it is a first fit
-    //! rather than a final one - but the motion and threshold are written into
-    //! every FIT file, so the next game can re-check it without a rink.
+    //! 0.45 was a guess. The working level is dragged up by collisions and
+    //! board contact - the game of 2026-11-03 peaked at 2450 mg against a
+    //! median of 75 - so a boundary 45% of the way up the band landed at the
+    //! 82nd percentile of the player's own motion. At most 18% of a game could
+    //! count as ice time whatever happened on it.
+    //!
+    //! 0.27 was fitted, and still wrong, because one of the four checks it was
+    //! fitted against was not this player's to hit. That check was ice time
+    //! against "the ~33% a three-line bench implies", which is the share of a
+    //! forward. He plays defence, where the share is two spots divided by the
+    //! number of defencemen dressed: 50% with two pairs, 40% with five, 33%
+    //! only with six. Scoring a detector against a target 7 to 17 points too
+    //! low pushed the boundary correspondingly too high, in the same direction
+    //! and by the same amount on both games on file. Worse, 0.22 was rejected
+    //! at the time despite having the best agreement with the heart-rate phase
+    //! reference of anything tried, on the grounds that its ice time
+    //! "overshoots" - it did not; it was still short.
+    //!
+    //! 0.18 is fitted against checks that do not need to know the bench size,
+    //! because that is the quantity the old fit got wrong and no file records
+    //! it. Shift count and cycle length both come from the heart rate trace
+    //! with motion never consulted, and on that score every band from 0.14 to
+    //! 0.20 beats 0.27 by a wide margin on both recorded games. Within that
+    //! window the one game whose bench is actually known - 2026-11-05, five
+    //! defencemen, so two of five spots and a 40% share - picks 0.18: it reads
+    //! 41.8% ice, 32 shifts against 31 heart-rate cycles, and a 125-second
+    //! cycle against 127. 0.14 reads 46.3% and overshoots a number we know.
+    //!
+    //! Still two games, and only one of them with a verified ice-time target.
+    //! The motion index and the learned threshold are written into every FIT
+    //! file, so the next game re-checks this without a trip to a rink.
     public function setSensitivity(sensitivity as Number) as Void {
         if (sensitivity <= 0) {
-            _band = 0.35;
+            _band = 0.24;
         } else if (sensitivity >= 2) {
-            _band = 0.21;
+            _band = 0.14;
         } else {
-            _band = 0.27;
+            _band = 0.18;
         }
     }
 
@@ -396,7 +438,8 @@ class ShiftDetector {
 
         if (state == OFF_ICE) {
             var needed = corroboratesIce() ? CONFIRM_ICE_FAST : CONFIRM_ICE;
-            if (_iceStreak >= needed && _secondsInState >= MIN_BENCH_SEC) {
+            if (_iceStreak >= needed && _secondsInState >= MIN_BENCH_SEC
+                    && !restingHeartRate()) {
                 return transition(ON_ICE, needed);
             }
         } else {
@@ -455,6 +498,15 @@ class ShiftDetector {
             return true;
         }
         return hrSlope() <= -HR_SLOPE || hrOffset() <= -HR_OFFSET;
+    }
+
+    //! Heart rate low enough to rule a shift out regardless of motion.
+    //!
+    //! hrOffset() returns 0.0 before the window has filled or while there is
+    //! no baseline yet, so this is false until there is something to judge -
+    //! which is what the start of a game needs.
+    private function restingHeartRate() as Boolean {
+        return hrOffset() <= -HR_VETO;
     }
 
     //! How far the current heart rate sits above or below its slow baseline.

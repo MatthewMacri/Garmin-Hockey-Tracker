@@ -28,10 +28,11 @@ which is Monkey C's Float-to-Number truncation against Python's. The full state
 machine - hysteresis, confirmation streaks, dwell guards, heart-rate
 corroboration - reproduces **98.9%** of the watch's own on-ice decisions.
 
-The validation replays at the band the recording was made with (`RECORDED_BAND`
-in the harness), not at the band currently shipped. Those are no longer the
-same number, and replaying at today's band would compare against a threshold
-no watch ever computed - a disagreement that is really a settings difference.
+The validation replays at the band the recording was made with, not at the
+band currently shipped. Those have not been the same number since v2.0.0, and
+replaying at today's band would compare against a threshold no watch ever
+computed - a disagreement that is really a settings difference. The harness
+recovers the recorded band from the file rather than being told it; see below.
 
 One correction worth recording, because it is the kind of error a harness
 invites: the harness originally computed the heart-rate slope by least squares
@@ -82,40 +83,156 @@ rate on its own shows 22 cycles. It found the shifts and **clipped** them -
 only the intense middle of each cleared the boundary, so getting on, the glide
 and the change were all recorded as bench. Median shift: 17 seconds.
 
+## The 0.27 fit, and why it was also wrong
+
+`_band` went 0.45 -> 0.27 on normal, with low and high at 0.35 and 0.21.
+
+0.27 was picked because four checks agreed on it at once. Three of them were
+sound. The fourth was not this player's to hit:
+
+| Check | Where the target came from | Target | 0.27 gave |
+|---|---|---|---|
+| Ice time | **a three-line bench** | ~33% | 34.0% |
+| Shift count | heart-rate cycles, motion not involved | 22 | 23 |
+| Median shift | the cycle length | 45-50 s | 45 s |
+| Shift cycle | 141 s from heart rate, ~160 s known | 141-160 s | 147 s |
+
+**A three-line bench is a forward's share. He plays defence.** A defenceman's
+share is two spots divided by the number of defencemen dressed: 50% with two
+pairs, 40% with five, 33% only with six. So the ice-time target was somewhere
+between 7 and 17 points too low, and a detector scored against a target that
+low gets a boundary correspondingly too high.
+
+The damage was not limited to one row of the table. 0.22 was rejected at the
+time *despite having the best agreement with the heart-rate phase reference of
+anything tried* - 73.6% against 0.27's 72.5% - on the grounds that its 39.6%
+ice time "overshoots every other check". It did not overshoot. For a
+defenceman on anything thinner than a six-man rotation, 39.6% was still short.
+The fit threw away the band that agreed best with its only
+motion-independent reference, on the strength of the one target that was
+wrong.
+
+## The holdout that found it
+
+The game of 2026-11-05 was the first independent test: 85.4 minutes, five
+defencemen dressed, which is a known 40% share. It is also a much cleaner
+recording than the first - **74 stale seconds out of 5122, 1.4%, against
+13.9%** - so there is very little to argue about in the input.
+
+At the shipped 0.27 it came back wrong in three ways at once:
+
+| | 11-03 (the fit) | 11-05 (the holdout) |
+|---|---|---|
+| Ice time | 34.2% | **27.8%** against a known 40% |
+| Shifts | 23, heart rate says 22 | **45**, heart rate says 31 |
+| Median shift | 51 s | **18 s** |
+| Shift cycle | 151 s | **93 s** |
+
+Two separate defects, and the per-shift zone data separates them cleanly.
+Grading every detected shift by the peak heart rate inside it:
+
+```
+11-05   16 of 45 shifts never left zone 2   (288 s)
+11-03    0 of 23 shifts never left zone 2
+```
+
+One of those sixteen ran 53 seconds with a peak of 119 bpm. **No band fixes
+them** - they are present at every value from 0.18 to 0.35, and absent from the
+other game at all of them. They are a player sitting between periods and
+shifting around, which an accelerometer alone cannot tell from a shift.
+
 ## What it was changed to
 
-`_band` 0.45 -> **0.27** on normal, with low and high sensitivity moved to 0.35
-and 0.21 around it.
+Three changes, each aimed at one of the three failures.
 
-0.27 was not picked to hit one number. Four checks that do not depend on each
-other agree on it at once:
+**`_band` 0.27 -> 0.18** (low 0.24, high 0.14). Refitted against checks that
+do not need to know the bench size, since that is precisely the quantity the
+old fit got wrong and no FIT file records it. Shift count and cycle length both
+come from the heart rate trace with motion never consulted:
 
-| Check | Where the target comes from | Target | 0.27 gives |
+| band | score | 11-05 shifts / cycle | 11-03 shifts / cycle |
 |---|---|---|---|
-| Ice time | a three-line bench | ~33% | **34.0%** |
-| Shift count | heart-rate cycles, motion not involved | 22 | **23** |
-| Median shift | the cycle length | 45-50 s | **45 s** |
-| Shift cycle | 141 s from heart rate, ~160 s known for this player | 141-160 s | **147 s** |
+| 0.14 | 0.26 | 29 / 131 s | 24 / 140 s |
+| **0.18** | **0.35** | **32 / 125 s** | **22 / 146 s** |
+| 0.22 | 0.78 | 36 / 107 s | 22 / 165 s |
+| 0.27 | 1.12 | 31 / 113 s | 19 / 216 s |
+| 0.45 | 1.47 | 26 / 135 s | 17 / 235 s |
 
-Agreement with the heart-rate phase reference rises from 60.4% at 0.45 to
-72.5% at 0.27, against a best-available 73.6% at 0.22 - and 0.22 overshoots
-every other check (ice 39.6%, a 90-second cycle).
+Everything from 0.14 to 0.20 beats 0.27 by a wide margin without any
+assumption about the bench at all. Within that window the one game whose bench
+is actually known picks 0.18: it reads 42.9% ice against a known 40%, where
+0.14 reads 46.3% and overshoots a number we have. It is a real interior
+minimum - below 0.18 the score worsens at every step down to 0.06, as shift
+counts fall under the heart-rate count and cycles stretch past 160 s.
 
-Spike-capping the `work` estimator was tried, since collisions are the root
-cause. It overshoots: capping lowers `work`, which lowers the boundary, which
-pushes ice time to 45-52%. Lowering the band alone reaches the target, so the
-simpler change is the one that shipped.
+**`CONFIRM_BENCH` 10 -> 14 seconds** (fast path 5 -> 7). Ten seconds was not
+enough for a defenceman: standing at the point, gliding, or waiting out a
+stoppage drops below the boundary long enough to end the shift, and the
+detector then opens a fresh one when he moves again. This is what put the
+median shift at 18 seconds.
+
+**A heart-rate veto, `HR_VETO` = 12 bpm.** Everything else in the detector uses
+heart rate only to *agree* with motion, never to contradict it, because the
+slope separation is too weak to trust alone. This is the one exception and it
+is not a slope: a rate sitting a dozen beats under its own drifting baseline is
+a player at rest, and no amount of wrist movement makes that a shift. It
+removes nine of the sixteen false shifts on 11-05 and costs nothing on 11-03,
+which had none.
+
+Replayed through the shipped state machine:
+
+| | 11-05 holdout | 11-03 |
+|---|---|---|
+| Shifts | 32, heart rate says 31 | 22, heart rate says 24 |
+| Shift cycle | 125 s, heart rate says 127 s | 145 s |
+| Median shift | 41 s | 76 s |
+| Ice time | **42.9% against a known 40%** | 47.5%, bench unknown |
+| Zone-2 shifts | 7 of 32 | 0 of 22 |
+
+## The harness no longer has to be told the band
+
+The band a recording was made with is a property of the file, and getting it
+wrong invalidates the replay completely: it compares against a threshold no
+watch ever computed and reports a disagreement that is really a settings
+difference. That went wrong once already, with 0.45 hardcoded after 0.27 had
+shipped, and three shipped values would have made it worse.
+
+So the harness recovers it instead. Exactly one band reproduces the threshold
+the watch wrote, and `replay_detector.py` now searches for it by default:
+
+```
+$ tools/replay_detector.py data/2026-11-05.fit
+samples: 5048   band recovered from the file: 0.270
+replayed threshold vs recorded: max abs difference = 3 mg
+VERDICT: replay matches the watch
+
+$ tools/replay_detector.py data/2026-11-03.fit
+samples: 3104   band recovered from the file: 0.450
+replayed threshold vs recorded: max abs difference = 3 mg
+VERDICT: replay matches the watch
+```
+
+Two files, two different shipped builds, each recovered to the exact value
+without being told. `--band` still overrides, for asking what a different band
+would have done.
 
 ## What this is not
 
-**One game.** It is a first fit, not a final one. A single recording cannot
-show whether 0.27 holds for a different rink, a different pair of gloves or a
-tighter watch strap.
+**Two games, and only one of them with a verified ice-time target.** 11-05 had
+five defencemen, which is known. The bench on 11-03 was never recorded and
+cannot be recovered from the file - 47.5% is consistent with two pairs and
+flatly inconsistent with six defencemen, but that is an inference, not a
+measurement.
 
-A 7.5-minute recording from the same night was tried as a holdout and is not
-usable: three shifts and a 229-second bench, which is the tail after the game
-ended rather than a game. On a mostly-idle recording a high boundary scores
-well for the wrong reason - "bench" is the right answer almost all the time.
+So this fit is in the same epistemic position the last one was: anchored on a
+single game. What changed is that the anchor is a number the player confirmed
+rather than one assumed from the wrong position. **The thing worth writing down
+next to every future game is how many were dressed at your position.** It costs
+one sentence and it is the only input to this that no sensor can supply.
 
-The way to settle it is more games. Every one of them carries the motion trace
-and the threshold, so re-checking this costs a replay and no ice time.
+Seven of 32 shifts on 11-05 still never leave zone 2. The veto took the
+clearest cases; the rest sit close enough to baseline that a stricter threshold
+would start refusing real shifts.
+
+The way to settle any of it is more games. Every one carries the motion trace
+and the threshold, so re-checking costs a replay and no ice time.
