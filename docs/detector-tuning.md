@@ -309,6 +309,98 @@ stale rows plus 542 seconds with no record written at all - against 1.4% on
 and 26 cycles depending on how peaks are picked, where 11-05 moves only 31 to
 43. The two games currently carry equal weight in the fit. They should not.
 
+## Self-calibration was tried and rejected
+
+The obvious next move is to stop using a fixed constant at all. The band has
+been wrong twice, each refit needed a human to supply a fact no sensor
+records, and heart rate gives a shift count the watch has live - so why not
+let the detector close the loop on itself during a game? Three schemes were
+built and tested offline. All three are worse than the fixed band, and two are
+worse *by construction*.
+
+**A closed loop on the heart-rate cycle rate cannot be stabilised, because
+shift count is not monotone in the band.** On 11-05 the count climbs from 21
+to 36 as the band goes 0.06 to 0.22, then falls back to 29 by 0.36 - so the
+heart-rate target of 31 is crossed on *both sides of a maximum*. Raising the
+band fragments long shifts (count up) and also drops short ones (count down).
+The loop gain changes sign, and worse, the maximum sits near 0.22 on one game
+and 0.14 on the other, so the locally-correct sign differs between games at
+the same band. Every configuration tried ran to a rail.
+
+**A percentile boundary is circular, and this one nearly caught me.** Setting
+the boundary at a fixed percentile of the player's own motion looked
+attractive because the threshold percentile was noticeably more stable between
+the two games than the band was - that stability reads like a signal. It is
+not. It is the symptom. A boundary defined as "the point 30% of this player's
+seconds sit above" pins the very output being measured: fed a game of nothing
+but his real skating seconds it reports 66% ice, fed nothing but his real
+bench seconds it reports 27%.
+
+That test is worth keeping as a tool. Build games with a *known* ice share by
+interleaving this player's own real ice seconds and real bench seconds in
+controlled blocks, then measure how much of a true change the detector
+actually reports - a slope, where 1.00 is perfect:
+
+| boundary rule | slope | robustness to a +-35% motion rescale |
+|---|---|---|
+| quantile, p78 | 0.13 | 2 pts |
+| heart-rate phase | 0.26 | - |
+| closed loop | 0.32 | - |
+| **fixed band 0.18 (shipped)** | **0.49** | **2 pts** |
+| `rest` x 2.2, no `work` term | 0.60 | 5 pts |
+| flat 160 mg | 0.70 | 24 pts |
+
+**The shipped detector reports about half of any real change in ice share.**
+That is the most useful single number to come out of this and it is not
+flattering. It also exposes the real trade-off, which no amount of adaptation
+resolves: scale-invariant boundaries survive a different wrist or a tighter
+strap but measure ice share poorly, and absolute boundaries measure it well
+but move 20-24 points when the motion scale changes. Adapting to the scale of
+the player's own motion normalises away part of the signal. More adaptation is
+the wrong direction.
+
+One non-adaptive simplification did come out of it: dropping the `work` term
+entirely and setting the boundary at `rest` x 2.2. `work` is the term
+collisions corrupt - the 2450 mg peaks against a 75 mg median that caused the
+0.45 failure in the first place - and deleting it is near drop-in on both
+games (same shift counts, same cycles, 43.1% against 42.9% ice) while
+improving the slope from 0.49 to 0.60. It is still a fixed constant fitted to
+two games, which is exactly where 0.27 was standing when it was wrong, so it
+is recorded here rather than shipped.
+
+### Two claims from that work that did not survive checking
+
+Both are recorded because the corrections are more interesting than the
+original claims.
+
+**"Losing heart rate costs more than the whole refit."** Reported as ice time
+falling 42.9% to 26.5% when heart rate is blanked for the middle third of a
+game. Re-running it moves ice time the *other way*, 42.9% to 46.5%. The
+difference is what "a dropout" means in code: if the heart-rate window is
+cleared, every `CONFIRM_*_FAST` path dies and the detector turns conservative;
+if the last reading is simply held - which is what the watch actually does,
+because `observe()` ignores a null sample - the stale value keeps corroborating
+and the detector turns *permissive*. The real finding is not the number but
+that **the detector's response to losing heart rate is several points of ice
+time in a direction nobody has established.** That is worth settling, and it
+matters more on 11-03, where a quarter of the seconds delivered nothing.
+
+**"The warm-up is phantom ice."** Reported as 45% ice across the first 13
+minutes. Split by what was actually happening:
+
+| | ice reported | mean HR |
+|---|---|---|
+| minutes 0-4, warm-up skate | 87.0% | 138 |
+| minutes 5-12, standing around | 18.8% | 115 |
+| minutes 13+, the game | 43.0% | 143 |
+
+The detector called a warm-up skate "on the ice" because he was skating on the
+ice, and called standing around "bench" because he was. Neither is a detection
+error. The 45% average conflates them. What this really is is a **session
+boundary** problem - the warm-up should not be inside the game at all - and
+that is not something the band, the confirmation window or any adaptive scheme
+can address.
+
 ## What this is not
 
 **Two games, and only one of them with a verified ice-time target.** 11-05 had
