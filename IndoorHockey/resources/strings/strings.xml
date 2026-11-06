@@ -9,7 +9,7 @@
     <string id="FitBenchTime">Bench Time</string>
     <string id="FitAvgShift">Avg Shift</string>
     <string id="FitMaxShift">Longest Shift</string>
-    <string id="FitWorkRest">Rest per Work (x100)</string>
+    <string id="FitWorkRest">Rest per Work</string>
     <string id="FitIceHr">On-Ice Avg HR</string>
     <string id="FitHardTime">Time above 85% HR</string>
     <string id="FitShiftTime">Shift Time</string>
