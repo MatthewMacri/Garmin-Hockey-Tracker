@@ -5,9 +5,19 @@ asks for that has changed since the live listing, in the order the form asks
 for it. The full field-by-field reference lives in `store/listing.md`; this
 file exists so the text can be copied without reading around it.
 
-**The store is on 2.0.0.** 2.1.0 was tagged and released on GitHub and never
-uploaded, so this upload carries two releases' worth of change and the What's
-New below covers both. That is also why the version jumps: the package built
+**Nothing is live on the store.** The public listing for this app's UUID,
+<https://apps.garmin.com/en-US/apps/d979409c-45c9-41b6-a1ec-092f51bd6006>,
+returns 404, where a published app's UUID returns its page; and Garmin Connect
+renders none of this app's developer fields on a recorded game while rendering
+another store app's fields on the same watch, which is the behaviour of an app
+the store does not know. Whatever became of the 2.0.0 upload — the one that
+showed `Status: Verified` beside `Signature check failed` — it did not end in
+a listing. **Check the dashboard before assuming this is an update rather than
+a first publish**, because the form differs.
+
+2.1.0 was tagged and released on GitHub and never uploaded either, so this
+upload carries everything since 2.0.0 and the What's New below covers both
+releases. That is also why the version jumps: the package built
 from this repo is two code commits ahead of the `v2.1.0` tag, and calling it
 2.1.0 would have put a different app behind that number on the store than the
 one behind it on GitHub.

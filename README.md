@@ -301,6 +301,11 @@ which is all an integer FIT field can carry — and Connect dutifully rendered a
 Developer fields only render once the app is on the store — a Beta upload is
 enough. A sideloaded build writes them correctly and displays them nowhere.
 
+That is not a guess. A game recorded with this app shows no Connect IQ section
+at all in Garmin Connect, while a game recorded on the same watch with a
+store-published hockey app shows its developer fields with names and units.
+Both files carry their app's fields; only one of the apps is on the store.
+
 ### Heart rate zones per shift
 
 There is one more thing in the file that neither the app nor Garmin Connect

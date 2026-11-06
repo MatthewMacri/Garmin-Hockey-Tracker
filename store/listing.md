@@ -33,7 +33,7 @@ you anything while a release is queued.
 |---|---|
 | Title | `Ice Hockey Shifts` (17 of 50 chars) |
 | Description | The block under *Description* below (2,825 of 4,000 chars) |
-| What's New | See below — this is an update, not the first release |
+| What's New | See below. **Check first whether this is an update or a first publish** — as of 2026-11-06 nothing is live: the public page for this app's UUID is a 404 |
 | Hero Image (optional) | `store/images/hero-1440x720.jpg` (1440x720, 75 KB of 2048 KB) |
 | Category | Health & Fitness — then the closest subcategory to hockey or winter sports |
 | Does your app collect user data? | **No** — it sends nothing anywhere |

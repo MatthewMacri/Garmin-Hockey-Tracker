@@ -290,30 +290,45 @@ Two files, two different shipped builds, each recovered to the exact value
 without being told. `--band` still overrides, for asking what a different band
 would have done.
 
-## Ground truth that no detector touched
+## Two other apps' detectors, which this section called ground truth
 
 A sweep of all 40 files pulled off the watch found two games from before this
-app existed, recorded by a build where **the player marked every shift with a
-button**. No accelerometer, no band, no threshold - his own thumb.
+app existed, whose laps alternate shift and bench. They were read as the
+player's own lap presses - "no accelerometer, no band, no threshold, his own
+thumb" - and used as the independent measurement the 0.27 fit had lacked.
 
-`2026-11-01-22-05-22` is the clean one. Its laps alternate bench and shift and
-carry his own `on_ice` and `shift_time`. Over the first 46.5 minutes, before
-two obviously forgotten presses at the end:
+**They are not his thumb. They are two other apps' shift detectors.** The
+developer field descriptions in the files name them:
+
+| file | developer fields | app |
+|---|---|---|
+| `2026-11-01-22-05-22` | `on_ice`, `shift_time`, `shots`, `workload`, `ice_ratio`, `distance_est`, `avg_speed`, `max_speed` | **Ice Hockey Tracker**, by RegoCom - Garmin Connect credits it by name on the activity |
+| `2026-10-08-20-15-22` | `On Ice`, `Shifts`, `Ice Time`, `Avg Shift`, `Est Speed`, `Speed Source` | a second third-party app |
+
+Every lap in both carries that app's own `on_ice` flag and its own computed
+shift duration. That is a detector writing its verdict onto a lap, not a watch
+recording a press. `lap_trigger` reads `manual` throughout, but it reads
+`manual` for this app's 94 laps on 11-05 as well - `Session.addLap()` produces
+a manual-triggered lap - so it separates nothing. The decisive argument is the
+player's own standing instruction: he does not touch the watch during a game.
+
+What those two apps read, over the first 46.5 minutes of 11-01, before two
+spells at the end that look like a state nobody corrected:
 
 | measured by | ice share | median shift |
 |---|---|---|
-| his own marked shift durations | **36.9%** | 83 s |
+| Ice Hockey Tracker's own shift durations | **36.9%** | 83 s |
 | the lap boundaries around them | **44.0%** | |
 
-So **37-44%**, and the true figure is inside it. `2026-10-08-20-15-22` gives a
-second, weaker reading of about 42% - weaker because that build wrote no
-`on_ice` field at all, so which laps were shifts has to be inferred from
-alternation rather than read.
+and about 42% from the second app, more weakly, because its laps have to be
+sorted into shifts by alternation.
 
-This is the first independent measurement of the quantity the 0.27 fit got
-wrong, and it brackets the 40% that five defencemen imply on 11-05. It is also
-what the band is really pinned by: 0.18 and 0.20 sit inside 37-44%, while 0.27
-reads 35.6% and 0.45 reads 21.4%.
+**37-44% is still worth having**, but it is a different thing from what this
+section claimed. Two independent implementations, neither of them ours, land
+either side of the 40% that five defencemen imply on 11-05 - where 0.27 reads
+35.6% and 0.45 reads 21.4%. That is corroboration from strangers' code, not a
+measurement from the player. The band is pinned by the five-defenceman game,
+which is a fact he supplied and no software's opinion.
 
 Those two games cannot test a band - they carry no motion trace, so there is
 nothing to replay. **The replayable set is still exactly two games.** Of 40
@@ -321,7 +336,8 @@ files only five carry `motion` and `motion_threshold` at all, and four of
 those are one evening in November, one of which starts 98 seconds after the
 game file ends. The archive adds ground truth, not holdouts.
 
-It also adds a population. Fourteen full-length sessions give a heart-rate
+It also adds a population, and this part is unaffected by whose app recorded
+what: it is heart rate only. Fourteen full-length sessions give a heart-rate
 cycle each, with motion never consulted: **median 156 s, range 107-189 s**.
 That corroborates the ~160 s this player was already known to run, and it
 places both tuning games at the extremes - 11-05 at 125 s is his shortest
@@ -463,9 +479,12 @@ start and length are unaffected.
 left zone 2" is the class being removed, and the rule commits on heart rate
 reaching zone 3, so removing 9 of 9 is arithmetic, not evidence.
 
-The independent test is the hand-marked game. `2026-11-01-22-05-22` carries 11
-shifts the player marked with a button - no detector, no band, no heart-rate
-rule involved. Ask the gate whether it would have accepted each one:
+The independent test is `2026-11-01-22-05-22`, which carries 11 shifts that
+no band, no motion threshold and no heart-rate rule of ours produced. They are
+**another app's detector's shifts**, not the player's lap presses - see the
+section above, which got that wrong - so this is agreement with a stranger's
+implementation rather than with the truth. Ask the gate whether it would have
+accepted each one:
 
 | | peak HR | verdict at zone 3 = 144 |
 |---|---|---|
@@ -473,9 +492,11 @@ rule involved. Ask the gate whether it would have accepted each one:
 | 1 shift (65 s) | 161 | accept |
 | **1 shift (66 s, marked 48 s)** | **141** | **REFUSED** |
 
-**One in eleven.** A shift he pressed a button for, 3 bpm under the line, with
-no 6 bpm rise to rescue it. That is the gate's real false-negative rate on
-genuine ground truth, and it is the number to argue about - not 9 of 9.
+**One in eleven.** A shift another detector was sure of, 3 bpm under the line,
+with no 6 bpm rise to rescue it. It is a weaker number than it first looked -
+agreement with Ice Hockey Tracker, not with the player - but it is still the
+number to argue about rather than 9 of 9, because it is the only one not
+computed from the metric the rule is defined on.
 
 It also locates the right operating point. The lowest-peaking real shift on
 11-03 reaches exactly 145, and this one reaches 141, so the line belongs at

@@ -111,10 +111,12 @@ displays them nowhere.
 ice entry provisional until heart rate corroborates it, then backdate it when
 it commits. Scored against the game it came from it removes all nine, which is
 circular — it commits on the metric that defines them. Scored against a game
-the player hand-marked with the lap key, where no detector was involved, it
-accepts 10 of 11 real shifts and **refuses one**, a 66-second shift peaking 3
-bpm under the line. That one-in-eleven is the honest cost, and it puts the
-operating point at 140 bpm rather than the 144 the watch's zone table gives.
+recorded by a different hockey app, whose own detector called 11 shifts, it
+accepts 10 and **refuses one**, a 66-second shift peaking 3 bpm under the
+line. That one-in-eleven puts the operating point at 140 bpm rather than the
+144 the watch's zone table gives. It is agreement with a stranger's
+implementation rather than with the player — an earlier draft of this called
+that game hand-marked, which it is not.
 It needs a third detector state and a backdate of up to 68 seconds through an
 overlap guard that has never been asked to handle one. Not done on two games'
 worth of evidence.
