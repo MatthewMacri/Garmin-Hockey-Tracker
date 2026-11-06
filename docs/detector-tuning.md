@@ -427,6 +427,86 @@ boundary** problem - the warm-up should not be inside the game at all - and
 that is not something the band, the confirmation window or any adaptive scheme
 can address.
 
+## The proposed fix for the false positives, and the test that sized it
+
+Seven zone-2 shifts survive the veto on 11-05. Tracing them: **all seven are
+moments the player was not in the game.** Five fall before the first genuine
+shift, three in the 2.4 minutes after the last one, and one sits inside a
+3.5-minute mid-game rest. Their motion is not weak - median 85-514 mg against
+7-254 mg for real shifts, because a real defenceman's shift is mostly glide.
+Two have a walking signature: 200-290 mg every second for 45 s, rhythmic, no
+impacts. **No absolute motion statistic separates the classes**, in either
+direction, which is why no band and no floor fixes them.
+
+The proposed rule: **make an ice entry provisional until heart rate
+corroborates it, then backdate it when it commits.** When the motion streak
+completes, mark the entry provisional rather than flipping. Commit when heart
+rate reaches zone 3, or rises 6 bpm within 20 s of the provisional start, and
+date the shift back to that start. Abandon it when the bench streak would have
+ended the shift anyway. A shift that motion never sustains and the body never
+confirms never happened.
+
+It is live-computable - only waiting, which `CONFIRM_ICE` already does - and
+it costs no ice time, because the backdate returns every second the wait
+consumed. The player sees "bench" for a while into a real shift; the recorded
+start and length are unaffected.
+
+**But it was scored on the metric that defines it.** "Peak heart rate never
+left zone 2" is the class being removed, and the rule commits on heart rate
+reaching zone 3, so removing 9 of 9 is arithmetic, not evidence.
+
+The independent test is the hand-marked game. `2026-11-01-22-05-22` carries 11
+shifts the player marked with a button - no detector, no band, no heart-rate
+rule involved. Ask the gate whether it would have accepted each one:
+
+| | peak HR | verdict at zone 3 = 144 |
+|---|---|---|
+| 9 of the 11 shifts | 148-181 | accept, comfortably |
+| 1 shift (65 s) | 161 | accept |
+| **1 shift (66 s, marked 48 s)** | **141** | **REFUSED** |
+
+**One in eleven.** A shift he pressed a button for, 3 bpm under the line, with
+no 6 bpm rise to rescue it. That is the gate's real false-negative rate on
+genuine ground truth, and it is the number to argue about - not 9 of 9.
+
+It also locates the right operating point. The lowest-peaking real shift on
+11-03 reaches exactly 145, and this one reaches 141, so the line belongs at
+**140**, not at the 144 the file's zone table gives: 140 accepts all 11
+hand-marked shifts and the 11-03 shift, with 1 and 5 bpm of margin, and still
+removes 8 of the 9 false positives at no ice-time cost. Note that 144 is what
+`UserProfile.getHeartRateZones()` returns while the watch holds a maximum of
+205, whereas this player's own recorded maximum is 199 - which would put zone
+3 at about 140 by itself. The margin is thin either way and the rule must not
+go above about 148.
+
+**Not implemented.** It needs a third detector state and a backdate of
+arbitrary length - up to 68 s on this data - which `switchSegment()`'s overlap
+guard has never been asked to handle. That is a larger change than anything
+shipped tonight, resting on the same two games, and tonight has already shown
+what happens when several things change at once.
+
+The cheaper half of the same finding needs no code at all: eight of the nine
+false positives exist because the 11-05 activity ran for 16 minutes while
+nothing was happening. 11-03 has almost none of them because its timer was
+paused at every break. **Starting at the first shift instead of in the warm-up
+removes more of this problem than any constant can**, and it is the only thing
+that touches the 261 seconds of warm-up skate the zone-2 test cannot even see,
+because during a warm-up the heart rate genuinely does reach zone 3.
+
+### The opposite error, which is the same size
+
+Bench spells that reach zone 4 total 303 s on 11-05 and 447 s on 11-03, but
+most is legitimate post-shift lag. Allowing 25 s of lag, the bench time that
+elapses before the heart rate even turns over is **79 s on 11-05 and 65 s on
+11-03** - roughly 1.5 points of ice each. One case on 11-05 is a 77-second
+"bench" spell with heart rate climbing 132 to 171 throughout, almost certainly
+one 117-second shift split by a 14-second lull.
+
+So premature shift *ends* cost about as much real ice as the false positives
+add. The rule above touches only the entry edge, so it neither helps nor harms
+this. It is the better argument for `CONFIRM_BENCH` 14 than the one that
+change actually shipped with.
+
 ## What this is not
 
 **Two games, and only one of them with a verified ice-time target.** 11-05 had
