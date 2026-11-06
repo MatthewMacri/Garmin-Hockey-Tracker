@@ -28,6 +28,41 @@ warm-up note, and describes a detector that no longer behaves that way.
 
 ---
 
+## Upload it as a Beta first, and watch a real game render
+
+The point of uploading at all is that **developer fields only render in Garmin
+Connect for an app the store knows about**. A sideloaded build writes every
+field correctly and Connect displays none of them — which is exactly what the
+2026-11-05 activity shows: no Connect IQ section at all, while a game recorded
+on the same watch with a store-published hockey app shows its own fields with
+names and units.
+
+A **Beta** upload is enough to get rendering, and it does not go through public
+review, so it is the cheap way to prove the fields land before anyone else can
+install the app. The sequence:
+
+1. Upload `IndoorHockey.iq` as a Beta, version `2.2.0`.
+2. **Delete the sideloaded copy from the watch first** — `GARMIN/Apps/IndoorHockey.prg`
+   over USB. A sideload and a store install share the manifest ID, and having
+   both is a known source of confusion about which one is running.
+3. Install the Beta from <https://apps.garmin.com> in a desktop browser while
+   signed in. Beta apps do not appear in the Connect IQ mobile app's search;
+   the website, or Garmin Express, is how they reach the watch.
+4. Record anything — two minutes of waving an arm around is enough — and sync.
+5. The activity should now carry a Connect IQ section reading Shifts, Ice Time,
+   Bench Time, Avg Shift, Longest Shift, Rest per Work, On-Ice Avg HR and Time
+   above 85% HR. **Rest per Work must read like `3.2`, not `324`** — that is
+   the float fix in this release, and the Beta is the first chance to see it
+   actually rendered rather than inferred from the package metadata.
+6. Only then publish publicly.
+
+If the Beta renders nothing, the problem is the listing's fit contributions,
+not the app: the labels and units Connect draws come from
+`IndoorHockey/resources/fitfields.xml` as packaged into each device's
+`-fit_contributions.json` inside the `.iq`, not from the FIT file.
+
+---
+
 ## Step 1 — the package
 
 Attach `IndoorHockey/dist/IndoorHockey.iq`, built by `IndoorHockey/package.sh`.
