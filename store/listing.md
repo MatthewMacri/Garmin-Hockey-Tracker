@@ -13,7 +13,7 @@ file into a debug record for all 202 device variants - about 180,000 copies of
 the builder's home directory, shipped inside the package.
 
 Step 1 also asks for **App Version**, a free text box. Type the version there -
-`2.1.0`, then `2.2.0`, and so on.
+`2.2.0`, then `2.3.0`, and so on.
 
 **Nothing in the build carries the version.** `manifest.xml` has no version
 attribute and never has; the packaged `.iq` has none either, only `apiVersion`,
@@ -91,85 +91,77 @@ WHAT IT DOES
   you are skating and when you are resting, and splits the activity to match.
 • One continuous game clock — no periods to set up and nothing that ends your
   activity on a schedule. A real game runs longer than the sum of its periods,
-  so the recording stops when you stop it and not before.
+  so recording stops when you stop it.
 • Shift clock — green, then amber, then red as the shift runs long, with a
   long buzz at your target length so it is felt through a glove. The ring
-  around the screen fills as the shift goes on, readable without reading it.
-• Total ice time on screen all game, not just in the summary afterwards.
+  around the screen fills as the shift goes on.
+• Total ice time on screen all game, not just in the summary.
 • On-ice heart rate, reported separately from bench heart rate.
 • One screen. Everything at a glance, no paging mid-game.
 
 WHY ON-ICE HEART RATE MATTERS
 
-In a study of simulated elite match play, average heart rate on the ice was 84%
-of maximum. A game average is a different number, because it blends skating
-with sitting and the weighting is your bench time rather than your effort. Two
-players who skated identically post different game averages when one got more
-rest. This app knows when you were on the ice, so it reports both.
+In simulated elite match play, average heart rate on the ice was 84% of
+maximum. A game average is a different number: it blends skating with
+sitting, so its weighting is your bench time rather than your effort, and two
+players who skated identically post different averages when one rested more.
+This app knows when you were on the ice, so it reports both.
 
 HOW THE DETECTION WORKS
 
 Wrist motion is the only signal fast enough to open and close a shift, so it
 decides, and GPS only agrees with it. Heart rate mostly only agrees too, with
-one exception: while your heart rate is sitting well below its own baseline for
-the game, no amount of arm movement will open a shift. That is a player sitting
-down, not a player skating. Thresholds are learned during the
-game rather than hard-coded, because the numbers depend on the player, where
-the watch sits and how tight the strap is. A change is believed only once it
-persists, and is then dated back to when it actually happened, so a shift does
-not lose its first seconds to the bench.
+one exception: while your heart rate sits well below its own baseline for the
+game, no amount of arm movement will open a shift. That is a player sitting
+down, not a player skating. Thresholds are learned during the game, because
+they depend on the player and on how the watch is worn. A change is believed only once it persists, and is then dated back to
+when it happened, so a shift does not lose its opening seconds.
 
-It will get some boundaries wrong. The LAP button flips the state by hand when
-it does.
+It will get some boundaries wrong. The LAP button flips the state by hand.
 
 WHAT LANDS IN GARMIN CONNECT
 
 Shifts, ice time, bench time, average and longest shift, rest-per-work ratio,
-on-ice average heart rate, and time above 85% of maximum heart rate. One lap
-per shift and one per bench spell, so the Splits tab reads as a shift chart.
-Per-second on-ice state, shift clock, wrist motion and the learned detection
-threshold.
+on-ice average heart rate, and time above 85% of maximum HR. One lap
+per shift and one per bench spell, so the Splits tab reads as a shift chart,
+and the on-ice state second by second.
 
 BUTTONS
 
-START begins the game. Pressing it twice stops into the stop menu — twice,
-because the screen is a touchscreen and one press was too easy to make by
-accident inside a glove. The first press asks, the second does it. Screen taps
-do nothing at all while a game is running. BACK is the lap key, and a lap here
-is a line change. Hold UP for the menu. Nothing is needed during normal play.
+START begins the game. Pressing it twice stops into the stop menu; twice,
+because this is a touchscreen and one press was too easy to make inside a
+glove. Screen taps do nothing at all while a game is running.
+BACK is the lap key: a lap here is a line change. Hold UP for the menu.
 
 SETTINGS
 
-Shift alert target, shift sensitivity, shift alerts on or off, lap per shift,
-GPS on or off, how long with no skating before the game saves itself, and
-whether the activity is filed as ice hockey or as ice skating.
+Shift alert target, sensitivity and alerts on or off; lap per shift; GPS on or
+off; how long with no skating before the game saves itself; and whether the
+activity is filed as ice hockey or ice skating.
 
 END GAME WHEN IDLE
 
 A game left running does not run all night. After 25 minutes with no skating
-detected the watch buzzes and shows a countdown; any button press cancels it,
-and left alone it saves rather than discards. It cannot end a game still being
-played: any second on the ice restarts the count, and the default clears a full
-intermission. Set it to 0 to turn it off.
+the watch buzzes and counts down; any press cancels it, and left alone it saves
+rather than discards. A second on the ice restarts the count, so it cannot end
+a game being played. Set it to 0 to turn it off.
 
 NOTES
 
-Start the game at the opening faceoff rather than during the warm-up. A
-warm-up skate produces the same wrist motion and the same heart rate as a
-shift does, so a game started early collects shifts nobody played, and nothing
-in the recording can tell them apart afterwards. The app is built around a
-single press; that press belongs at the faceoff.
+Start the game at the opening faceoff, not during the warm-up. A warm-up skate
+produces the same wrist motion and the same heart rate as a shift, so a game
+started early collects shifts nobody played, and nothing in the recording can
+tell them apart.
 
 Wear the watch on your wrist. Shifts come from wrist motion, so a watch in a
 vest or a bag has nothing to detect and records one long shift. A paired chest
 strap is fine and is used for heart rate as normal.
 
-GPS is on by default, but expect no fix inside most arenas. The app degrades
-quietly to motion-only detection and records the game normally.
+GPS is on by default, but expect no fix inside most arenas; the app falls back
+to motion-only detection and records normally.
 
-Strava has no ice hockey activity type, so a hockey-typed game syncs there as a
-plain workout. Set Activity Type to Ice Skate if you sync to Strava and would
-rather it arrived typed.
+Strava has no ice hockey type: set Activity Type to Ice Skate if you sync there
+and would rather it arrived typed.
 
 ## Category
 
@@ -180,29 +172,37 @@ Health & Fitness
 hockey, ice hockey, shifts, shift timer, line change, on-ice heart rate,
 bench, shifts, rink, skating
 
-## What's New (version 2.1.0)
+## What's New (version 2.2.0)
 
 ```
+Shift detection has been retuned, and you will see it in your own numbers.
+The old settings were fitted against a forward's share of the ice, and a
+defenceman gliding at the point kept dropping under the bar and losing the
+rest of the shift to the bench. A shift is now harder to leave than it is
+to enter, and your heart rate can refuse one outright: while it sits well
+below its own baseline for the game, no amount of arm movement will open a
+shift.
+
 A game left running no longer runs all night. After 25 minutes with no
-skating detected the watch buzzes and shows a countdown; any button press
-calls it off, and left alone the game is saved rather than discarded. It
-works on a paused game too, which is the likeliest way to forget one -
-pause at the final whistle, put the gloves away, remember hours later.
+skating the watch buzzes and counts down; any press calls it off, and left
+alone the game is saved rather than discarded. A second on the ice restarts
+the count, so it cannot end a game still being played. Set it to 0 to turn
+it off.
 
-It cannot end a game still being played. A single second on the ice
-restarts the count, the default comfortably clears an intermission, and
-the setting will not accept anything shorter than twenty minutes. If the
-accelerometer stops delivering, the count stops with it rather than
-reading a dead sensor as a player sitting still. Set it to 0 to turn the
-whole thing off.
+Also fixed: a watch delivering accelerometer samples in very small batches
+could read as having no accelerometer at all, disabling shift detection for
+a whole game. And Rest per Work reads as a ratio, 3.2, rather than as the
+number 317.
+```
 
-Also: a watch whose accelerometer delivered samples in very small batches
-could read as having no accelerometer at all, which disabled shift
-detection for the whole game. Those batches are now used.
+If the form's counter accepts more than the ~1,000 characters above,
+append this; `docs/store-2.2.0.md` carries both with exact counts.
 
-Also in this version: Rest per Work reads as a ratio - 3.2 - instead of as
-the number 317, and the detector's own motion diagnostics are still
-recorded but no longer charted under your activity.
+```
+One thing that costs nothing: start the game at the opening faceoff rather
+than in the warm-up. A warm-up skate produces the same wrist motion and the
+same heart rate as a shift does, so a game started early collects shifts
+nobody played.
 ```
 
 ## Screenshots

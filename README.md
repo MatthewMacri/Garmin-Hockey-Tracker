@@ -364,12 +364,14 @@ lap splits still work.
 
 ```bash
 cd IndoorHockey
-./package.sh               # builds bin/IndoorHockey.iq for every product
+./package.sh               # builds dist/IndoorHockey.iq for every product
 ```
 
 Upload that at <https://apps.garmin.com/en-US/developer/upload>; the dashboard
 for an app already up is <https://apps-developer.garmin.com>. `store/listing.md`
-holds the description, category and screenshot order to paste into the form.
+holds the description, category and screenshot order to paste into the form,
+and `docs/store-2.2.0.md` holds the current release's text with its character
+counts, so it can be pasted without reading around it.
 
 Launcher icons are generated, not hand-drawn, because the supported watches ask
 for fifteen different sizes between 26x26 and 70x70:
