@@ -3,8 +3,9 @@
 Released 2026-11-07. Like 2.5.0 and 2.5.1 before it, this corrects a version
 that never reached the store, so no user ever ran the code it fixes.
 
-**This is the version to upload.** [2.5.0](release-2.5.0.md) and
-[2.5.1](release-2.5.1.md) are tagged and should not be.
+**This is no longer the version to upload** — see
+[2.5.3](release-2.5.3.md). [2.5.0](release-2.5.0.md) and
+[2.5.1](release-2.5.1.md) should not be installed either.
 
 Seven agents went over 2.5.1 — four on the code and the documentation, three on
 questions that bear on the upload. Fourteen defects, three of them in fixes
@@ -273,3 +274,14 @@ changes shift detection. The research done alongside this QA pass is in
 and its first recommendation costs nothing to act on: the heart-rate
 corroboration threshold is **4.0 bpm against a measured on-ice/bench separation
 of 1.1–3.8 bpm** — a threshold set above the difference it is meant to detect.
+
+---
+
+## This release should not be installed
+
+2.5.2 left the oldest complaint in the project untouched: a wrist moved on the
+bench still collected shifts nobody played. Measuring `corroboratesIce()` as a
+likelihood ratio over the three recorded games showed why — its heart-rate
+offset arm carries almost no information, and OR-ing it with the slope arm more
+than doubled the false-positive rate. See [2.5.3](release-2.5.3.md), which is
+the version to upload.

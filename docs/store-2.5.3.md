@@ -217,7 +217,7 @@ and a user who has already reviewed 2.3.0 may review again once a new version
 is published. Publishing re-opens reviewing for everyone who has reviewed
 before.
 
-**App Version:** type `2.5.2`
+**App Version:** type `2.5.3`
 
 2.3.0 was the fourth upload and came back as Internal 4, so this is the fifth
 and should read Internal 5. Check the hint under the box reads *(Latest app
