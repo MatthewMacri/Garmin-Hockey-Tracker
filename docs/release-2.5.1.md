@@ -71,17 +71,38 @@ did not reproduce at the tag — it was measured mid-pass, 113 B short of what
 was committed.
 
 The package `package.sh` builds passes `-e -r`, and `-r` strips the debug data.
-What actually installs on a watch is **30,647 B**, 31.2%. The debug build is
-35,403 B because the symbol tables it keeps for the simulator are 3.8 kB of the
-data segment on their own. Quoting the debug total against a device's memory
-overstates the app's cost by 15%.
+What actually installs on a watch at **this** tag is **30,831 B** (25,951 code,
+4,880 data), 31.4% of the 98,304 B available on the tightest supported device.
+Quoting a debug total against a device's memory overstates the app's cost by
+about 16%.
 
-Both figures are now in [2.5.0's notes](release-2.5.0.md#size), measured at the
-tag, with the command. 2.4.0's claim of 27.2 kB did not reproduce either and
-has been corrected there to the measured 27,983 B release build.
+The corrected figure for 2.5.0 is in [its own notes](release-2.5.0.md#size),
+measured at that tag, with the command; 2.4.0's claim of 27.2 kB did not
+reproduce either and is corrected there to the measured 27,983 B.
+
+**A later correction to this very section.** The first version of it printed
+30,647 B here — which is 2.5.0's size, not 2.5.1's. It was measured before the
+2.5.1 commit was made rather than at the tag, which is the same mistake, one
+release along, as the one the section is about. The release series, all
+measured at their tags with the command above:
+
+| Tag | Release build | Of 98,304 B |
+|---|---|---|
+| v2.4.0 | 27,983 B | 28.5% |
+| v2.5.0 | 30,647 B | 31.2% |
+| v2.5.1 | 30,831 B | 31.4% |
 
 ## Nothing else changed
 
-No detector constants, no new fields, no new behaviour. `CONFIRM_ICE` is still
-6, and the bench fidget is still open and still waiting on line-change ground
-truth from a real game.
+No detector constants and no new FIT fields. `CONFIRM_ICE` is still 6, and the
+bench fidget is still open and still waiting on line-change ground truth from a
+real game. (2.5.1 does add one constant of its own, `SPEED_STALE_AFTER`, and it
+does change behaviour — an earlier draft of this line claimed otherwise.)
+
+## This release should not be installed
+
+Six QA passes over 2.5.1 found a dozen further defects, including one in the
+fix above: the model stops feeding a stale fix after four seconds, but the
+detector then started its own four-second count from zero, so a fix voted for
+about nine seconds while both constants said four. See
+[2.5.2](release-2.5.2.md), which is the version to upload.

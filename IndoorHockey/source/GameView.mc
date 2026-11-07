@@ -120,8 +120,15 @@ class GameView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
 
+        // One instant for the whole frame. The header, the big clock and the
+        // segment line are three different views of the same running clocks,
+        // and reading the timer once per draw is what stops them disagreeing
+        // by a second when the draw crosses a second boundary.
+        _model.openFrame();
+
         if (_model.state == STATE_FINISHED) {
             drawSummary(dc, w, h);
+            _model.closeFrame();
             return;
         }
 
@@ -130,6 +137,7 @@ class GameView extends WatchUi.View {
         drawClock(dc, w, h);
         drawSegment(dc, w, h);
         drawFooter(dc, w, h);
+        _model.closeFrame();
     }
 
     //! Total ice time, and the state when it is not simply running.

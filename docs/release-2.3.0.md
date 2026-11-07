@@ -113,7 +113,7 @@ Two things that does not fix:
   first-upload copy is reported both ways on the forums and is the one thing
   this release cannot verify from outside.
 
-`docs/store-2.5.1.md` carries the full trace and the sources (this file was
+`docs/store-2.5.2.md` carries the full trace and the sources (this file was
 renamed from `store-2.3.0.md` through `store-2.4.0.md`).
 
 ## Also

@@ -219,6 +219,9 @@ class GameModel {
     // no exertion behind it, never contributes.
     private const HRR_WINDOW = 5;       // samples averaged at each end
     private const HRR_AT = 60;          // the "60" in HRR60
+    // First second of the far window, chosen so the HRR_WINDOW samples it
+    // starts are centred on HRR_AT: 60 - (5 - 1) / 2 = 58, covering 58..62.
+    private const HRR_START = HRR_AT - ((HRR_WINDOW - 1) / 2);
     private const HRR_GIVE_UP = 70;     // stop waiting for a usable sample
     // Fewest far-end samples that may stand as a measurement. A five-second
     // mean was the whole point of the window; one sample carries the several
@@ -270,10 +273,18 @@ class GameModel {
     private var _hrMaxPending as Number = 0;
     private var _hrMaxSeen as Number = 0;
 
-    // Seconds a cached fix may still be fed to the detector. Matched to the
-    // detector's own SPEED_MAX_AGE, which is where the same number is applied
-    // to the readings it has already taken.
+    // Seconds a cached fix may still be fed to the detector, and the whole of
+    // the staleness window. This used to say it was "matched to" the
+    // detector's SPEED_MAX_AGE; it is not matched to it, it REPLACES it. The
+    // two counters do not agree on a bound, they add up: the model stopped
+    // feeding at second 5, and only then did the detector's own age start
+    // climbing from zero toward its own limit, so a fix still voted at second
+    // nine. The detector now drops a speed the moment it is handed a null, so
+    // this constant alone decides how old a fix may be.
     private const SPEED_STALE_AFTER = 4;
+    // The instant the frame being drawn belongs to, or -1 between frames.
+    private var _frameNow as Number = -1;
+
     private var _speed as Float? = null;
     // Seconds since onPosition() last supplied a usable fix.
     //
@@ -564,11 +575,20 @@ class GameModel {
     }
 
     //! Elapsed milliseconds since a start marker, or 0 if it is not running.
+    //!
+    //! Reads the frame clock when one is open. Every live number on the screen
+    //! comes through here, and each call used to take its own
+    //! System.getTimer() reading - so a draw that straddled a second boundary
+    //! mixed two different seconds. Observed: `Ice 1:42` beside `ON 1:43` when
+    //! the game had one unfinished shift and those are the SAME quantity,
+    //! iceTimeMs() being _iceMs + segmentMs() with _iceMs at zero. Ice reading
+    //! SMALLER than the shift inside it is impossible from one instant, and
+    //! that is the tell.
     private function sinceMs(marker as Number) as Number {
         if (marker < 0) {
             return 0;
         }
-        var delta = System.getTimer() - marker;
+        var delta = ((_frameNow >= 0) ? _frameNow : System.getTimer()) - marker;
         if (delta < 0) {
             // System.getTimer() wrapped around. Lose the wrap, not the game.
             return 0;
@@ -848,12 +868,40 @@ class GameModel {
                     undo.setData(shiftCount);
                 }
             }
-            if (autoLap) {
+            // A segment that banked nothing gets no lap either. closeLap()
+            // used to run here unconditionally, so a shift dated back out of
+            // existence still produced a lap - and setLapFields() rounds
+            // half-up where bankShift() takes a floor, so the two disagreed
+            // by construction: a 970 ms segment was REFUSED by bankShift (and
+            // `shifts` decremented for it) while its lap claimed
+            // `shift_time 1`. A fully clamped segment was worse still,
+            // writing `shift_time 0` AND `bench_lap 0` and breaking the rule
+            // this file states at setLapFields(): that every lap reads
+            // unambiguously as either a shift or a spell on the bench. Both
+            // are common - any shift the detector ends within about twelve
+            // seconds of opening it lands here, which is most of the false
+            // positives in a real game.
+            //
+            // Skipping the lap merges the sliver into the next one. That
+            // leaves lap-timer time exceeding the developer fields by under a
+            // second, which is a rounding difference; a lap claiming to be
+            // both a shift and a bench spell of zero seconds is a wrong
+            // number.
+            if (autoLap && elapsed >= 1000) {
                 closeLap(elapsed, true);
             }
         } else {
             _benchMs += elapsed;
-            if (autoLap && shiftCount > 0) {
+            // No `shiftCount > 0` here any more. That guard was written for a
+            // bench spell with no shift before it, which cannot happen:
+            // start() sets shiftCount to 1 and forces ON_ICE, so the game
+            // always opens on the ice and every bench segment follows a
+            // shift. It was dead code until the decrement above was added,
+            // at which point it came alive with the wrong meaning - a game
+            // whose single shift was dated away took shiftCount to 0, and the
+            // real bench spell that followed then silently got no lap at all,
+            // leaving the session's bench_time with nothing behind it.
+            if (autoLap && elapsed >= 1000) {
                 closeLap(elapsed, false);
             }
         }
@@ -888,7 +936,14 @@ class GameModel {
             _recoveryDoneAgo = -1;
         }
 
-        if (wasIce && _hrRecentCount > 0 && _hrStaleTicks <= HRR_WINDOW) {
+        // The near end needs the same minimum as the far end. HRR_MIN_END
+        // was added because a mean of one or two samples is a jittery optical
+        // reading rather than a measurement - and that argument says nothing
+        // about which end of the window it is. _hrRecentCount > 0 accepted a
+        // single sample, which pause() made newly reachable by clearing the
+        // ring: one good second after a resume was enough to arm a recovery
+        // whose starting point was that one second.
+        if (wasIce && _hrRecentCount >= HRR_MIN_END && _hrStaleTicks <= HRR_WINDOW) {
             _recoveryFrom = recentHrAverage();
             _recoverySeconds = 0;
         } else {
@@ -1048,7 +1103,25 @@ class GameModel {
 
     //! Housekeeping, once a second: run the detector, accumulate the heart rate
     //! statistics and raise alerts.
+    //! Pin every clock on this draw to one instant, so the numbers on a frame
+    //! cannot disagree with each other. Paired with closeFrame().
+    public function openFrame() as Void {
+        _frameNow = System.getTimer();
+    }
+
+    //! Release the frame clock. Always called, so a frame that throws part way
+    //! through cannot freeze the clocks: openFrame() overwrites unconditionally
+    //! and onTick() clears it as well.
+    public function closeFrame() as Void {
+        _frameNow = -1;
+    }
+
     public function onTick() as Void {
+        // Never run a tick against a frame's clock. Belt and braces: if a draw
+        // somehow failed to close its frame, the per-second work would
+        // otherwise read a stale instant and stop advancing.
+        _frameNow = -1;
+
         // Before any branch returns: a fix goes stale on the bench, on pause
         // and on the ready screen exactly as it does during play.
         if (_speedTicks <= SPEED_STALE_AFTER) {
@@ -1129,8 +1202,10 @@ class GameModel {
         // Recovery. Deliberately outside the guard above: the clock has to
         // advance on every second that passes, not only on the seconds the
         // sensor managed to report. Counting ticks instead would turn a
-        // ten-second dropout into a seventy-second "HRR60", which is a
-        // smaller number for a reason that has nothing to do with fitness.
+        // ten-second dropout into a seventy-second "HRR60" - a BIGGER drop,
+        // because the heart is still falling at second seventy, for a reason
+        // that has nothing to do with fitness. (This comment and the README
+        // both said "smaller" until 2.5.2; release-2.4.0.md had it right.)
         //
         // The clock runs on the bench and only when a shift armed it. A spell
         // that ends before the window is simply not reported: there is no
@@ -1145,12 +1220,21 @@ class GameModel {
         if (!onTheIce && _recoverySeconds >= 0) {
             _recoverySeconds++;
 
-            // Centre the far window ON sixty seconds: seconds 58 to 62
-            // inclusive average to 60. Starting at HRR_AT - 2 collected 58
-            // through 62 but only fired once five had arrived, which put the
-            // mean at 62 s and made this HRR62 whenever the sensor was
-            // reporting cleanly - a bigger drop, for no physiological reason.
-            if (_recoverySeconds >= HRR_AT - 4 && _recoveryEndCount < HRR_WINDOW
+            // Centre the far window ON sixty seconds. _recoverySeconds is 0
+            // when the shift ends and is incremented at the top of each bench
+            // tick, so it IS the number of seconds since the shift ended;
+            // HRR_WINDOW samples taken from HRR_START onwards therefore cover
+            // seconds 58 to 62, whose mean is 60. That is HRR60.
+            //
+            // 2.5.0 moved this to HRR_AT - 4 on the belief that the old window
+            // "put the mean at 62" and was really HRR62. That was simply
+            // wrong - 58 through 62 averages 60, as the sentence above it in
+            // the same comment said - and the change moved a correctly centred
+            // window off its mark, making the shipped figure HRR58: seconds 56
+            // to 60, a mean of 58, and a smaller drop than the field claims.
+            // Reverted in 2.5.2 and derived from the two constants here, so it
+            // cannot drift again.
+            if (_recoverySeconds >= HRR_START && _recoveryEndCount < HRR_WINDOW
                     && heartRate != null && heartRate > 0) {
                 _recoveryEndSum += heartRate;
                 _recoveryEndCount++;
@@ -1427,23 +1511,45 @@ class GameModel {
     //! Offer a beat as a new observed maximum. Raises the ceiling only when the
     //! reading is credible and has been very nearly repeated, so one optical
     //! spike cannot raise the bar for a whole game.
+    //! A candidate counts as repeated only if this beat is within one of it,
+    //! in EITHER direction. The first version tested `heartRate >=
+    //! _hrMaxPending - 1`, which is true of every reading above the candidate
+    //! however far above - so a 229 bpm spike read as "the candidate, seen
+    //! again" rather than as a new candidate.
+    private function sameCandidate(heartRate as Number) as Boolean {
+        return _hrMaxPending > 0
+            && heartRate >= _hrMaxPending - 1
+            && heartRate <= _hrMaxPending + 1;
+    }
+
+    //! Offer a beat as a new observed maximum. Raises the ceiling only when the
+    //! reading is credible and has been very nearly repeated, so one optical
+    //! spike cannot raise the bar for a whole game.
+    //!
+    //! The count has to be CLEARED on promotion. Without that, _hrMaxSeen only
+    //! ever rises: it reaches HR_MAX_CONFIRM on the third second of any game
+    //! with a heart rate and stays there, after which every new high satisfies
+    //! `_hrMaxSeen >= HR_MAX_CONFIRM` on the very sample that raised it. The
+    //! guard then had no effect whatever - it was the bare `if (heartRate >
+    //! _hrObservedMax)` it replaced, plus the credibility ceiling - and a
+    //! single 229 bpm cadence-lock artefact at minute 7 would put the 85% line
+    //! at 194 instead of 169 and silence hard_time for the rest of the game,
+    //! which is the exact failure it was written to prevent.
     private function offerHrMaximum(heartRate as Number) as Void {
         if (heartRate > HR_MAX_CREDIBLE) {
             return;
         }
         if (heartRate <= _hrObservedMax) {
-            // Within a beat of the standing maximum counts as repeating it.
-            if (_hrMaxPending > 0 && heartRate >= _hrMaxPending - 1) {
+            // Not a new high, but it can still corroborate a candidate that is
+            // waiting above the standing maximum.
+            if (_hrMaxPending > _hrObservedMax && sameCandidate(heartRate)) {
                 _hrMaxSeen++;
-                if (_hrMaxSeen >= HR_MAX_CONFIRM && _hrMaxPending > _hrObservedMax) {
-                    _hrObservedMax = _hrMaxPending;
-                    refreshHrCeiling();
-                }
+                promoteHrCandidate();
             }
             return;
         }
         // A new high. Hold it as a candidate rather than acting on it.
-        if (_hrMaxPending <= 0 || heartRate >= _hrMaxPending - 1) {
+        if (sameCandidate(heartRate)) {
             if (heartRate > _hrMaxPending) {
                 _hrMaxPending = heartRate;
             }
@@ -1452,10 +1558,18 @@ class GameModel {
             _hrMaxPending = heartRate;
             _hrMaxSeen = 1;
         }
-        if (_hrMaxSeen >= HR_MAX_CONFIRM) {
-            _hrObservedMax = _hrMaxPending;
-            refreshHrCeiling();
+        promoteHrCandidate();
+    }
+
+    //! Accept the waiting candidate once enough seconds have supported it, and
+    //! start the next count from zero.
+    private function promoteHrCandidate() as Void {
+        if (_hrMaxSeen < HR_MAX_CONFIRM || _hrMaxPending <= _hrObservedMax) {
+            return;
         }
+        _hrObservedMax = _hrMaxPending;
+        _hrMaxSeen = 0;
+        refreshHrCeiling();
     }
 
     private function profileMaxHeartRate() as Number {
@@ -1557,7 +1671,20 @@ class GameModel {
         var endedOnIce = onIce();
         if (endedOnIce) {
             _iceMs += elapsed;
-            bankShift(elapsed);
+            // Honour the refusal, exactly as switchSegment() does. A final
+            // segment under a second contributes no average and no maximum,
+            // so counting it in `shifts` reproduces the very disagreement
+            // between shifts, avg_shift and ice_time that bankShift() exists
+            // to prevent - on the one path that never got the guard. Ending
+            // the game shortly after an entry is enough to reach it, because
+            // the entry's own backdate has already consumed the segment.
+            if (!bankShift(elapsed) && shiftCount > 0) {
+                shiftCount--;
+                var undo = _shiftsField;
+                if (undo != null) {
+                    undo.setData(shiftCount);
+                }
+            }
         } else {
             _benchMs += elapsed;
         }
@@ -1929,7 +2056,19 @@ class GameModel {
         // 0` and still reports ice_time 0 - which put an on-ice heart rate
         // and a skating load beside a zero again, one rounding step further
         // down. Whatever gates these has to be the number the reader sees.
-        var hadIce = (_iceMs >= 1000);
+        //
+        // And the number the reader sees is iceTimeMs(), not _iceMs. _iceMs
+        // holds only the shifts that have been BANKED; iceTimeMs() adds the
+        // one in progress, and that is what ice_time is written from a dozen
+        // lines above. The two differ on exactly the path this function
+        // exists to serve: saveIfRecording(), which runs when the system
+        // kills the app mid-game and - unlike endGame() - does not bank the
+        // open segment. A battery that dies ten minutes into the first shift
+        // left `ice_time 600` beside a withheld on-ice heart rate, skating
+        // load and stride coverage, all of which had been measured for ten
+        // minutes. Gating on _iceMs was the same error as `_iceMs > 0`, one
+        // level up.
+        var hadIce = (iceTimeMs() >= 1000);
         // And a second gate, one level in: everything below that is built
         // from WRIST MOTION is published only if some on-ice second actually
         // delivered a wrist-motion sample. A dead accelerometer leaves
@@ -1941,22 +2080,71 @@ class GameModel {
         // delivers no accelerometer data at all.
         var hadMotion = hadIce && _iceMotionSamples > 0;
 
-        // work_rest belongs to the same family. workRest() returns 0.0 both
-        // when the ratio is genuinely zero - a game played without ever
-        // leaving the ice - and when there is too little ice to divide by,
-        // and only the first of those is a measurement. The watch already
-        // draws "--" rather than a ratio here; the file now agrees with it.
+        // work_rest needs its own gate, and it is neither of the two above.
+        //
+        // workRest() returns 0.0 in three cases and only the first two are
+        // measurements: a game genuinely played without ever leaving the ice;
+        // a game with too little ice to divide by; and a game in which the
+        // detector never ran at all. That third one is the dead-accelerometer
+        // game, where start() forces ON_ICE and nothing ever flips it, so the
+        // whole game banks as one shift with no bench and `work_rest 0.0` -
+        // "this player never left the ice" - gets published beside the absent
+        // ice_load and stride_coverage that were withheld for exactly that
+        // reason.
+        //
+        // But hadMotion alone is too strict, and the simulator showed it:
+        // a bench spell entered BY HAND through the correction menu is a real
+        // boundary whatever the accelerometer is doing, so the ratio is
+        // measured even though no wrist motion ever was. That run published
+        // nothing here while the watch drew `1:1.1` from the same two
+        // numbers. A zero ratio is only credible if the detector was running;
+        // a non-zero one stands on the bench time itself.
         field = _workRestField;
-        if (field != null && hadIce) { field.setData(workRest()); }
+        if (field != null && hadIce && (_benchMs >= 1000 || hadMotion)) {
+            field.setData(workRest());
+        }
         field = _iceHrField;
         var iceHr = iceAverageHr();
         if (field != null && hadIce && iceHr > 0) { field.setData(iceHr); }
         field = _hardTimeField;
-        if (field != null) { field.setData(_hardSeconds); }
+        // The last field in this function that could still publish a zero it
+        // had not measured, and it needs BOTH halves of the measurement.
+        //
+        // A threshold, because with no maximum to work from
+        // refreshHrCeiling() sets _hardThreshold = 0, the per-second test
+        // never fires, and _hardSeconds stays 0. And an actual heart rate,
+        // because the seed can come from the Garmin profile even on a game
+        // where the optical sensor reported nothing at all - which is how the
+        // simulator produced `hard_time 0` beside an absent ice_avg_hr and an
+        // absent hr_recovery. "Zero seconds above 85% of maximum" is a
+        // statement about a player; without a pulse it is a statement about a
+        // sensor.
+        if (field != null && _hardThreshold > 0 && _hrObservedMax > 0) {
+            field.setData(_hardSeconds);
+        }
+        // One more level in, and the last. hadMotion says the accelerometer
+        // delivered; it does not say a STRIDE was ever measured, which is a
+        // much narrower thing - the rhythm has to clear the autocorrelation
+        // gate, the octave guard and the prominence test. A player whose wrist
+        // never produces a readable peak, both hands on the stick or the watch
+        // under a cuff, banks motion samples all game and accepts no strides,
+        // and that published `stride_avg 0` ppm, `0%` coverage, `0 m` and
+        // `0.0 kph` - the same "no rhythm in any of those seconds" claim, now
+        // with a healthy sensor. skating_intensity was already safe only
+        // because hasSkatingIntensity() separately demands a rate.
+        //
+        // The two gates differ on purpose. A rate needs a second that was
+        // ACCEPTED. Coverage needs only a second that was JUDGED: 0% across
+        // forty examined seconds is a finding, and the one number here whose
+        // whole job is to say the rate beside it means nothing.
         field = _strideAvgField;
-        if (field != null && hadMotion) { field.setData(detector.stride.averageRate()); }
+        if (field != null && hadMotion && detector.stride.measuredSeconds() > 0) {
+            field.setData(detector.stride.averageRate());
+        }
         field = _strideCovField;
-        if (field != null && hadMotion) { field.setData(detector.stride.coveragePercent()); }
+        if (field != null && hadMotion && detector.stride.judgedSeconds() > 0) {
+            field.setData(detector.stride.coveragePercent());
+        }
         field = _hrRecoveryField;
         if (field != null && _recoveryCount > 0) {
             // Written only when a bench spell was actually measured. Writing
@@ -1965,7 +2153,12 @@ class GameModel {
             // from a game where the sensor simply never covered a full
             // window. An absent field is the honest form of "not measured".
             var hrr = heartRateRecovery();
-            if (hrr > 127) { hrr = 127; }
+            // 126, not 127. This field is DATA_TYPE_SINT8 and FIT's invalid
+            // value for sint8 is 0x7F = 127 - so clamping to 127 would write
+            // the exact sentinel that means "not measured", in the one place
+            // in this function that is trying hardest to distinguish the two.
+            // -128 is a valid sint8, so the floor needs no such adjustment.
+            if (hrr > 126) { hrr = 126; }
             if (hrr < -128) { hrr = -128; }
             field.setData(hrr);
         }
@@ -1979,9 +2172,13 @@ class GameModel {
         // denominator of total ice time would quietly claim a speed for every
         // second the app could not measure.
         field = _distEstField;
-        if (field != null && hadMotion) { field.setData(estimatedDistanceM()); }
+        if (field != null && hadMotion && detector.stride.measuredSeconds() > 0) {
+            field.setData(estimatedDistanceM());
+        }
         field = _speedEstField;
-        if (field != null && hadMotion) { field.setData(estimatedSpeedKph()); }
+        if (field != null && hadMotion && detector.stride.measuredSeconds() > 0) {
+            field.setData(estimatedSpeedKph());
+        }
         field = _strideLenField;
         if (field != null) { field.setData(usedStrideCm); }
         field = _intensityField;

@@ -103,9 +103,8 @@ error is how a harness gets "fixed" until it reproduces the wrong thing.
 
 And the structure, not just the seconds: on 11-05 the replay now produces **48
 shifts against the watch's 48**, where it used to make 92 transitions against
-94.
-
-Against 84% before. The band default was also two releases stale at 0.27.
+94. Agreement was 84% before this work, and the harness's default band was two
+releases stale at 0.27.
 
 And `fitdecode` is gone — it reads files with this repo's own `tools/fit/`
 decoder now. The one file in the project that decides whether a detector
@@ -201,10 +200,13 @@ was measured, rather than written as 0. **An unwritten FIT developer field
 decodes as that type's invalid value** — `None` for an integer, `nan` for a
 float — which is the honest way to say "not measured". A written 0 is a claim.
 
-Heart-rate recovery got the same treatment one level down: the far window
-collected seconds 58 to 62 but fired as soon as five samples had arrived, so
-with a clean sensor it averaged out at 62 s — this was HRR62 reporting a bigger
-drop for no physiological reason, and it is now centred on 60; a mean is refused rather than
+Heart-rate recovery got the same treatment one level down. ~~The far window
+was moved so it centres on 60 seconds rather than 62.~~ **That change was
+wrong and is reverted in [2.5.1's successor](release-2.5.2.md).** The old
+window collected seconds 58 to 62, whose mean is 60 — it was already centred,
+exactly as the first sentence of its own code comment said — and moving it
+produced seconds 56 to 60, a mean of 58. 2.5.0 shipped HRR58 reporting a
+smaller drop than the field claims. The rest of the paragraph stands: a mean is refused rather than
 computed from fewer than three samples; a recovery is rolled back when an entry
 backdate reassigns the seconds it was measured over to the shift that followed;
 and a new heart-rate maximum must be credible and nearly repeated before it
@@ -267,9 +269,15 @@ combination of jungle and release flag. And the figure that first stood here —
 35,290 B — was a debug build, measured mid-pass rather than at the tag, so it
 was both the wrong build and 113 B short of the committed one. Quoting a debug
 total against a device's available memory overstates what the app actually
-costs by 15%.
+costs by 16% (35,403 / 30,647 = 1.155).
 
 Measured the same way at each tag, **v2.4.0 is 27,983 B** as a release build
 against this one's 30,647 B, so the stride calibration, the intensity index and
-the QA fixes cost **2,664 B** between them. (Debug builds: 32,842 B against
-35,403 B.)
+the QA fixes cost **2,664 B** between them.
+
+Release figures only, deliberately. **A debug build's size is not a property of
+the commit**: its data segment carries the build directory's path, and grows
+about 8 bytes per character of it. The same v2.4.0 commit measures 32,330 B
+built here and 32,842 B built from a temporary worktree 64 characters deeper.
+An earlier version of this section compared one of those against the other and
+called the difference a release's worth of code.

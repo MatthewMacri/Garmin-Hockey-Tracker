@@ -140,15 +140,26 @@ reason given for it was wrong.
 
 ## Size
 
-27.2 kB of the 98,304 B available on the tightest supported device
-(instinct2 and its siblings), static. The FR570 has 786,432 B.
+**27,983 B** of the 98,304 B available on the tightest supported device
+(instinct2 and its siblings) — 28.5%, static. 23,415 B of code and 4,568 B of
+data. The FR570 has 786,432 B.
 
-*Corrected as of 2.5.0.* That figure does not reproduce from any combination of
-jungle and release flag. Measured at this tag with `monkeyc -d instinct2
---build-stats 0`, v2.4.0 is **32,842 B** as a debug build (24,267 code, 8,575
-data) and **27,983 B** as the release build that actually installs (23,415
-code, 4,568 data) — 28.5% of the device. The release figure is the one worth quoting, and it is the one
-[2.5.0's notes](release-2.5.0.md#size) use.
+Reproduced at this tag with
+
+```
+monkeyc -d instinct2 -f 'monkey.jungle;icons.jungle' \
+        -y "$KEY" -r --build-stats 0
+```
+
+*Corrected as of 2.5.0, and again as of 2.5.2.* This section first claimed
+**27.2 kB**, which does not reproduce from any combination of jungle and
+release flag. The correction that replaced it then led with a **debug** figure
+of 32,842 B — wrong twice over: a debug build is not what installs on a watch,
+and its data segment carries the build directory's path, growing about 8 bytes
+per character of it, so the number was a property of the temporary worktree it
+was built in rather than of this commit. The figure above is the release build
+`package.sh` produces with `-e -r`, which is path-independent and is what a
+user receives. See [2.5.0's notes](release-2.5.0.md#size).
 
 ## Not in this release
 

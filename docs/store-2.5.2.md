@@ -1,15 +1,20 @@
-# Connect IQ Store — version 2.5.1, ready to paste
+# Connect IQ Store — version 2.5.2, ready to paste
 
-> **Upload 2.5.1, not 2.5.0.** Three fixes landed after the v2.5.0 tag and
-> before anything reached the store, so there is no reason to publish the
-> version they correct: see [release-2.5.1.md](release-2.5.1.md). Rebuild with
-> `./IndoorHockey/package.sh` and type `2.5.1` in the App Version box. Nothing
+> **Upload 2.5.2.** 2.5.0 and 2.5.1 were both tagged and neither reached the
+> store, and each is corrected by the one after it — see
+> [release-2.5.2.md](release-2.5.2.md). Rebuild with
+> `./IndoorHockey/package.sh` and type `2.5.2` in the App Version box. Nothing
 > else in this file changes — the What's New and Description below still cover
 > 2.4.0 and 2.5.0, which is what a 2.3.0 user is actually receiving.
 
+> **Go to <https://apps-developer.garmin.com>, not apps.garmin.com.** Garmin
+> moved the developer dashboard there on 20 November 2025, in the same change
+> that made the Connect IQ *mobile* app the only way to install or buy an app;
+> the web store no longer transacts. The old links still resolve but push you
+> at the mobile app.
 
-Everything the upload form at <https://apps.garmin.com/en-US/developer/upload>
-asks for that has changed since the live listing, in the order the form asks
+Everything the upload form asks for that has changed since the live listing, in
+the order the form asks
 for it. The full field-by-field reference lives in `store/listing.md`; this
 file exists so the text can be copied without reading around it.
 
@@ -138,8 +143,9 @@ carry every field with the right labels, units, precision and chart flags.
 
 ### A Beta, if you want the new fields before review clears
 
-Not needed to prove rendering any more — installing the live 2.1.0 from the
-store does that today, for free. A Beta is only worth it to see *this release's*
+Not needed to prove rendering any more — installing the live 2.3.0 from the
+store does that today, for free. (An earlier draft said 2.1.0 here, which
+contradicts the rest of this file: 2.1.0 was tagged and never uploaded.) A Beta is only worth it to see *this release's*
 fields without waiting for review, and it is a dead end for real games: Garmin's
 [Beta Apps](https://developer.garmin.com/connect-iq/core-topics/beta-apps)
 instructions require **an alternate app id in the manifest**, created with a
@@ -174,13 +180,58 @@ All 126 products in `manifest.xml` — the 202 device variants they expand to �
 signed, with no build paths in the packaged files; `package.sh` refuses to
 produce a package that carries them.
 
-**App Version:** type `2.5.1`
+**Check the live Compatible Devices list before attaching anything.** The
+upload form has an *App Migration* toggle — "Allow the app store to add support
+for newly compatible devices?" — and if it added devices to 2.3.0, those
+devices are supported by the **listing**, not by the manifest. The next upload
+replaces the device list with whatever the new `manifest.xml` declares, so any
+auto-migrated device missing from it is **silently dropped**, and the users on
+it stop receiving updates. Open the listing's Compatible Devices tab, diff it
+against `manifest.xml`, and add anything the store knows about that the repo
+does not. This is the one failure here that loses real users and gives no error.
+
+**Two other things that will stop the upload rather than degrade it.** Stale,
+duplicate or hand-edited device configs in a manifest cause a verification
+failure — Garmin have an open ticket on it and the fix is to refresh the device
+configs in SDK Manager. And emojis are rejected outright in the title, the
+description and What's New, so paste plain text.
+
+**Expect "Signature check failed" beside "Status: Verified", and proceed.**
+That pairing showed on the 2.0.0 upload and it reached the public anyway. The
+two lines are independent widgets — "Status: Verified" is a fixed label printed
+once the archive parses, not an assertion about the signature — and other
+developers report the warning appearing only on a first upload and clearing on
+the next one. **The message that means stop is a different one:** "All app
+versions must be signed with the same key pair." That is the developer key, and
+there is no recovery from it; it is also the reason
+`~/.Garmin/ConnectIQ/keys/developer_key.der` needs a backup somewhere other
+than this machine.
+
+**Timing.** The form promises up to two hours for a version update. Through
+October 2026 developers reported days to two weeks, and Garmin acknowledged a
+submission backlog with no estimate. 2.3.0 stays live and installable the whole
+time, so nothing needs to be scheduled around this.
+
+**One side effect worth knowing.** Reviews can be filtered by current version,
+and a user who has already reviewed 2.3.0 may review again once a new version
+is published. Publishing re-opens reviewing for everyone who has reviewed
+before.
+
+**App Version:** type `2.5.2`
 
 2.3.0 was the fourth upload and came back as Internal 4, so this is the fifth
-and should read Internal 5 — the number that lands in every FIT file's
-`application_version`, and a free way to tell a game recorded against this
-release from one recorded against 2.3.0. Check the hint under the box reads
-*(Latest app version: 2.3.0)* before typing, and *(2.4.0)* after.
+and should read Internal 5. Check the hint under the box reads *(Latest app
+version: 2.3.0)* before typing, and *(2.5.2)* after.
+
+**A claim that stood here and is false:** that the typed string is "the number
+that lands in every FIT file's `application_version`, and a free way to tell a
+game recorded against this release from one recorded against 2.3.0". It is
+not. `application_version` is a FIT **uint**, conventionally the version times
+one hundred, and a free-text string has no representation in it. Decoded from
+this watch's own recordings, it is **0** — checked on both 2026-11-03 and
+2026-11-05 and on the simulator's output. The store version string is typed
+after the binary is signed and never reaches it. Do not use it to tell
+releases apart; put a version string in a resource if that is wanted.
 
 Nothing in the build carries a version. `manifest.xml` has no version attribute
 and the packaged `.iq` has none either — only `apiVersion`, `connectIqVersion`

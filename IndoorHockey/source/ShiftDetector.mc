@@ -391,6 +391,25 @@ class ShiftDetector {
         // whole intermission's worth of arm movement lands in iceLoad as a
         // single lurch.
         _lastPrimed = false;
+
+        // And age the sensor readings out by hand, because nothing else will.
+        // GameModel.onTick() returns before observe() while the game is
+        // paused, so _hrAge and _speedAge are FROZEN for the whole
+        // intermission and resume holding whatever they held when play
+        // stopped. Without this, the first seconds of the second period are
+        // judged against a fifteen-minute-old heart rate and a
+        // fifteen-minute-old position fix - the exact latch these counters
+        // were added to close, re-opened by the one event that guarantees the
+        // readings are stale. A pause means the sensors have told us nothing
+        // since, so say so.
+        _hrAge = HR_MAX_AGE + 1;
+        _speedAge = SPEED_MAX_AGE + 1;
+        _speed = null;
+        // The rolling heart-rate window is evidence about the same vanished
+        // seconds. restingHeartRate() compares its last entry against the
+        // baseline, and a pre-pause rate below that baseline would refuse
+        // entry to the ice for the first seconds back on.
+        _hr = [] as Array<Number>;
     }
 
     //! Throw away samples collected but not yet judged.
@@ -562,7 +581,15 @@ class ShiftDetector {
         }
         if (speedMps != null) {
             _speed = speedMps;
-        } else if (_speedAge > SPEED_MAX_AGE) {
+        } else {
+            // Dropped on the FIRST null, not after SPEED_MAX_AGE more of
+            // them. The model already ages its own cache and stops supplying
+            // a fix once it is SPEED_STALE_AFTER seconds old; holding that
+            // same fix here for a further SPEED_MAX_AGE seconds does not
+            // reinforce the guard, it COMPOSES with it, and the two together
+            // let a fix vote for about nine seconds while both constants and
+            // both comments claimed four. One authority on freshness, at the
+            // place that knows when the reading arrived.
             _speed = null;
         }
     }

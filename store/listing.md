@@ -34,8 +34,8 @@ you anything while a release is queued.
 | Form field | What to put |
 |---|---|
 | Title | `Ice Hockey Shifts` (17 of 50 chars) |
-| Description | **Take it from `docs/store-2.5.1.md`**, which carries the current text with a scripted character count. The block under *Description* below is the older text and is kept only for diffing - see the note there |
-| What's New | See `docs/store-2.5.1.md`. This is an **update**: the listing has been live since 2026-11-04 and is live at 2.3.0 (Internal: 4). A 404 on the manifest's application id means nothing — the store assigns a listing its own UUID |
+| Description | **Take it from `docs/store-2.5.2.md`**, which carries the current text with a scripted character count. The block under *Description* below is the older text and is kept only for diffing - see the note there |
+| What's New | See `docs/store-2.5.2.md`. This is an **update**: the listing has been live since 2026-11-04 and is live at 2.3.0 (Internal: 4). A 404 on the manifest's application id means nothing — the store assigns a listing its own UUID |
 | Hero Image (optional) | `store/images/hero-1440x720.jpg` (1440x720, 82 KB of 2048 KB) |
 | Category | Health & Fitness — then the closest subcategory to hockey or winter sports |
 | Does your app collect user data? | **No** — it sends nothing anywhere |
@@ -85,7 +85,7 @@ shift and every spell on the bench by itself.
 
 **This is the text currently live on the listing, from the 2.1.0/2.2.0 era. It
 is kept to diff against, not to paste.** Paste the description in
-`docs/store-2.5.1.md` instead. Three things below have since gone wrong and are
+`docs/store-2.5.2.md` instead. Three things below have since gone wrong and are
 left in place deliberately, because they describe what the public listing still
 says: the field list and the settings list both predate stride rate, heart rate
 recovery, skating load, skating intensity and the Max Heart Rate setting; and
@@ -170,7 +170,7 @@ vest or a bag has nothing to detect and records one long shift. A paired chest
 strap is fine and is used for heart rate as normal.
     <<< WITHDRAWN: that last sentence is false and is still live on the store.
     The app has never called Sensor.setEnabledSensors and nobody has skated
-    with a strap. The replacement, already in docs/store-2.5.1.md, is: "Heart
+    with a strap. The replacement, already in docs/store-2.5.2.md, is: "Heart
     rate comes from the watch; a paired chest strap is untested." >>>
 
 GPS is on by default, but expect no fix inside most arenas; the app falls back
@@ -191,7 +191,7 @@ bench, shifts, rink, skating
 ## What's New (version 2.2.0 — superseded)
 
 This is the text that went up with 2.2.0, kept for reference. The current one
-is in `docs/store-2.5.1.md`.
+is in `docs/store-2.5.2.md`.
 
 ```
 Shift detection has been retuned, and you will see it in your own numbers.
@@ -215,7 +215,7 @@ three-digit integer.
 ```
 
 If the form's counter accepts more than the ~1,000 characters above,
-append this; `docs/store-2.5.1.md` carries both with exact counts.
+append this; `docs/store-2.5.2.md` carries both with exact counts.
 
 ```
 One thing that costs nothing: start the game at the opening faceoff rather

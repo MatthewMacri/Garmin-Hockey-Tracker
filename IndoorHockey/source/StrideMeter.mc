@@ -189,6 +189,15 @@ class StrideMeter {
         return _acceptedSeconds;
     }
 
+    //! The seconds that were LOOKED AT: on the ice and above the motion
+    //! threshold, so the autocorrelation actually ran on them. The denominator
+    //! of coveragePercent(), and the test for whether a coverage of 0% is a
+    //! finding ("we examined 40 seconds of skating and found no rhythm in any
+    //! of them") or an absence ("we never examined a second").
+    public function judgedSeconds() as Number {
+        return _judgedSeconds;
+    }
+
     //! Mean of the accepted windows, in pushes per minute.
     public function averageRate() as Number {
         if (_acceptedSeconds < 1) {

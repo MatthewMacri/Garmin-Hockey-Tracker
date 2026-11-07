@@ -262,8 +262,9 @@ samples cut that by better than half, and five seconds either side of the
 minute mark is far shorter than the timescale the recovery curve itself moves
 on. The clock that counts to sixty advances on every second that passes, not
 only on the seconds the sensor managed to report — counting reported samples
-would turn a ten-second dropout into a seventy-second "HRR60", a smaller
-number for a reason that has nothing to do with fitness.
+would turn a ten-second dropout into a seventy-second "HRR60", a *bigger* drop
+for a reason that has nothing to do with fitness, since the heart is still
+falling at second seventy.
 
 A negative result is kept, not floored at zero. A heart rate still climbing a
 minute after a shift is a real reading about a player who is not recovering,
@@ -511,7 +512,7 @@ they carry an id that will never match a listing, whatever is published later.
 The numbers are still in the files, and `tools/replay_detector.py` still reads
 them.
 
-`docs/store-2.5.1.md` has the full trace, including a way to confirm it over
+`docs/store-2.5.2.md` has the full trace, including a way to confirm it over
 USB in five minutes before spending a store submission.
 
 ### Heart rate zones per shift
@@ -583,7 +584,7 @@ cd IndoorHockey
 Upload that at <https://apps.garmin.com/en-US/developer/upload>; the dashboard
 for an app already up is <https://apps-developer.garmin.com>. `store/listing.md`
 holds the description, category and screenshot order to paste into the form,
-and `docs/store-2.5.1.md` holds the current release's text with its character
+and `docs/store-2.5.2.md` holds the current release's text with its character
 counts, so it can be pasted without reading around it.
 
 Launcher icons are generated, not hand-drawn, because the supported watches ask

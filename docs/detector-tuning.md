@@ -750,3 +750,208 @@ would start refusing real shifts.
 
 The way to settle any of it is more games. Every one carries the motion trace
 and the threshold, so re-checking costs a replay and no ice time.
+
+## What the literature says, and what it does not
+
+Researched 2026-11-07, alongside the 2.5.2 QA pass. Nothing here has been
+implemented; it is recorded so the next cycle starts from evidence instead of
+from another guess.
+
+### The headline: there is nothing to copy
+
+**No peer-reviewed method exists for on-ice/bench shift segmentation from any
+sensor, at any body location.** Not from the wrist, not from a chest unit, not
+from skates. The hockey wearable literature is stride mechanics and activity
+classification; shift structure comes from video, coded by hand.
+
+**No vendor publishes a method or an accuracy figure.** Not Catapult (whose
+"Auto Shift Detection" launched January 2026), not Kinexon, not HELIOS, not
+WHOOP, not Polar, not Garmin, and none of the five consumer wrist apps that
+advertise shift tracking. Every system with a published validation depends on
+hardware this player does not have: UWB arena anchors, a shoulder-pad IMU,
+skate- or stick-mounted IMUs, or broadcast video.
+
+The closest published analogue is Hang-Time HAR (Hoelzemann et al., 2023,
+*Sensors*): 24 basketball players, wrist accelerometer at 50 Hz, with an
+explicit on-court/off-court label layer. A deep network on raw 50 Hz wrist data
+scored **below 50% F1 on the locomotion classes** — sitting, standing, walking,
+running — and lost ~20% more on a session-independent split. That is the
+honest calibration for what this app attempts with 21 Hz and a magnitude
+statistic.
+
+So: this project is not behind the state of the art. In this niche it *is* the
+state of the art, and two hand-labelled games would make it the only
+implementation anywhere with a published number.
+
+### The result that reframes the problem
+
+Brocherie, Girard & Millet, 2018, *Biology of Sport* 35(3):261–267. One elite
+international game, rinkside video. A shift is **85.7 ± 4.9 s**, of which only
+**44.0 ± 5.7 s is effective play** — the other **41.7 s is stoppage**.
+
+About **half of all true on-ice seconds are a player standing at a faceoff or
+waiting out a whistle**, which is physically indistinguishable from standing on
+the bench. A per-second motion-amplitude rule is being asked to separate two
+states that overlap completely for half their duration. That is not a tuning
+problem; it is a mis-specified state space, and it independently explains the
+0.45-band clipping recorded above and justifies `CONFIRM_BENCH = 14`.
+
+### The entry edge is heart rate, and its thresholds are below the noise
+
+This document already establishes that the entry edge is `corroboratesIce()`:
+0 of 232 off-ice motion bursts reach a ten-second streak, and about nine
+entries in ten take the three-second fast path. Measured on the two recorded
+games:
+
+| | 11-03 | 11-05 |
+|---|---|---|
+| Heart-rate samples missing | 0 of 3605 | 0 of 5122 |
+| Seconds where HR changed by 0 bpm | **58%** | **54%** |
+| Mean per-second \|ΔHR\| | 0.68 bpm | 0.82 bpm |
+| p90 per-second \|ΔHR\| | 1 bpm | 2 bpm |
+
+Two consequences:
+
+- **`HR_OFFSET = 4.0` bpm is larger than the 1.1–3.8 bpm on-ice/bench
+  separation this project measured.** A threshold set above the class
+  separation cannot discriminate; it fires on baseline drift.
+- **`HR_SLOPE = 0.25` bpm/s is about 1.3 noise standard deviations from zero.**
+  `hrSlope()` is a two-point endpoint difference; at ~0.8 bpm per second of
+  random-walk increment, a 20-second endpoint slope carries roughly
+  0.8·√20 ≈ 3.6 bpm of noise, i.e. ~0.19 bpm/s.
+
+Neither has been measured as a likelihood ratio against the bench seconds, and
+doing so is free — both files carry heart rate on every second with no
+dropouts. **That is the cheapest high-value action available and it should
+happen before anything is built.**
+
+### Why the level separation had to be small
+
+Hunt, Fankhauser & Saengsuwan, 2015, *BioMedical Engineering OnLine* 14:63: the
+heart-rate response to a step change in work is first order with a time
+constant **τ = 57.6 s** (95% CI 50.9–64.3) and a dead time of roughly 15 s.
+
+A 45-second shift therefore reaches only 1 − e^(−45/58) ≈ **54%** of its
+asymptote, and the bench spell only partly recovers before the next shift.
+Steady state is never reached in either state, so the two distributions overlap
+almost entirely. The 1.1–3.8 bpm separation measured here is the *expected*
+result, not a defect in the sensor.
+
+Burr et al., 2015, *Sports Medicine – Open* 1:27 supplies the hockey-specific
+exit-edge number: on a real bench in full gear, active versus passive recovery
+differed by **12 ± 3 bpm**, and the difference **only appeared at 45 s** —
+explicitly not within the first 30 s. So heart rate carries no information
+about the first half-minute of a bench spell, and *what a player does on the
+bench* moves it by as much as `HR_VETO` does.
+
+**The conclusion is specific: use dHR/dt rather than HR level, measure it over
+at least 25–30 s to beat the 0.8 bpm/s quantisation noise, and move it from the
+entry confirmation to a delayed commit at roughly +15 to +25 s.** That is the
+provisional-entry proposal already sketched above, with the window length
+derived rather than guessed.
+
+### The feature this app already built, and then gated on the answer
+
+`ShiftDetector` calls `stride.update(state == ON_ICE && sample >= threshold)`.
+The autocorrelation periodicity meter — with its peak gate, octave guard and
+the prominence test that was tuned to reject single stick impacts — only runs
+once the detector has **already decided** the player is on the ice. It
+therefore cannot contribute to the entry decision that is failing.
+
+The published architecture is the exact inverse. Xu et al., *IEEE J Biomed
+Health Inform* (2026), doi:10.1109/JBHI.2025.3635190, gate autocorrelation
+behind a non-walking detector trained on wrist-flip, typing and eating — the
+fidget classes. The wrist step-counting literature converges on the same order:
+classify locomotion first, count cadence inside it, and that this matters most
+at the wrist "because of frequent arm use in daily life".
+
+Supporting numbers: periodic activity shows low spectral entropy (1–3 bits)
+with a dominant frequency near 1–2 Hz; hockey cycle rate is ~1.16 Hz and
+backward C-cuts run 2.2–2.4 strides/s. This app's existing lag band of 7–27
+samples at 21.35 Hz is **0.79–3.06 Hz**, which already covers it. And the
+prominence discriminator is already measured here: impacts score 0.47 against
+0.76–1.09 for real strides.
+
+One caveat, from Brocherie above: periodicity will be absent for about half of
+real on-ice time. This belongs at the **entry edge only**, never as a
+continuous on-ice test.
+
+### The information the current metric deliberately destroys
+
+`onSensorData()` takes the mean absolute deviation of the acceleration
+*magnitude*, on the stated grounds that "taking the magnitude removes the
+watch's orientation from the answer". That is right for a load metric and
+wrong for a state classifier.
+
+Bakrania et al., 2016, *PLoS One* 11(10):e0164045 compared ENMO against MAD —
+this app's own metric family — at hip and wrist. Both separated sedentary from
+light activity at **AUROC > 0.95**, and both failed to separate **standing from
+sedentary at AUROC < 0.65**. That is this app's failure, measured, in this
+app's statistic.
+
+Orientation is the independent axis. The canonical feature is van Hees et al.,
+2015, *PLoS One* 10(11):e0142533: arm angle as
+`atan(a_z / √(a_x² + a_y²)) × 180/π`, with sustained inactivity marked by no
+change beyond a few degrees. Against polysomnography it scored 91% sensitivity
+and 45% specificity — so it is a corroborator, like heart rate, not a decider.
+Hockey arm swing is also planar: a Manitoba thesis measured **37% greater
+frontal-plane ground reaction forces** for mediolateral arm swing. Adjusting a
+glove does not share that plane.
+
+Cost if tried: three running sums already available inside `onSensorData()`,
+one `atan2`, about 20 bytes of state.
+
+### What cannot be tested on the games we have
+
+Both recorded files carry exactly `motion`, `motion_threshold`, `on_ice`,
+`shift_time_live` and `heart_rate` per second. **No stride fields, no raw
+accelerometer, no per-axis data** — the `StrideMeter` shipped after they were
+recorded.
+
+So every cadence, spectral, entropy, axis-component and orientation idea above
+is **unvalidatable offline**. The next cycle's first action is not an algorithm
+change. It is to log the candidate features at 1 Hz **including on the bench**,
+which the current gating specifically prevents.
+
+### Ruled out before it is tried
+
+**Do not look for a board-crossing postural signature at the wrist.** Wrist
+sit-to-stand detection scores ICC < 0.12 against direct observation where
+thigh-worn activPAL reaches 0.26 and comes within 17% of observed counts; hip
+cut-point algorithms detect 33% of transitions. Nothing supports finding this
+at the wrist.
+
+**Entropy is not an independent idea.** The closest result is parametric sample
+entropy at 69.8% as a single feature, and no study tests it separating gait
+from irregular hand movement. Treat it as an unvalidated variant of the
+periodicity work.
+
+### Ground truth: the protocol
+
+Still the blocker, and still cheap. No hockey study reports reliability for
+shift *timing*, so the method has to be borrowed:
+
+- **Code from video, never from the stands.** Coding the same games live versus
+  from video gave 43.2% against 7.7% error on one netball event type. Live
+  coding systematically undercounts.
+- **Define the shift first.** No standard exists — Catapult excludes stoppages,
+  Brocherie splits 86 s into 44 + 42. Use **boards to boards**, which is what a
+  wrist detector could plausibly see and what this app's `on_ice` field means.
+- **Sync with the watch face and a clap.** Film the watch filling the frame for
+  10 s so a whole-second rollover is captured, then three hard claps one second
+  apart for an unambiguous accelerometer triple-spike. **Repeat at the end** to
+  measure drift.
+- **Tool: BORIS** — free, GPL-3, keyboard-assigned state events, CSV/TSV export
+  and Cohen's kappa built in. Budget 60–120 minutes per 40-minute game, plus a
+  ~20-minute revision pass, which is measured to beat a single pass (κ 0.77
+  against 0.68) at 33% less total time than double coding.
+- **If filming is impossible**, LiveBarn Premium includes 30 h/month of MP4
+  download where the rink has it — confirm your number is legible first.
+- **Count shifts, not seconds.** Epochs inside a shift are near-perfectly
+  autocorrelated, so per-second confidence intervals are fake precision. At
+  ~45 shifts a 95% limit of agreement is known only to about ±2 s; ~100 paired
+  shifts, four to five games, is where the standard guidance lands. **Two games
+  support an error-and-bias description, not a generalisation claim.**
+
+A benchmark to aim at: wrist walking-bout detection in free living reaches
+**F1 ≈ 0.83**.
