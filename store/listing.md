@@ -13,9 +13,11 @@ file into a debug record for every one of the 126 products in `manifest.xml` -
 the 202 device variants they expand to, and on the order of a hundred thousand
 copies of the builder's home directory, shipped inside the package.
 
-Step 1 also asks for **App Version**, a free text box. Type the version there -
-`2.3.0`, then `2.5.0`, and so on. (2.4.0 was tagged and never uploaded, so the
-store's sequence skips it.)
+Step 1 also asks for **App Version**, a free text box. **The string to type for
+the next upload lives in `docs/store-2.5.2.md`, and that file is the one to
+follow** - this paragraph has been stale twice. At the time of writing the
+listing is live at `2.3.0` and the next upload is `2.5.2`; 2.4.0, 2.5.0 and
+2.5.1 were tagged and never uploaded, so the store's sequence skips all three.
 
 **Nothing in the build carries the version.** `manifest.xml` has no version
 attribute and never has; the packaged `.iq` has none either, only `apiVersion`,

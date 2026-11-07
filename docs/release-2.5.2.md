@@ -176,23 +176,33 @@ game untouched).
 
 ## Size
 
-**31,342 B** of the 98,304 B available on the tightest supported device
-(instinct2 and its siblings) — 31.9%, static. 26,414 B of code and 4,928 B of
-data. The FR570 has 786,432 B.
+**31,364 B** of the 98,304 B available on the tightest supported device —
+31.9%, static. 26,436 B of code and 4,928 B of data. The FR570 has 786,432 B.
 
-That is the release build, which is what installs. Measured at this tag with
+"The tightest supported device" is a five-way tie, not instinct2 alone:
+`descentg1`, `instinct2`, `instinct2s`, `instinct2x` and `instinctcrossover`
+all compile byte-identically to the same 98,304 B ceiling. And the limit that
+governs is the **watch-app** one — this manifest declares `type="watch-app"`,
+and the data-field limit on the same hardware is a different, smaller number.
+
+That is the release build, which is what installs. **Measured from the tag
+itself** by `tools/size.sh`, added in this release:
 
 ```
-monkeyc -d instinct2 -f 'monkey.jungle;icons.jungle' \
-        -y "$KEY" -r --build-stats 0
+$ tools/size.sh v2.4.0 v2.5.0 v2.5.1 v2.5.2
+ref               total       code       data of 98304
+v2.4.0            27983      23415       4568    28.5%
+v2.5.0            30647      25783       4864    31.2%
+v2.5.1            30831      25951       4880    31.4%
+v2.5.2            31364      26436       4928    31.9%
 ```
 
-| Tag | Release build | Of 98,304 B |
-|---|---|---|
-| v2.4.0 | 27,983 B | 28.5% |
-| v2.5.0 | 30,647 B | 31.2% |
-| v2.5.1 | 30,831 B | 31.4% |
-| v2.5.2 | 31,342 B | 31.9% |
+The script exists because this figure was published wrong **three times in one
+day**, the same way each time: measured by hand, then more code written before
+the commit was made, so the number in the notes described a tree that no longer
+existed. The first draft of this very section said 31,342 B — measured before
+the last fix in this release went in. Building from a git ref closes the
+window.
 
 Release builds only. **A debug build's size is not a property of the commit** —
 its data segment carries the build directory's path and grows about 8 bytes per
@@ -223,17 +233,29 @@ Ten errors, most of them introduced earlier the same day:
 - And the claim corrected below, which was the only one with a consequence
   outside the repo.
 
-## A store claim that was false, settled by measurement
+## A store claim that was half wrong — and a correction that was too
 
 The upload guide said the version string typed into the store form is "the
 number that lands in every FIT file's `application_version`, and a free way to
 tell a game recorded against this release from one recorded against 2.3.0."
 
-It is not. `application_version` is a FIT **uint**, conventionally the version
-times one hundred; a free-text string has no representation in it. The string
-is typed after the binary is signed and never reaches it. Decoded from this
-watch's own recordings — 2026-11-03, 2026-11-05, and the simulator's output —
-`application_version` is **0** in every one.
+The mechanism is wrong: `application_version` is a FIT **uint**, a free-text
+string like `2.5.2` has no representation in it, and the string is typed after
+the binary is signed, so it never reaches the package.
+
+The conclusion is right, though, for a store-installed build — and the first
+draft of this section got that wrong in the other direction. It cited this
+watch's own 11-03 and 11-05 games reading **0** as proof the field is never
+populated. **Those were sideloaded builds**, which write sixteen zero bytes and
+version 0 by definition — a fact this repo had already established and written
+down. Zero there is evidence of sideloading, not of an unused field. The
+control is in the same document: RinkPulse, store-installed on the same watch,
+carries `application_version 39` against its store version 39, and 38 in a
+recording from before its last update.
+
+So a store build does stamp a version ordinal into every file. What it is for
+2.5.2 will be known from the first game recorded after the upload, and not
+before.
 
 The upload guide now records the correction, along with three things worth
 knowing before the form is opened: the developer dashboard moved to

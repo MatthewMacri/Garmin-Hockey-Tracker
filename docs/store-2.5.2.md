@@ -223,15 +223,28 @@ before.
 and should read Internal 5. Check the hint under the box reads *(Latest app
 version: 2.3.0)* before typing, and *(2.5.2)* after.
 
-**A claim that stood here and is false:** that the typed string is "the number
-that lands in every FIT file's `application_version`, and a free way to tell a
-game recorded against this release from one recorded against 2.3.0". It is
-not. `application_version` is a FIT **uint**, conventionally the version times
-one hundred, and a free-text string has no representation in it. Decoded from
-this watch's own recordings, it is **0** — checked on both 2026-11-03 and
-2026-11-05 and on the simulator's output. The store version string is typed
-after the binary is signed and never reaches it. Do not use it to tell
-releases apart; put a version string in a resource if that is wanted.
+**A claim that stood here, half right and half wrong.** It said the typed
+string is "the number that lands in every FIT file's `application_version`, and
+a free way to tell a game recorded against this release from one recorded
+against 2.3.0."
+
+The **mechanism** is wrong. `application_version` is a FIT **uint**; a
+free-text string like `2.5.2` has no representation in it, and the string is
+typed after the binary is signed, so it never reaches the package.
+
+The **conclusion** is right, for a store-installed build. This file's own
+RinkPulse control shows it: that app carries `application_version 39` against
+its store version 39, and 38 in a recording from before its last update. So a
+store build does stamp a version ordinal into every FIT file, and it does tell
+releases apart — just not by the string typed into the box.
+
+A first draft of this correction cited our own 11-03 and 11-05 games reading
+**0** as proof the field is never populated. That was a confound, and this very
+file explains it two sections up: **those were sideloaded builds, and a
+sideloaded build writes sixteen zero bytes and version 0 by definition.** Zero
+there is evidence of sideloading, not of the field being unused. The honest
+summary: expect a non-zero ordinal once 2.5.2 is installed from the store, and
+confirm what it actually is by decoding the first game recorded after.
 
 Nothing in the build carries a version. `manifest.xml` has no version attribute
 and the packaged `.iq` has none either — only `apiVersion`, `connectIqVersion`

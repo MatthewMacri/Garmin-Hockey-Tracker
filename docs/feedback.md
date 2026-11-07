@@ -20,10 +20,10 @@ Status means:
 
 | Question | Status |
 |---|---|
-| "Sense when the game is over so I don't forget about it for 4 hours" | **Added** - `b51d493`, [#1](../../issues/1). 25 min idle, buzzes, saves itself. |
+| "Sense when the game is over so I don't forget about it for 4 hours" | **Added** - `b51d493`, [#1](../../../issues/1). 25 min idle, buzzes, saves itself. |
 | "Does it still give an overall HR zone chart?" | **In the app.** Verified by decoding a recording: four `time_in_zone` messages, one session plus three laps, in `2026-11-03-14-48-56.fit`. The watch writes them, not the app. (An earlier version of this row also cited `zones_target`; `tools/fit/fitread.py` does not decode that message, so it cannot be re-checked here and the claim is dropped rather than carried.) |
-| "Does it work with an HRM 600 chest strap?" | **Unverified.** See [#2](../../issues/2). |
-| "Does it still log vigorous minutes to health metrics?" | **Unverified.** See [#3](../../issues/3). |
+| "Does it work with an HRM 600 chest strap?" | **Unverified.** See [#2](../../../issues/2). |
+| "Does it still log vigorous minutes to health metrics?" | **Unverified.** See [#3](../../../issues/3). |
 
 ## Raised on the RinkPulse thread
 
@@ -39,9 +39,9 @@ player would hit the same thing here, and most of them this app already answers.
 | "Swiping through screens seems inverted" | **Not applicable.** One screen, no paging, and swipes are ignored while a game is live. |
 | Shift count wrong - 16 vs 13, 28 vs 16 against hand counts | **Partly.** The lap key corrects a boundary in the moment, and the raw motion and learned threshold are written per second so a miscount can be charted afterwards. But this app's detector has been tuned against one game, so it has no right to claim it does better. |
 | "Reported speeds seem low" / indoor speed | **Partly, as of 2.5.0 — this row used to read "Not doing".** There is still no GPS speed indoors and an accelerometer alone cannot produce one. What 2.5.0 adds is narrower: `Skating Intensity` (mean wrist motion times mean stride rate, unitless, always available), and `Distance (estimated)` / `Speed While Striding` — but only once a stride length exists, either set by the player or learned from GPS on a day there is a fix. With no stride length those two fields are not created at all. |
-| "Does it work for goalies?" | **Not doing yet.** See [#4](../../issues/4). |
-| Scorekeeping - goals, assists, plus/minus | **Not doing yet.** See [#5](../../issues/5). |
-| Per-shift HR zones | **Added** - `tools/fit/shift-zones.py` reads them out of a saved game, plus the ice-versus-bench zone split Connect cannot draw. See [#6](../../issues/6). |
+| "Does it work for goalies?" | **Not doing yet.** See [#4](../../../issues/4). |
+| Scorekeeping - goals, assists, plus/minus | **Not doing yet.** See [#5](../../../issues/5). |
+| Per-shift HR zones | **Added** - `tools/fit/shift-zones.py` reads them out of a saved game, plus the ice-versus-bench zone split Connect cannot draw. See [#6](../../../issues/6). |
 | "I wear a chest strap and put the watch in a sports vest" | **Will not work, now documented.** Detection is wrist motion, so the watch has to be on the wrist. The docs implied this and never said it. |
 | Not compatible with vivoactive 3 / FR245 / 645 / 945 / fenix 5X | **In the app.** All present in `manifest.xml`; `minApiLevel` is 3.1.0. 126 products covering 202 device variants. |
 | Ports to Apple / Samsung / Pixel | **Not doing.** See `comparison.md`. On Apple the metrics have nowhere to live - HealthKit's types are a closed set - so the port loses the thing that makes this app worth using. |
