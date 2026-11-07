@@ -89,6 +89,13 @@ class ShiftDetector {
     //    game and none at all on the other, and it left every one of the
     //    fast path's false positives in place (5 and 3, unchanged).
     //
+    //    That second point has since been fixed at its source rather than by
+    //    moving CONFIRM_ICE. corroboratesIce() no longer consults hrOffset()
+    //    - see the note where HR_OFFSET used to be - and now fires on 0.185
+    //    of bench seconds instead of 0.424. The fast path is selective at
+    //    last and CONFIRM_ICE is load-bearing again, so the entry window is
+    //    the one knob here that has NOT been re-swept against the games.
+    //
     //  - With no heart rate it fails hard, which is the case that matters:
     //    wrist optical only, no strap, and 0 position fixes in 5,122 records
     //    at this player's rink. At the shipped band, motion alone:
@@ -145,18 +152,42 @@ class ShiftDetector {
     // which needs no slope and reads a level instead.
     private const HR_SLOPE = 0.25;
 
-    // Heart rate's distance from its own slow baseline is a better signal than
-    // its slope: across those games the peak-to-trough swing of one shift-plus-
-    // bench cycle is 42-62 bpm, so the phase of the oscillation is legible
-    // even when the derivative is buried in noise.
+    // There is no HR_OFFSET any more, and the reason is measured rather than
+    // argued. An earlier version read `hrSlope() >= HR_SLOPE || hrOffset() >=
+    // HR_OFFSET` with HR_OFFSET = 4.0, on the theory that distance from the
+    // slow baseline is a better signal than slope because the peak-to-trough
+    // swing of one shift-plus-bench cycle is 42-62 bpm.
     //
-    // Do not read that 42-62 as the separation available in any one second.
-    // It is a within-cycle range, measured peak to trough. Second by second
-    // the on-ice and bench means differ by 1.1 bpm on 2026-11-03 and 3.8 on
-    // 2026-11-05 - which is why four beats off the baseline only ever
-    // CORROBORATES motion here, and why corroboratesIce() turns out to be
-    // true on about half of all seconds rather than on half of the shifts.
-    private const HR_OFFSET = 4.0;
+    // That theory confused a within-cycle range with the separation available
+    // in any one second. Scored against the three recorded games, 9179
+    // seconds carrying both a heart rate and a verdict:
+    //
+    //   test                                  P(+|ice)  P(+|bench)    LR
+    //   slope >= 0.25 OR offset >= 4.0 (old)     0.694       0.424   1.64
+    //   slope >= 0.25 alone            (now)     0.444       0.185   2.40
+    //
+    // The offset arm is close to pure noise: sweeping its threshold across
+    // the entire observed range of hrOffset moves the likelihood ratio only
+    // between 1.0 and 1.7, with no peak to aim at. Slope has a real peak, and
+    // 0.25 already sits on it - the LR-optimal 0.29 scores 2.46 against
+    // 2.40, which is not worth moving for. OR-ing the two did what OR-ing a
+    // noisy test with a good one always does: it more than doubled the false
+    // positive rate, 0.185 to 0.424, to buy 0.25 of true positive rate.
+    //
+    // That mattered more than a corroboration signal usually would, because
+    // corroboration picks the confirmation window. At P(+|bench) = 0.424 the
+    // three-second fast path was effectively always open, CONFIRM_ICE was
+    // very nearly dead code, and a bench fidget needed only three seconds of
+    // motion to become a shift. Replaying the recorded motion through the
+    // detector, dropping the arm removes 7 shifts and 112 s of ice from
+    // 2026-11-03 and 7 shifts and 255 s from 2026-11-05, and halves the
+    // shifts that never lift the rate above 130 bpm - the bench-fidget
+    // signature - from 4 to 2.
+    //
+    // hrOffset() itself stays. It is still the right instrument for HR_VETO
+    // below, which reads a level and not a derivative, and which scores an LR
+    // of 3.06 at -12.0 precisely because it asks a much deeper question than
+    // four beats.
 
     // A shift shorter than this is noise, not a line change.
     private const MIN_SHIFT_SEC = 8;
@@ -710,7 +741,7 @@ class ShiftDetector {
         if (!hrIsFresh()) {
             return false;
         }
-        return hrSlope() >= HR_SLOPE || hrOffset() >= HR_OFFSET;
+        return hrSlope() >= HR_SLOPE;
     }
 
     //! Heart rate agreeing that work has stopped, or GPS saying the player has.
@@ -722,7 +753,7 @@ class ShiftDetector {
         if (!hrIsFresh()) {
             return false;
         }
-        return hrSlope() <= -HR_SLOPE || hrOffset() <= -HR_OFFSET;
+        return hrSlope() <= -HR_SLOPE;
     }
 
     //! Heart rate low enough to rule a shift out regardless of motion.
