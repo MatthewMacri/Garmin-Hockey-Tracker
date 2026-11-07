@@ -294,8 +294,9 @@ produces the same wrist motion and heart rate as a shift, so a game started
 early collects shifts nobody played.
 
 Wear the watch on your wrist. Shifts and stride rate both come from wrist
-motion, so a watch in a vest or a bag has nothing to detect. A paired chest
-strap is fine and is used for heart rate as normal.
+motion, so a watch in a vest or a bag has nothing to detect. Heart rate comes
+from the watch; whether a paired chest strap is used instead has not been
+tested.
 
 GPS is on by default, but expect no fix inside most arenas; the app falls back
 to motion alone and records normally.

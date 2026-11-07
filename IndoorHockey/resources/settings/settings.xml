@@ -16,6 +16,12 @@
              skating and no way to measure one from the wrist, so a number
              here is the player's claim, not the app's. -->
         <property id="strideLengthCm" type="number">0</property>
+        <!-- 0 means "take it from the Garmin profile". That profile is very
+             often 220-minus-age that nobody ever checked, and the app can
+             only ever observe a maximum upwards - so without this there is no
+             way to correct a profile that is too HIGH, and the 85% line sits
+             above where it belongs for the rest of the player's life. -->
+        <property id="maxHeartRate" type="number">0</property>
     </properties>
 
     <settings>
@@ -37,6 +43,9 @@
         </setting>
         <setting propertyKey="@Properties.strideLengthCm" title="@Strings.SetStrideLength" prompt="@Strings.SetStrideLengthPrompt">
             <settingConfig type="numeric" min="0" max="500" />
+        </setting>
+        <setting propertyKey="@Properties.maxHeartRate" title="@Strings.SetMaxHr" prompt="@Strings.SetMaxHrPrompt">
+            <settingConfig type="numeric" min="0" max="240" />
         </setting>
         <setting propertyKey="@Properties.useGps" title="@Strings.SetUseGps" prompt="@Strings.SetUseGpsPrompt">
             <settingConfig type="boolean" />

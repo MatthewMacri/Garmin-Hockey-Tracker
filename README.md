@@ -310,11 +310,21 @@ Editable in Garmin Connect; the defaults are a regulation game.
 | Use GPS | on | |
 | End game when idle | 25 min | 0–180, 0 = never |
 | Stride length | 0 cm (off) | 0–500 |
+| Max heart rate | 0 (use profile) | 0, or 100–240 |
 | Activity type | Ice Hockey | Ice Hockey / Ice Skate |
 
 **Shift sensitivity** moves the decision boundary within the learned band. High
 means less movement counts as being on the ice — raise it if shifts are being
 missed, lower it if standing on the bench is being counted as a shift.
+
+**Max heart rate** is what the *Time above 85 %* field is 85 % of. Left at 0 it
+comes from your Garmin profile, which on most watches is 220-minus-age that
+nobody has ever checked. That matters in one direction in particular: the app
+raises its ceiling whenever a game beats it, so a profile that is too *low*
+corrects itself within a shift — and a profile that is too *high* never
+corrects at all, and quietly under-reports every hard minute you skate, for
+good. Setting your real maximum is the only fix. A rate actually recorded
+during a game still wins over both.
 
 **End game when idle** saves a game nobody is playing any more. After this
 many minutes with no skating detected the watch buzzes long-short-long and

@@ -120,6 +120,8 @@ class GameModel {
     //! Centimetres covered by one skating push, as supplied by the player.
     //! 0 means "do not estimate distance", which is the default.
     public var strideLengthCm as Number = 0;
+    //! Maximum heart rate for the 85% threshold; 0 means use the profile.
+    public var maxHeartRate as Number = 0;
 
     // ---- live game state ----
     public var state as GameState = STATE_READY;
@@ -192,6 +194,17 @@ class GameModel {
     private var _iceHrSamples as Number = 0;
     private var _hardSeconds as Number = 0;
     private var _hardThreshold as Number = 0;
+
+    // The 85% line is only as good as the maximum it is 85% of, and the
+    // number on a Garmin profile is very often 220-minus-age that nobody ever
+    // checked. The ceiling is therefore the higher of two things: a seed - the
+    // player's own setting if they gave one, otherwise the profile - and the
+    // highest beat actually recorded in this game. A beat that has happened
+    // is better evidence than any setting; a setting is better evidence than a
+    // formula. Keeping the two apart is what lets a player correct a profile
+    // that is too HIGH, which raising-only could never do.
+    private var _hrSeed as Number = 0;
+    private var _hrObservedMax as Number = 0;
     private var _hrCeiling as Number = 0;
 
     private var _speed as Float? = null;
@@ -234,8 +247,6 @@ class GameModel {
         detector = new ShiftDetector(1);
         loadSettings();
         detector.start();
-        _hrCeiling = profileMaxHeartRate();
-        _hardThreshold = (_hrCeiling > 0) ? ((_hrCeiling * 85) / 100).toNumber() : 0;
     }
 
     // ------------------------------------------------------------------
@@ -268,6 +279,18 @@ class GameModel {
         // created: the distance and speed fields either exist for a game or
         // they do not, and a field cannot be added to a session already running.
         strideLengthCm = readNumber("strideLengthCm", 0, 0, 500);
+
+        // 0 means "use the profile". Anything between 1 and 99 is not a
+        // maximum heart rate - it is a slip of the numeric picker - and is
+        // treated as 0 rather than clamped up to 100, because inventing a
+        // ceiling of 100 would put the 85% line at 85 and count the whole
+        // game as hard.
+        maxHeartRate = readNumber("maxHeartRate", 0, 0, 240);
+        if (maxHeartRate > 0 && maxHeartRate < 100) {
+            maxHeartRate = 0;
+        }
+        _hrSeed = (maxHeartRate > 0) ? maxHeartRate : profileMaxHeartRate();
+        refreshHrCeiling();
 
         detector.setSensitivity(sensitivity);
     }
@@ -903,15 +926,13 @@ class GameModel {
                 _segHrMax = heartRate;
             }
 
-            // Self-calibrate the ceiling. The zones on the watch are often
-            // never set, or set from a formula, and hockey reaches a genuine
-            // maximum: across twelve recorded games this player's own profile
-            // ceiling was beaten repeatedly, peaking at 199. A beat that has
-            // actually happened is better evidence than an untouched setting,
-            // so the higher of the two wins.
-            if (heartRate > _hrCeiling) {
-                _hrCeiling = heartRate;
-                _hardThreshold = ((_hrCeiling * 85) / 100).toNumber();
+            // Self-calibrate upwards. Hockey reaches a genuine maximum:
+            // across twelve recorded games this player's profile ceiling was
+            // beaten repeatedly, peaking at 199. A beat that has actually
+            // happened outranks both the setting and the formula.
+            if (heartRate > _hrObservedMax) {
+                _hrObservedMax = heartRate;
+                refreshHrCeiling();
             }
 
             if (_hardThreshold > 0 && heartRate >= _hardThreshold) {
@@ -1169,6 +1190,14 @@ class GameModel {
     //! Maximum heart rate from the top of the user's zone 5. There is no
     //! maximum heart rate field on the user profile, so the zones are the only
     //! place the figure is available at all.
+    //! The ceiling, and the 85% line under it, from whichever evidence is
+    //! strongest. Recomputed rather than nudged, so a settings change during a
+    //! game takes effect without losing a maximum already recorded.
+    private function refreshHrCeiling() as Void {
+        _hrCeiling = (_hrSeed > _hrObservedMax) ? _hrSeed : _hrObservedMax;
+        _hardThreshold = (_hrCeiling > 0) ? ((_hrCeiling * 85) / 100).toNumber() : 0;
+    }
+
     private function profileMaxHeartRate() as Number {
         try {
             var zones = UserProfile.getHeartRateZones(UserProfile.HR_ZONE_SPORT_GENERIC);
