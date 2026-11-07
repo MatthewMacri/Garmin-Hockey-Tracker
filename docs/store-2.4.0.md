@@ -1,15 +1,15 @@
-# Connect IQ Store — version 2.3.0, ready to paste
+# Connect IQ Store — version 2.4.0, ready to paste
 
 Everything the upload form at <https://apps.garmin.com/en-US/developer/upload>
 asks for that has changed since the live listing, in the order the form asks
 for it. The full field-by-field reference lives in `store/listing.md`; this
 file exists so the text can be copied without reading around it.
 
-**This is an update, not a first publish.** The dashboard shows the listing
-live: *Ice Hockey Shifts* by KernelOPs, **version 2.1.0 (Internal: 3)**,
-initial release 4 November 2026, latest release 4 November 2026, 100+
-downloads and one five-star review — left against 2.0.0, so that upload reached
-the public despite showing `Status: Verified` beside `Signature check failed`.
+**This is an update, not a first publish.** *Ice Hockey Shifts* by KernelOPs
+has been live since 4 November 2026, with 100+ downloads and one five-star
+review — left against 2.0.0, so that upload reached the public despite showing
+`Status: Verified` beside `Signature check failed`. 2.3.0 went up on
+7 November as the fourth upload; this is the fifth.
 
 Earlier drafts of this file said the opposite, at length, and were wrong on
 every count: that nothing was live, that 2.0.0 never ended in a listing, and
@@ -26,9 +26,28 @@ entirely, below.
 
 So: **Upload New Version**, not the first-publish form.
 
-## Why the games still show nothing, with the app live
+## Read this before uploading: one thing 2.3.0 has to answer first
 
-The watch is not running the store build. It is running a **sideload**, and a
+**Record one game on the installed 2.3.0 build and open its activity page
+before uploading 2.4.0.** That game answers the question in *Does a later
+upload update the rendering metadata?* below, and the answer decides whether
+any of this release is worth typing.
+
+- If Rest per Work reads `3.2` and Avg Stride Rate is there, a later upload
+  does update the metadata. Everything in 2.4.0 will render too. Upload it.
+- If Rest per Work still reads `317` and there are no stride fields, the
+  listing is frozen on the metadata 2.0.0 set on 4 November. No upload fixes
+  that, and the only route to rendering the new fields is a **new listing** —
+  a decision worth making deliberately, since it abandons 100+ installs and
+  the review.
+
+Everything below assumes the first answer.
+
+### The history, kept because it explains the mechanism
+
+For three days the games showed nothing while the app was live, and the reason
+was not the listing. The watch was not running the store build. It was running
+a **sideload**, and a
 sideload writes an `application_id` of sixteen zero bytes into every FIT file
 where a store install writes the listing's UUID — which is the key Garmin
 Connect joins its rendering metadata against. `GARMIN/GarminDevice.xml` lists
@@ -39,25 +58,15 @@ version 39, and its recordings carry `application_id 036b4e61-…`,
 `application_version 39`, with an October file from before its last update
 carrying 38. Every recording from this app carries zeros and version 0.
 
-The fix is therefore not "publish" — that already happened. It is **delete the
-sideloaded `.prg` and install Ice Hockey Shifts from the Connect IQ store on
-the phone**. The next game recorded that way will render the 2.1.0 field set
-immediately, without waiting for this release to clear review.
+The fix was therefore not "publish" — that had already happened. It was to
+delete the sideloaded `.prg` and install the app from the Connect IQ store.
 
-Two things do not follow from that:
+One thing does not follow from it: **the games already in Connect cannot be
+fixed.** Nov 1, 3 and 5 carry an id that matches no listing. The numbers are
+intact in the FIT files and `tools/replay_detector.py` still reads them; the
+activity pages stay bare.
 
-- **The games already in Connect cannot be fixed.** Nov 1, 3 and 5 carry an id
-  that matches no listing. The numbers are intact in the FIT files and
-  `tools/replay_detector.py` still reads them; the activity pages stay bare.
-- **Rendering the 2.1.0 field set is not rendering this one.** The live listing
-  carries the fit-contributions metadata from the first upload: `work_rest` as
-  an integer, so Rest per Work will read `317` rather than `3.2`, the two
-  milli-g diagnostics charted, and no stride fields at all. Those need this
-  upload.
-
-**Paste the description as well as What's New.** The live listing still carries
-the heart rate claim that was corrected in `537d491`, has no wrist note and no
-warm-up note, and describes a detector that no longer behaves that way.
+**Paste the description as well as What's New**, every time.
 
 ---
 
@@ -103,13 +112,13 @@ upload and that fields added later are not reliably picked up. This listing's
 metadata was set on 4 November by 2.0.0, which had fields 0–13 only, `work_rest`
 as an integer, and the two milli-g diagnostics charted.
 
-If those reports are right, approving 2.3.0 fixes nothing and the stride fields
-never appear. If they are wrong, everything in this release renders. There is
-no way to tell from outside, and no second chance either — so upload it, record
-a game, and read the activity page. **If the stride fields do not appear after
-2.3.0 is live, that is the answer, not a build problem**: the packaged
-`fit_contributions.json` has been verified to carry all 21 fields with the
-right labels, units, precision and chart flags.
+If those reports are right, approving a later upload fixes nothing and the new
+fields never appear. If they are wrong, everything in this release renders.
+There is no way to tell from outside — which is why the check at the top of
+this file comes before the upload, not after it. **If the stride fields do not
+appear on a game recorded against the installed 2.3.0, that is the answer, not
+a build problem**: the packaged `fit_contributions.json` has been verified to
+carry every field with the right labels, units, precision and chart flags.
 
 ### A Beta, if you want the new fields before review clears
 
@@ -131,7 +140,8 @@ stop rendering when it goes away.
    `developer_data_id` should carry a real UUID and a non-zero version.
 5. The activity should read Shifts, Ice Time, Bench Time, Avg Shift, Longest
    Shift, Rest per Work (as `3.2`, not `317`), On-Ice Avg HR, Time above 85%
-   HR, Avg Stride Rate and Stride Coverage.
+   HR, Avg Stride Rate, Stride Coverage, HR Recovery (1 min) and Skating Load,
+   with Avg HR and Max HR beside each row in the Splits tab.
 
 A Beta is also the only clean way to answer the caching question above without
 risking the real listing, because it is a brand-new listing whose metadata has
@@ -142,18 +152,16 @@ never been set.
 ## Step 1 — the package
 
 Attach `IndoorHockey/dist/IndoorHockey.iq`, built by `IndoorHockey/package.sh`.
-All 202 device variants, signed, with no build paths in the 812 packaged files.
+All 202 device variants, signed, with no build paths in the packaged files —
+`package.sh` refuses to produce a package that carries them.
 
-**App Version:** type `2.3.0`
+**App Version:** type `2.4.0`
 
-The live listing reads `2.1.0 (Internal: 3)`, so this is the fourth upload and
-will come back as Internal 4 — which is the number that lands in every FIT
-file's `application_version`, and a free way to tell a game recorded against
-this release from one recorded against 2.1.0.
-
-2.2.0 is skipped on purpose: `v2.2.0` is already a published GitHub tag
-pointing at the code from before stride rate existed, and reusing the number
-would put different code behind it on the store than on GitHub.
+2.3.0 was the fourth upload and came back as Internal 4, so this is the fifth
+and should read Internal 5 — the number that lands in every FIT file's
+`application_version`, and a free way to tell a game recorded against this
+release from one recorded against 2.3.0. Check the hint under the box reads
+*(Latest app version: 2.3.0)* before typing, and *(2.4.0)* after.
 
 Nothing in the build carries a version. `manifest.xml` has no version attribute
 and the packaged `.iq` has none either — only `apiVersion`, `connectIqVersion`
@@ -170,36 +178,37 @@ passes the new one.
 
 ## What's New
 
-878 characters (892 if the form counts CRLF line endings). Paste verbatim.
+978 characters (995 if the form counts CRLF line endings). Paste verbatim.
 
 ```
-New: stride rate. The app now reads your skating rhythm off the wrist, in
-pushes per minute, second by second and as a game average - with a coverage
-figure saying how much of your ice time it rests on. Distance and speed stay
-off until you set a stride length yourself: nothing on a wrist can measure
-one, and the alternative is inventing it.
+New: heart rate recovery. Every other number this app gives you measures how
+hard a game was. This one measures how fit you are, and it is the only one
+that should improve over a season. It is the standard HRR60 - your heart rate
+when a shift ends, minus your heart rate sixty seconds later, averaged over
+the game. A hockey game is forty repeats of exactly the test a lab uses, and
+the app already knew when each one started.
 
-Shift detection has been retuned, and you will see it in your own numbers.
-The old settings were fitted against a forward's share of the ice, and a
-defenceman gliding at the point kept dropping under the bar and losing the
-rest of the shift to the bench. A shift is now harder to leave than it is to
-enter, and your heart rate can refuse one outright: while it sits well below
-its own baseline for the game, no amount of arm movement will open a shift.
+New: skating load, the accumulated acceleration of your skating, counted on
+the ice only - the same construction the professional sides buy, on the sensor
+already on your wrist.
 
-Also fixed: Rest per Work reads as a ratio, 3.2, rather than as the number
-317.
+New: the average and maximum heart rate of every shift and every bench spell,
+beside its length in the Splits tab. A 48-second shift means one thing at 150
+and another at 188.
+
+New setting: Max Heart Rate. Time above 85% is only as good as the maximum it
+is 85% of, and most Garmin profiles hold 220-minus-age. Set your real one.
+A rate recorded during a game still wins.
 ```
 
-**This covers 2.2.0 and 2.3.0 only.** The live listing is 2.1.0, so its users
-already have the idle-timeout feature and the small-batch accelerometer fix —
-the whole of the current What's New text. Repeating either would tell them
-nothing. An earlier draft of this file did repeat both, because it was written
-while believing nothing was live.
+**This covers 2.4.0 only.** 2.3.0's stride rate, its retuned detector and the
+`work_rest` fix are all in the live listing's own What's New already; users who
+installed from the store have read them. Repeating them would say nothing.
 
 No character limit for this field is documented anywhere I could find, and the
-form's own counter is the authority. This lands just under 1,000 in case that
-is the cap. **If the form accepts more**, append this — it is the only part of
-the release that asks anything of the player:
+form's own counter is the authority. This lands under 1,000 in case that is the
+cap. **If the form accepts more**, append this — it is the only part of the
+release that asks anything of the player:
 
 ```
 One thing that costs nothing: start the game at the opening faceoff rather
@@ -208,84 +217,86 @@ same heart rate as a shift does, so a game started early collects shifts
 nobody played - and nothing in the recording can tell them apart afterwards.
 ```
 
-With the tail it is 1180 characters (1198 with CRLF).
+With the tail it is 1280 characters (1302 with CRLF).
 
 ---
 
 ## Description
 
-3893 characters of 4,000 (3976 if the form counts CRLF line endings — it fits
+3898 characters of 4,000 (3983 if the form counts CRLF line endings — it fits
 either way). Paste verbatim.
 
 ```
 One press at the opening faceoff. After that the app works out when you are on
-the ice and when you are on the bench on its own. You never touch the watch
-during a game.
+the ice and when you are on the bench. You never touch the watch during a
+game.
 
 WHAT IT DOES
 
 • Automatic shift detection — no button per line change. The app decides when
   you are skating and when you are resting, and splits the activity to match.
-• One continuous game clock — no periods to set up and nothing that ends your
-  activity on a schedule. Recording stops when you stop it.
-• Shift clock — green, then amber, then red as the shift runs long, with a
-  long buzz at your target length so it is felt through a glove.
-• Ends itself if you forget — after 25 minutes with no skating the watch
-  counts down and saves rather than discards. Any press cancels it.
-• Total ice time on screen all game, not just in the summary.
-• On-ice heart rate, reported separately from bench heart rate.
+• One continuous game clock. Recording stops when you stop it.
+• Shift clock — green, then amber, then red, with a long buzz at your target
+  length, felt through a glove.
+• Ends itself if you forget — after 25 minutes with no skating it counts down
+  and saves rather than discards. Any press cancels it.
+• Total ice time on screen all game.
+• On-ice heart rate, reported separately from bench heart rate: in elite match
+  play it averages 84% of maximum, a figure a game average hides.
 • One screen. Everything at a glance, no paging mid-game.
-
-WHY ON-ICE HEART RATE MATTERS
-
-In simulated elite match play, average heart rate on the ice was 84% of
-maximum. A game average blends skating with sitting, so two players who skated
-identically post different averages when one rested more. This app knows when
-you were on the ice, so it reports both.
 
 HOW THE DETECTION WORKS
 
 Wrist motion is the only signal fast enough to open and close a shift, so it
 decides and GPS only agrees with it. Heart rate mostly agrees too, with one
-exception: while it sits well below its own baseline for the game, no amount of
-arm movement will open a shift. That is a player sitting down, not a player
-skating. Thresholds are learned during the game, because they depend on the
-player and on how the watch is worn, and a change is believed only once it
-persists, then dated back to when it happened.
+exception: while it sits well below its baseline for the game, no amount of
+arm movement will open a shift. That is a player sitting down. Thresholds are
+learned during the game, because they depend on the player and on how the
+watch is worn, and a change is believed only once it persists, then dated back
+to when it happened.
 
 It will get some boundaries wrong. The LAP button flips the state by hand.
 
 WHAT LANDS IN GARMIN CONNECT
 
 Shifts, ice time, bench time, average and longest shift, rest-per-work ratio,
-on-ice average heart rate, time above 85% of maximum HR, and average stride
-rate with its coverage. One lap per shift and one per bench spell, so the
-Splits tab reads as a shift chart, and the on-ice state second by second.
+on-ice average heart rate, time above 85% of maximum HR, average stride rate
+with its coverage, heart rate recovery and skating load. One lap per shift and
+one per bench spell, each with its own average and maximum heart rate, so the
+Splits tab reads as a shift chart. Plus the on-ice state second by second.
+
+FITNESS, NOT JUST EFFORT
+
+Heart rate recovery is the one number here that should improve over a season.
+It is the standard HRR60: your heart rate when a shift ends, minus your heart
+rate sixty seconds later, averaged over the game. A hockey game is forty
+repeats of the test a lab uses, and the app already knows when each starts.
+
+Skating load is the accumulated acceleration of your skating, counted on the
+ice only - what the professional sides measure, on the sensor you own.
 
 STRIDE RATE
 
 The app measures your skating rhythm from the wrist, in pushes per minute,
-second by second and as a game average — with stride coverage beside it, the
-share of your on-ice seconds that produced a readable rhythm, so you can see
-how much of the game the average rests on.
+second by second and as a game average, with a coverage figure saying how much
+of your ice time it rests on.
 
-Distance and speed stay off unless you ask. There is no published stride
-length for skating, nothing on a wrist can measure one, and GPS cannot
-calibrate it indoors. Set Stride Length yourself and the app estimates both;
-leave it at 0 and it reports rhythm alone rather than inventing a distance.
+Distance and speed stay off unless you ask: nothing on a wrist can measure a
+skating stride length, and inventing one is the alternative. Set Stride Length
+yourself and the app estimates both.
 
 BUTTONS
 
-START begins the game. Pressing it twice stops into the stop menu — twice,
-because one press was too easy to make inside a glove on a touchscreen. Screen
-taps do nothing while a game is running.
+START begins the game. Pressing it twice stops into the stop menu; one press
+was too easy to make inside a glove. Screen taps do nothing during a game.
 BACK is the lap key: a lap here is a line change. Hold UP for the menu.
 
 SETTINGS
 
 Shift alert target, sensitivity and alerts on or off; lap per shift; GPS on or
 off; how long with no skating before the game saves itself; stride length for
-distance; and whether the activity is filed as ice hockey or ice skating.
+distance; your true maximum heart rate, so the 85% line is right; and
+whether the activity is filed as ice hockey or ice skating.
 
 NOTES
 
@@ -293,13 +304,12 @@ Start the game at the opening faceoff, not during the warm-up. A warm-up skate
 produces the same wrist motion and heart rate as a shift, so a game started
 early collects shifts nobody played.
 
+GPS is on by default; expect no fix inside most arenas. The app falls back to
+motion and records normally.
+
 Wear the watch on your wrist. Shifts and stride rate both come from wrist
 motion, so a watch in a vest or a bag has nothing to detect. Heart rate comes
-from the watch; whether a paired chest strap is used instead has not been
-tested.
-
-GPS is on by default, but expect no fix inside most arenas; the app falls back
-to motion alone and records normally.
+from the watch; whether a paired chest strap is used instead is untested.
 
 Strava has no ice hockey type: set Activity Type to Ice Skate if you sync
 there.

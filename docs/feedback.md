@@ -3,7 +3,7 @@
 Every question and complaint worth acting on, with its status checked against
 the code rather than remembered. What shipped in answer to them is in
 [release-2.1.0.md](release-2.1.0.md); the store text that announces it is in
-[store-2.3.0.md](store-2.3.0.md). Two sources: the r/hockeyplayers thread about
+[store-2.4.0.md](store-2.4.0.md). Two sources: the r/hockeyplayers thread about
 RinkPulse (a rival app, but the same players asking about the same sport, so
 the complaints transfer) and replies to this app's own post.
 

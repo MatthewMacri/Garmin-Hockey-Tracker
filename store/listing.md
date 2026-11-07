@@ -196,7 +196,7 @@ number 317.
 ```
 
 If the form's counter accepts more than the ~1,000 characters above,
-append this; `docs/store-2.3.0.md` carries both with exact counts.
+append this; `docs/store-2.4.0.md` carries both with exact counts.
 
 ```
 One thing that costs nothing: start the game at the opening faceoff rather
