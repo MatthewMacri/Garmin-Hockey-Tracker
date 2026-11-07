@@ -112,7 +112,10 @@
              the game. It tracks conditioning, and it moves week to week. -->
         <fitField id="23" sortOrder="23" displayInActivitySummary="true" precision="0"
                   dataLabel="@Strings.FitHrRecovery" unitLabel="@Strings.UnitBpm" />
-        <fitField id="24" sortOrder="24" displayInActivitySummary="true" precision="0"
+        <!-- precision="1", for the same reason id 5 carries it: this is a
+             float, and a precision of 0 is how Connect was told to round
+             3.2 to 3. -->
+        <fitField id="24" sortOrder="24" displayInActivitySummary="true" precision="1"
                   dataLabel="@Strings.FitIceLoad" unitLabel="@Strings.UnitNone" />
 
         <!-- Written whenever a stride length was available at all, from
@@ -120,7 +123,11 @@
              it was built from. -->
         <fitField id="25" sortOrder="25" displayInActivitySummary="true" precision="0"
                   dataLabel="@Strings.FitStrideLen" unitLabel="@Strings.UnitCm" />
-        <fitField id="26" sortOrder="26" displayInActivitySummary="true" precision="0"
+        <!-- Also a float, and the one most in need of the decimal: the whole
+             purpose of the index is week-to-week comparison against your own
+             past games, and rounded to units a move from 12.4 to 12.9 shows
+             as no change at all. -->
+        <fitField id="26" sortOrder="26" displayInActivitySummary="true" precision="1"
                   dataLabel="@Strings.FitIntensity" unitLabel="@Strings.UnitNone" />
     </fitContributions>
 </resources>
