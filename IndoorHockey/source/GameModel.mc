@@ -1937,102 +1937,168 @@ class GameModel {
     }
 
     //! Developer fields, so the numbers travel with the activity into Connect.
+    //! Create the developer fields, in tiers, each tier able to fail alone.
+    //!
+    //! This app asks for 27 developer fields. Garmin's firmware has a limit on
+    //! how many may be active at once for an activity - reported as 16 on
+    //! every device one Garmin engineer checked, with the 17th createField()
+    //! throwing - and the simulator does not enforce it, so the only place the
+    //! limit can be observed is a real watch.
+    //!
+    //! Before this, every field was created inside beginSession()'s single
+    //! try. One throw anywhere in the list and the catch discarded the whole
+    //! session: a player lost the entire game to the absence of a diagnostic
+    //! nobody reads. The order below is therefore a priority order, each tier
+    //! wrapped on its own, and a failure stops the list rather than unwinding
+    //! it. Whatever was created up to that point still records.
+    //!
+    //! The tiers run least-losable first: the summary a player actually reads,
+    //! then the splits table, then the shift chart, then the derived metrics,
+    //! then distance, and last the per-second diagnostics that exist only to
+    //! tune the detector. Note this is the reverse of the old order, where the
+    //! diagnostics were created ahead of hr_recovery and skating_intensity.
+    //!
+    //! Field IDs are explicit constants, so reordering creation changes
+    //! nothing about how the file decodes or how Connect renders it.
+    //!
+    //! No on-screen warning for a partial set, deliberately. The FIT file
+    //! lists exactly which fields were created, so decoding one game says
+    //! where the limit bit and how many this firmware really allows - a better
+    //! measurement than any message could be. The failure worth shouting
+    //! about is having no session at all, and the footer already does that.
     private function createFields() as Void {
         var session = _session;
         if (session == null) {
             return;
         }
 
-        // These names are the file-internal identifiers. They are deliberately
-        // fixed ASCII rather than loaded from string resources: tools that read
-        // the FIT afterwards match on this name, so it must not change with the
-        // watch's language. The human-facing text lives in fitfields.xml.
-        _shiftsField = session.createField("shifts", FIELD_SHIFTS,
-            FitContributor.DATA_TYPE_UINT16, {:mesgType => FitContributor.MESG_TYPE_SESSION});
-        _iceTimeField = session.createField("ice_time", FIELD_ICE_TIME,
-            FitContributor.DATA_TYPE_UINT32,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
-        _benchTimeField = session.createField("bench_time", FIELD_BENCH_TIME,
-            FitContributor.DATA_TYPE_UINT32,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
-        _avgShiftField = session.createField("avg_shift", FIELD_AVG_SHIFT,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
-        _maxShiftField = session.createField("max_shift", FIELD_MAX_SHIFT,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
-        _workRestField = session.createField("work_rest", FIELD_WORK_REST,
-            FitContributor.DATA_TYPE_FLOAT, {:mesgType => FitContributor.MESG_TYPE_SESSION});
-        _iceHrField = session.createField("ice_avg_hr", FIELD_ICE_HR,
-            FitContributor.DATA_TYPE_UINT8,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
-        _hardTimeField = session.createField("hard_time", FIELD_HARD_TIME,
-            FitContributor.DATA_TYPE_UINT32,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
-
-        _lapShiftField = session.createField("shift_time", FIELD_LAP_SHIFT,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "s"});
-        _lapBenchField = session.createField("bench_time_lap", FIELD_LAP_BENCH,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "s"});
-        _lapAvgHrField = session.createField("shift_avg_hr", FIELD_LAP_AVG_HR,
-            FitContributor.DATA_TYPE_UINT8,
-            {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "bpm"});
-        _lapMaxHrField = session.createField("shift_max_hr", FIELD_LAP_MAX_HR,
-            FitContributor.DATA_TYPE_UINT8,
-            {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "bpm"});
-
-        _onIceField = session.createField("on_ice", FIELD_ON_ICE,
-            FitContributor.DATA_TYPE_UINT8, {:mesgType => FitContributor.MESG_TYPE_RECORD});
-        _curShiftField = session.createField("shift_time_live", FIELD_CUR_SHIFT,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "s"});
-        _motionField = session.createField("motion", FIELD_MOTION,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "mg"});
-        _thresholdField = session.createField("motion_threshold", FIELD_THRESHOLD,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "mg"});
-
-        _strideRateField = session.createField("stride_rate", FIELD_STRIDE_RATE,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "ppm"});
-        _strideRField = session.createField("stride_r", FIELD_STRIDE_R,
-            FitContributor.DATA_TYPE_UINT8,
-            {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "%"});
-        _strideLagField = session.createField("stride_lag", FIELD_STRIDE_LAG,
-            FitContributor.DATA_TYPE_UINT8,
-            {:mesgType => FitContributor.MESG_TYPE_RECORD});
-
-        _strideAvgField = session.createField("stride_avg", FIELD_STRIDE_AVG,
-            FitContributor.DATA_TYPE_UINT16,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "ppm"});
-        _strideCovField = session.createField("stride_coverage", FIELD_STRIDE_COV,
-            FitContributor.DATA_TYPE_UINT8,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "%"});
-
-        // SINT8, not UINT8: a heart rate still climbing a minute after a shift
-        // gives a negative drop, and that is a real reading about a player who
-        // is not recovering, not an error to be clamped away.
-        _hrRecoveryField = session.createField("hr_recovery", FIELD_HR_RECOVERY,
-            FitContributor.DATA_TYPE_SINT8,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
-        _iceLoadField = session.createField("ice_load", FIELD_ICE_LOAD,
-            FitContributor.DATA_TYPE_FLOAT,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION});
-
-        // Not created at all when the player has not calibrated, so an
-        // uncalibrated game carries no distance field rather than a zero one.
-        // Resolved once, here. The player's own setting outranks anything
-        // the app taught itself: they measured it, we inferred it.
+        // Resolved once, before any tier that needs it. The player's own
+        // setting outranks anything the app taught itself: they measured it,
+        // we inferred it.
         usedStrideCm = (strideLengthCm > 0) ? strideLengthCm : learnedStrideCm();
 
-        _intensityField = session.createField("skating_intensity", FIELD_INTENSITY,
-            FitContributor.DATA_TYPE_FLOAT,
-            {:mesgType => FitContributor.MESG_TYPE_SESSION});
+        var ok = createSummaryFields(session);
+        if (ok) { ok = createLapFields(session); }
+        if (ok) { ok = createChartFields(session); }
+        if (ok) { ok = createDerivedFields(session); }
+        if (ok) { ok = createDistanceFields(session); }
+        if (ok) { createDiagnosticFields(session); }
 
-        if (usedStrideCm > 0) {
+        writeSessionFields();
+    }
+
+    //! Tier 1: the eight numbers the game summary is made of. Losing these
+    //! loses the point of the app, so they are created first and a watch that
+    //! cannot take them is one that cannot record at all.
+    //!
+    //! These names are the file-internal identifiers. They are deliberately
+    //! fixed ASCII rather than loaded from string resources: tools that read
+    //! the FIT afterwards match on this name, so it must not change with the
+    //! watch's language. The human-facing text lives in fitfields.xml.
+    private function createSummaryFields(session as ActivityRecording.Session) as Boolean {
+        try {
+            _shiftsField = session.createField("shifts", FIELD_SHIFTS,
+                FitContributor.DATA_TYPE_UINT16, {:mesgType => FitContributor.MESG_TYPE_SESSION});
+            _iceTimeField = session.createField("ice_time", FIELD_ICE_TIME,
+                FitContributor.DATA_TYPE_UINT32,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
+            _benchTimeField = session.createField("bench_time", FIELD_BENCH_TIME,
+                FitContributor.DATA_TYPE_UINT32,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
+            _avgShiftField = session.createField("avg_shift", FIELD_AVG_SHIFT,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
+            _maxShiftField = session.createField("max_shift", FIELD_MAX_SHIFT,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
+            _workRestField = session.createField("work_rest", FIELD_WORK_REST,
+                FitContributor.DATA_TYPE_FLOAT, {:mesgType => FitContributor.MESG_TYPE_SESSION});
+            _iceHrField = session.createField("ice_avg_hr", FIELD_ICE_HR,
+                FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
+            _hardTimeField = session.createField("hard_time", FIELD_HARD_TIME,
+                FitContributor.DATA_TYPE_UINT32,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "s"});
+        } catch (ex) {
+            return false;
+        }
+        return true;
+    }
+
+    //! Tier 2: the Splits table - one row per shift and per spell on the
+    //! bench, with what the heart was doing during each.
+    private function createLapFields(session as ActivityRecording.Session) as Boolean {
+        try {
+            _lapShiftField = session.createField("shift_time", FIELD_LAP_SHIFT,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "s"});
+            _lapBenchField = session.createField("bench_time_lap", FIELD_LAP_BENCH,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "s"});
+            _lapAvgHrField = session.createField("shift_avg_hr", FIELD_LAP_AVG_HR,
+                FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "bpm"});
+            _lapMaxHrField = session.createField("shift_max_hr", FIELD_LAP_MAX_HR,
+                FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "bpm"});
+        } catch (ex) {
+            return false;
+        }
+        return true;
+    }
+
+    //! Tier 3: the square wave against heart rate. Every rise is a shift, and
+    //! it is the one picture that makes a recorded game legible at a glance.
+    private function createChartFields(session as ActivityRecording.Session) as Boolean {
+        try {
+            _onIceField = session.createField("on_ice", FIELD_ON_ICE,
+                FitContributor.DATA_TYPE_UINT8, {:mesgType => FitContributor.MESG_TYPE_RECORD});
+            _curShiftField = session.createField("shift_time_live", FIELD_CUR_SHIFT,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "s"});
+        } catch (ex) {
+            return false;
+        }
+        return true;
+    }
+
+    //! Tier 4: the derived session metrics. Valuable, and all of them
+    //! reconstructible afterwards from a file that kept the tiers above.
+    private function createDerivedFields(session as ActivityRecording.Session) as Boolean {
+        try {
+            _strideAvgField = session.createField("stride_avg", FIELD_STRIDE_AVG,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "ppm"});
+            _strideCovField = session.createField("stride_coverage", FIELD_STRIDE_COV,
+                FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "%"});
+            // SINT8, not UINT8: a heart rate still climbing a minute after a
+            // shift gives a negative drop, and that is a real reading about a
+            // player who is not recovering, not an error to be clamped away.
+            _hrRecoveryField = session.createField("hr_recovery", FIELD_HR_RECOVERY,
+                FitContributor.DATA_TYPE_SINT8,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
+            _iceLoadField = session.createField("ice_load", FIELD_ICE_LOAD,
+                FitContributor.DATA_TYPE_FLOAT,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION});
+            _intensityField = session.createField("skating_intensity", FIELD_INTENSITY,
+                FitContributor.DATA_TYPE_FLOAT,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION});
+        } catch (ex) {
+            return false;
+        }
+        return true;
+    }
+
+    //! Tier 5: distance and speed, and the stride length they were built
+    //! from. Not created at all when the player has not calibrated and the app
+    //! has learned nothing, so an uncalibrated game carries no distance field
+    //! rather than a zero one.
+    private function createDistanceFields(session as ActivityRecording.Session) as Boolean {
+        if (usedStrideCm <= 0) {
+            return true;
+        }
+        try {
             _strideLenField = session.createField("stride_length_used", FIELD_STRIDE_LEN,
                 FitContributor.DATA_TYPE_UINT16,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "cm"});
@@ -2042,9 +2108,37 @@ class GameModel {
             _speedEstField = session.createField("speed_est", FIELD_SPEED_EST,
                 FitContributor.DATA_TYPE_FLOAT,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "kph"});
+        } catch (ex) {
+            return false;
         }
+        return true;
+    }
 
-        writeSessionFields();
+    //! Tier 6, and last on purpose: the per-second diagnostics. These exist so
+    //! a recorded game can settle the detector's thresholds without going back
+    //! to a rink. They are the most expensive - five fields written every
+    //! second - and the only ones whose loss costs a player nothing at all.
+    private function createDiagnosticFields(session as ActivityRecording.Session) as Boolean {
+        try {
+            _motionField = session.createField("motion", FIELD_MOTION,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "mg"});
+            _thresholdField = session.createField("motion_threshold", FIELD_THRESHOLD,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "mg"});
+            _strideRateField = session.createField("stride_rate", FIELD_STRIDE_RATE,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "ppm"});
+            _strideRField = session.createField("stride_r", FIELD_STRIDE_R,
+                FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "%"});
+            _strideLagField = session.createField("stride_lag", FIELD_STRIDE_LAG,
+                FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => FitContributor.MESG_TYPE_RECORD});
+        } catch (ex) {
+            return false;
+        }
+        return true;
     }
 
     //! Push the running totals into the session-level FIT fields.
