@@ -57,6 +57,11 @@
     <string id="LabelBench">BENCH</string>
     <string id="LabelMotion">MOTION</string>
     <string id="LabelNoSensor">NO MOTION DATA</string>
+    <!-- Shown when the activity session could not be created, so the
+         game is being timed but nothing is being written to a FIT
+         file. Silence here used to let a player finish a whole game
+         and only then discover there was nothing to save. -->
+    <string id="LabelNotRecording">NOT RECORDING</string>
 
     <!-- Menu -->
     <string id="MenuTitle">Game</string>

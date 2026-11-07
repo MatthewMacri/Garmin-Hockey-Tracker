@@ -41,6 +41,7 @@ class GameView extends WatchUi.View {
     private var _txtReady as String = "READY";
     private var _txtPaused as String = "PAUSED";
     private var _txtFinal as String = "FINAL";
+    private var _txtNotRecording as String = "NOT RECORDING";
     private var _txtOnIce as String = "ON";
     private var _txtBench as String = "BENCH";
     private var _txtGame as String = "Game";
@@ -68,6 +69,8 @@ class GameView extends WatchUi.View {
         _txtReady = WatchUi.loadResource($.Rez.Strings.LabelReady) as String;
         _txtPaused = WatchUi.loadResource($.Rez.Strings.LabelPaused) as String;
         _txtFinal = WatchUi.loadResource($.Rez.Strings.LabelFinal) as String;
+        _txtNotRecording =
+            WatchUi.loadResource($.Rez.Strings.LabelNotRecording) as String;
         _txtOnIce = WatchUi.loadResource($.Rez.Strings.LabelOnIce) as String;
         _txtBench = WatchUi.loadResource($.Rez.Strings.LabelBench) as String;
         _txtGame = WatchUi.loadResource($.Rez.Strings.SummaryGame) as String;
@@ -266,6 +269,21 @@ class GameView extends WatchUi.View {
 
     //! Heart rate and shift count, the two numbers worth a glance mid-game.
     private function drawFooter(dc as Graphics.Dc, w as Number, h as Number) as Void {
+        // Outranks the sensor warning. A dead accelerometer costs the shift
+        // split; no session costs the entire game, and the player can still
+        // do something about it - stop, restart the app, or at least know to
+        // write the score down.
+        //
+        // Only once a game is under way. beginSession() runs on the first
+        // START, so on the ready screen there is legitimately no session yet
+        // and warning there would cry wolf before every single game.
+        if ((_model.state == STATE_RUNNING || _model.state == STATE_PAUSED)
+                && !_model.isWritingFit()) {
+            drawFitted(dc, _txtNotRecording, Y_FOOT, w, h, Graphics.COLOR_RED,
+                [Graphics.FONT_TINY, Graphics.FONT_XTINY]);
+            return;
+        }
+
         if (_model.state == STATE_RUNNING && !_model.detector.isHealthy()) {
             drawFitted(dc, _txtNoSensor, Y_FOOT, w, h, Graphics.COLOR_RED,
                 [Graphics.FONT_TINY, Graphics.FONT_XTINY]);

@@ -1796,6 +1796,22 @@ class GameModel {
         }
     }
 
+    //! False when there is no activity session, so the game is being timed
+    //! and nothing is being recorded.
+    //!
+    //! beginSession() catches everything createSession() and createFields()
+    //! can throw, because a watch that cannot record is still a usable shift
+    //! timer and refusing to start would be worse. But the catch was SILENT,
+    //! and that is a different decision: a player could skate a whole game
+    //! watching a perfectly normal screen and find nothing saved at the end.
+    //! One known way to reach it is the firmware's limit on how many
+    //! developer fields may be active at once - this app asks for 27 - and
+    //! the simulator does not enforce such a limit, so the watch is the only
+    //! place it can be seen.
+    public function isWritingFit() as Boolean {
+        return _session != null;
+    }
+
     //! Push the per-second record fields: what the detector sees and what it
     //! decided. Called every tick, and again on resume so the record the system
     //! writes at the restart instant is not a copy of the one before the pause.
