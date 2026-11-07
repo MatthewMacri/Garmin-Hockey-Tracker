@@ -199,6 +199,16 @@ for free — a game is forty-odd repeats of exactly the protocol a lab uses, and
 the app already knows the instant each one starts. A bench spell shorter than a
 minute reports nothing rather than guessing at a partial drop.
 
+Both ends are averaged over five seconds rather than read as single samples.
+HRR60 is a difference between two numbers, so the several beats of jitter a
+wrist optical sensor carries at 1 Hz land in the result at full size; five
+samples cut that by better than half, and five seconds either side of the
+minute mark is far shorter than the timescale the recovery curve itself moves
+on. The clock that counts to sixty advances on every second that passes, not
+only on the seconds the sensor managed to report — counting reported samples
+would turn a ten-second dropout into a seventy-second "HRR60", a smaller
+number for a reason that has nothing to do with fitness.
+
 A negative result is kept, not floored at zero. A heart rate still climbing a
 minute after a shift is a real reading about a player who is not recovering,
 and averaging it in is what makes this a measurement rather than a highlight

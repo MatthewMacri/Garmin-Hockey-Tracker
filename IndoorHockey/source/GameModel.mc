@@ -158,13 +158,35 @@ class GameModel {
     private var _segHrSamples as Number = 0;
     private var _segHrMax as Number = 0;
 
-    // Heart-rate recovery. _recoveryFrom is the rate at the instant the shift
-    // ended; _recoverySeconds counts the bench spell. Both are armed only by
-    // a shift ending, so the pre-game bench never contributes.
+    // Heart-rate recovery.
+    //
+    // Both ends of the measurement are averaged over five seconds rather than
+    // read as a single sample. A wrist optical sensor at 1 Hz carries several
+    // beats of jitter, and HRR60 is a difference between two numbers: the
+    // jitter in each one lands in the result at full size. Five samples cuts
+    // it by better than half, and five seconds either side of the minute mark
+    // is far shorter than the timescale the curve itself moves on.
+    //
+    // _recoveryFrom is the averaged rate as the shift ended; _recoverySeconds
+    // counts the bench spell; _recoveryEnd* collect the window at the far end.
+    // All are armed only by a shift ending, so the pre-game bench, which has
+    // no exertion behind it, never contributes.
+    private const HRR_WINDOW = 5;       // samples averaged at each end
+    private const HRR_AT = 60;          // the "60" in HRR60
+    private const HRR_GIVE_UP = 70;     // stop waiting for a usable sample
     private var _recoveryFrom as Number = 0;
     private var _recoverySeconds as Number = -1;
     private var _recoverySum as Number = 0;
     private var _recoveryCount as Number = 0;
+    private var _recoveryEndSum as Number = 0;
+    private var _recoveryEndCount as Number = 0;
+
+    // The last few heart rates, oldest overwritten. Supplies the average at
+    // the near end of a recovery, which has to be known the instant a shift
+    // ends and so cannot be collected forwards like the far end.
+    private var _hrRecent as Array<Number> = [0, 0, 0, 0, 0] as Array<Number>;
+    private var _hrRecentCount as Number = 0;
+    private var _hrStaleTicks as Number = 0;
 
     private var _iceHrSum as Number = 0;
     private var _iceHrSamples as Number = 0;
@@ -398,6 +420,20 @@ class GameModel {
 
     //! How many bench spells that average rests on. A recovery figure from one
     //! spell is an anecdote; this is what says whether to believe it.
+    //! The mean of the heart rates still in the ring, newest first in
+    //! significance only - they are all within five seconds of each other.
+    private function recentHrAverage() as Number {
+        var n = (_hrRecentCount < HRR_WINDOW) ? _hrRecentCount : HRR_WINDOW;
+        if (n < 1) {
+            return 0;
+        }
+        var sum = 0;
+        for (var i = 0; i < n; i++) {
+            sum += _hrRecent[i];
+        }
+        return (sum / n).toNumber();
+    }
+
     public function recoveryCount() as Number {
         return _recoveryCount;
     }
@@ -678,17 +714,20 @@ class GameModel {
         // for 10-20 seconds after a shift ends, so this reads at or near the
         // peak either way, and moving it earlier would not obviously be more
         // correct.
-        if (wasIce) {
-            var hrNow = currentHeartRate();
-            if (hrNow != null && hrNow > 0) {
-                _recoveryFrom = hrNow;
-                _recoverySeconds = 0;
-            } else {
-                _recoverySeconds = -1;
-            }
+        //
+        // A stale ring is refused rather than used. If the sensor has been
+        // dropping out for longer than the window, the newest value in it is
+        // from some earlier part of the shift, and starting a recovery from a
+        // rate the player no longer had would report a drop that never
+        // happened.
+        if (wasIce && _hrRecentCount > 0 && _hrStaleTicks <= HRR_WINDOW) {
+            _recoveryFrom = recentHrAverage();
+            _recoverySeconds = 0;
         } else {
             _recoverySeconds = -1;
         }
+        _recoveryEndSum = 0;
+        _recoveryEndCount = 0;
 
         // Start the next segment's heart rate from nothing. Carrying it would
         // average a shift together with the bench spell before it.
@@ -853,29 +892,15 @@ class GameModel {
                 _iceHrSamples++;
             }
 
+            _hrRecent[_hrRecentCount % HRR_WINDOW] = heartRate;
+            _hrRecentCount++;
+            _hrStaleTicks = 0;
+
             // Per-segment, for the lap fields.
             _segHrSum += heartRate;
             _segHrSamples++;
             if (heartRate > _segHrMax) {
                 _segHrMax = heartRate;
-            }
-
-            // Recovery. The clock only runs on the bench and only when a
-            // shift armed it; a spell that ends before 60 seconds simply
-            // never reports, which is correct - there is no 60-second drop
-            // to measure across a 20-second bench.
-            if (!onTheIce && _recoverySeconds >= 0) {
-                _recoverySeconds++;
-                if (_recoverySeconds >= 60) {
-                    var drop = _recoveryFrom - heartRate;
-                    // A negative drop is a rate still climbing a minute after
-                    // a shift. It is real, it is informative, and averaging it
-                    // in is what makes this a measurement rather than a
-                    // highlight reel, so it is kept rather than floored at 0.
-                    _recoverySum += drop;
-                    _recoveryCount++;
-                    _recoverySeconds = -1;
-                }
             }
 
             // Self-calibrate the ceiling. The zones on the watch are often
@@ -891,6 +916,44 @@ class GameModel {
 
             if (_hardThreshold > 0 && heartRate >= _hardThreshold) {
                 _hardSeconds++;
+            }
+        } else {
+            _hrStaleTicks++;
+        }
+
+        // Recovery. Deliberately outside the guard above: the clock has to
+        // advance on every second that passes, not only on the seconds the
+        // sensor managed to report. Counting ticks instead would turn a
+        // ten-second dropout into a seventy-second "HRR60", which is a
+        // smaller number for a reason that has nothing to do with fitness.
+        //
+        // The clock runs on the bench and only when a shift armed it. A spell
+        // that ends before the window is simply not reported: there is no
+        // 60-second drop to measure across a 20-second bench.
+        if (!onTheIce && _recoverySeconds >= 0) {
+            _recoverySeconds++;
+
+            if (_recoverySeconds >= HRR_AT - 2 && _recoveryEndCount < HRR_WINDOW
+                    && heartRate != null && heartRate > 0) {
+                _recoveryEndSum += heartRate;
+                _recoveryEndCount++;
+            }
+
+            var done = (_recoveryEndCount >= HRR_WINDOW);
+            var timedOut = (_recoverySeconds >= HRR_GIVE_UP);
+            if (done || timedOut) {
+                if (_recoveryEndCount > 0) {
+                    // A negative drop is a rate still climbing a minute after
+                    // a shift. It is real, it is informative, and averaging it
+                    // in is what makes this a measurement rather than a
+                    // highlight reel, so it is kept rather than floored at 0.
+                    _recoverySum += _recoveryFrom
+                        - (_recoveryEndSum / _recoveryEndCount).toNumber();
+                    _recoveryCount++;
+                }
+                _recoverySeconds = -1;
+                _recoveryEndSum = 0;
+                _recoveryEndCount = 0;
             }
         }
 
