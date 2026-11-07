@@ -143,6 +143,13 @@ reason given for it was wrong.
 27.2 kB of the 98,304 B available on the tightest supported device
 (instinct2 and its siblings), static. The FR570 has 786,432 B.
 
+*Corrected as of 2.5.0.* That figure does not reproduce from any combination of
+jungle and release flag. Measured at this tag with `monkeyc -d instinct2
+--build-stats 0`, v2.4.0 is **32,842 B** as a debug build (24,267 code, 8,575
+data) and **27,983 B** as the release build that actually installs (23,415
+code, 4,568 data) — 28.5% of the device. The release figure is the one worth quoting, and it is the one
+[2.5.0's notes](release-2.5.0.md#size) use.
+
 ## Not in this release
 
 - **The bench-fidget retune.** It was diagnosed as an entry-edge problem; the

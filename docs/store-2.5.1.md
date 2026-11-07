@@ -1,4 +1,12 @@
-# Connect IQ Store — version 2.5.0, ready to paste
+# Connect IQ Store — version 2.5.1, ready to paste
+
+> **Upload 2.5.1, not 2.5.0.** Three fixes landed after the v2.5.0 tag and
+> before anything reached the store, so there is no reason to publish the
+> version they correct: see [release-2.5.1.md](release-2.5.1.md). Rebuild with
+> `./IndoorHockey/package.sh` and type `2.5.1` in the App Version box. Nothing
+> else in this file changes — the What's New and Description below still cover
+> 2.4.0 and 2.5.0, which is what a 2.3.0 user is actually receiving.
+
 
 Everything the upload form at <https://apps.garmin.com/en-US/developer/upload>
 asks for that has changed since the live listing, in the order the form asks
@@ -166,7 +174,7 @@ All 126 products in `manifest.xml` — the 202 device variants they expand to �
 signed, with no build paths in the packaged files; `package.sh` refuses to
 produce a package that carries them.
 
-**App Version:** type `2.5.0`
+**App Version:** type `2.5.1`
 
 2.3.0 was the fourth upload and came back as Internal 4, so this is the fifth
 and should read Internal 5 — the number that lands in every FIT file's

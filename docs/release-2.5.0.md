@@ -131,7 +131,9 @@ speed divided by rate — `speed × 6000 ÷ pushes-per-minute` centimetres.
 Guards, because a wrong constant is worse than none:
 
 - Seconds under 1.5 m/s are ignored; nobody is skating.
-- Lengths outside 100–600 cm are discarded as impossible.
+- Lengths outside 100–500 cm are discarded. The upper bound is the
+  **Stride length** setting's own maximum, so a learned value can never be
+  one the player is not allowed to type.
 - A game contributes nothing unless at least thirty seconds agreed, so a
   stray fix by the arena door cannot overwrite a calibration built outdoors.
 - The player's own **Stride length** setting always outranks it. They measured
@@ -174,6 +176,65 @@ Multiplying first would send the index to zero on every second with no
 readable rhythm, which would make it a measure of stride coverage wearing a
 different name — and coverage is already reported on its own.
 
+## Numbers the app had not measured
+
+Six QA passes over this release found one theme worth more than the headline
+feature: **the file reported things it had not measured.**
+
+Everything derived from ice time — on-ice heart rate, skating load, stride
+rate, stride coverage, distance, speed, the intensity index — accumulates on
+the live on-ice state, second by second. But `ice_time` is only credited once a
+shift *survives the backdate*. So a game whose shifts were all dated back out
+of existence wrote an on-ice heart rate, a skating load and a stride coverage
+next to `Ice 0:00`. Those are now written only when a shift actually banked.
+
+The first version of that guard was wrong, and the simulator caught it: it
+tested `_iceMs > 0`, in milliseconds, while the field publishes seconds. A
+400 ms shift passed and still produced `ice_time 0` beside `ice_avg_hr 162`.
+The guard now tests the **published** value, and a sub-second shift is not
+counted at all — so `shifts × avg_shift` and `ice_time` can no longer
+contradict each other, which they previously could at `shifts 7` built from
+five.
+
+`hr_recovery` and `skating_intensity` are likewise left unwritten when nothing
+was measured, rather than written as 0. **An unwritten FIT developer field
+decodes as that type's invalid value** — `None` for an integer, `nan` for a
+float — which is the honest way to say "not measured". A written 0 is a claim.
+
+Heart-rate recovery got the same treatment one level down: the far window
+collected seconds 58 to 62 but fired as soon as five samples had arrived, so
+with a clean sensor it averaged out at 62 s — this was HRR62 reporting a bigger
+drop for no physiological reason, and it is now centred on 60; a mean is refused rather than
+computed from fewer than three samples; a recovery is rolled back when an entry
+backdate reassigns the seconds it was measured over to the shift that followed;
+and a new heart-rate maximum must be credible and nearly repeated before it
+moves the 85% line, because one optical spike could otherwise silence
+`hard_time` for a whole game.
+
+## Two ways the app could be wrong for a whole game
+
+**The correction item could do the opposite of its label.** Holding UP offers
+"Mark bench" or "Mark ice" depending on where the detector thinks you are. The
+label was chosen when the menu was built; the action re-read that state when
+the item was selected. Leave the menu open for half a minute, let the detector
+bench you behind it, and the item then did the reverse of what you had read —
+corrupting the ice/bench split and adding a shift nobody played. The item now
+carries its **direction**, not "flip whatever I am now".
+
+**A dead sensor could latch a veto.** Heart rate and GPS speed are now aged
+out inside the detector: ten seconds for heart rate, four for speed. A stopped
+optical reading could previously hold the bench veto, or a fast path, true
+indefinitely. `stop()` also clears the confirmation streaks and the
+skating-load anchor, so a pause can no longer supply most of a window that play
+is then credited with filling.
+
+*Half-fixed, as it turned out.* The detector's own counter ages the readings it
+is handed, which catches a model that stops supplying one — but the model
+re-feeds its last cached position fix every second, so the detector saw a
+non-null speed every second and reset that counter every second. A fix taken
+walking into the rink could still have been fed to it for the whole game.
+[2.5.1](release-2.5.1.md) ages the cache where it is written.
+
 ## New FIT fields
 
 | Field | Scope | Type | |
@@ -183,12 +244,32 @@ different name — and coverage is already reported on its own.
 
 ## Size
 
-**35,290 B** of the 98,304 B available on the tightest supported device
-(instinct2 and its siblings) — 35.9%, static. 26,647 B of code and 8,643 B of
+**30,647 B** of the 98,304 B available on the tightest supported device
+(instinct2 and its siblings) — 31.2%, static. 25,783 B of code and 4,864 B of
 data. The FR570 has 786,432 B.
 
-Measured with `monkeyc -d instinct2 --build-stats 0`, which is the only figure
-here worth quoting: the earlier notes said 27.2 kB for 2.4.0 and 29.0 kB for
-2.5.0, and neither reproduces. The same command against the commit that 2.5.0
-was cut from gives 34,081 B, so the 29.0 kB was already wrong before the QA
-fixes, which added 1,209 B between them.
+That is the **release** build, which is what installs on a watch: `package.sh`
+passes `-e -r`, and `-r` strips the debug data. A debug build of the same
+commit is 35,403 B — 26,760 of code and 8,643 of data, 36.0% — because the
+symbol tables it keeps for the simulator are nearly 3.8 kB of the data segment
+on their own.
+
+Measured at the v2.5.0 tag with
+
+```
+monkeyc -d instinct2 -f 'monkey.jungle;icons.jungle' \
+        -y "$KEY" -r --build-stats 0
+```
+
+Two corrections to figures this repo has published. The 2.4.0 notes said
+27.2 kB and the first draft of these said 29.0 kB; neither reproduces, from any
+combination of jungle and release flag. And the figure that first stood here —
+35,290 B — was a debug build, measured mid-pass rather than at the tag, so it
+was both the wrong build and 113 B short of the committed one. Quoting a debug
+total against a device's available memory overstates what the app actually
+costs by 15%.
+
+Measured the same way at each tag, **v2.4.0 is 27,983 B** as a release build
+against this one's 30,647 B, so the stride calibration, the intensity index and
+the QA fixes cost **2,664 B** between them. (Debug builds: 32,842 B against
+35,403 B.)

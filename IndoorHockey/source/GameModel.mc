@@ -270,7 +270,22 @@ class GameModel {
     private var _hrMaxPending as Number = 0;
     private var _hrMaxSeen as Number = 0;
 
+    // Seconds a cached fix may still be fed to the detector. Matched to the
+    // detector's own SPEED_MAX_AGE, which is where the same number is applied
+    // to the readings it has already taken.
+    private const SPEED_STALE_AFTER = 4;
     private var _speed as Float? = null;
+    // Seconds since onPosition() last supplied a usable fix.
+    //
+    // The cache has to age HERE, where it is written, not in the detector.
+    // The position callback only fires when the system has something to
+    // report, so a watch that walks into a rink and never gets another fix
+    // leaves _speed holding the last good value indefinitely - and because
+    // onTick() re-feeds that cache every second, the detector sees a non-null
+    // speed every second and resets its own staleness counter every second.
+    // Its guard catches a model that stops supplying a speed; only this one
+    // catches a model that keeps supplying the same one.
+    private var _speedTicks as Number = SPEED_STALE_AFTER + 1;
     private var _gpsOn as Boolean = false;
 
     public var detector as ShiftDetector;
@@ -1034,12 +1049,18 @@ class GameModel {
     //! Housekeeping, once a second: run the detector, accumulate the heart rate
     //! statistics and raise alerts.
     public function onTick() as Void {
+        // Before any branch returns: a fix goes stale on the bench, on pause
+        // and on the ready screen exactly as it does during play.
+        if (_speedTicks <= SPEED_STALE_AFTER) {
+            _speedTicks++;
+        }
+
         if (state == STATE_READY) {
             // Keep the detector running before the game starts. The ready
             // screen doubles as a self-test: wave the arm, watch the number
             // move. That is the only way to find out the accelerometer is
             // dead before a game rather than after one.
-            detector.observe(currentHeartRate(), _speed);
+            detector.observe(currentHeartRate(), freshSpeed());
             detector.tick();
             return;
         }
@@ -1055,7 +1076,7 @@ class GameModel {
 
         var heartRate = currentHeartRate();
 
-        detector.observe(heartRate, _speed);
+        detector.observe(heartRate, freshSpeed());
         if (detector.tick()) {
             // The detector flipped; it reports the state it has moved to, so
             // the segment that just ended was the other one.
@@ -1487,6 +1508,7 @@ class GameModel {
         }
         _gpsOn = false;
         _speed = null;
+        _speedTicks = SPEED_STALE_AFTER + 1;
     }
 
     //! Position callback. Only the speed is kept, and only when the fix is good
@@ -1499,15 +1521,23 @@ class GameModel {
         // for every later game. A wrong constant is worse than none.
         if (accuracy == null || accuracy < Position.QUALITY_USABLE) {
             _speed = null;
+            _speedTicks = SPEED_STALE_AFTER + 1;
             return;
         }
         var speed = info.speed;
         _speed = (speed == null) ? null : speed.toFloat();
+        _speedTicks = (_speed == null) ? SPEED_STALE_AFTER + 1 : 0;
     }
 
-    //! True when positioning is on and reporting a usable fix.
+    //! The cached speed, or null once it is too old to stand for the second
+    //! being judged.
+    private function freshSpeed() as Float? {
+        return (_speedTicks <= SPEED_STALE_AFTER) ? _speed : null;
+    }
+
+    //! True when positioning is on and reporting a usable, current fix.
     public function hasGpsFix() as Boolean {
-        return _gpsOn && _speed != null;
+        return _gpsOn && freshSpeed() != null;
     }
 
     // ------------------------------------------------------------------
@@ -1886,8 +1916,6 @@ class GameModel {
         if (field != null) { field.setData((averageShiftMs() / 1000).toNumber()); }
         field = _maxShiftField;
         if (field != null) { field.setData((_longestShiftMs / 1000).toNumber()); }
-        field = _workRestField;
-        if (field != null) { field.setData(workRest()); }
         // Nothing derived from ice time may be published when no ice time
         // banked. These are accumulated on the detector's LIVE state, second
         // by second, while ice_time is only credited once a shift survives
@@ -1902,15 +1930,33 @@ class GameModel {
         // and a skating load beside a zero again, one rounding step further
         // down. Whatever gates these has to be the number the reader sees.
         var hadIce = (_iceMs >= 1000);
+        // And a second gate, one level in: everything below that is built
+        // from WRIST MOTION is published only if some on-ice second actually
+        // delivered a wrist-motion sample. A dead accelerometer leaves
+        // iceLoad at 0.0 and coverage at 0% - "this player did not move" and
+        // "no rhythm in any of 33 seconds" - which are measurements, made by
+        // a sensor that reported nothing. The ready screen and isHealthy()
+        // already say the accelerometer is dead; the file should not then
+        // contradict them with three zeroes. Verified in the simulator, which
+        // delivers no accelerometer data at all.
+        var hadMotion = hadIce && _iceMotionSamples > 0;
+
+        // work_rest belongs to the same family. workRest() returns 0.0 both
+        // when the ratio is genuinely zero - a game played without ever
+        // leaving the ice - and when there is too little ice to divide by,
+        // and only the first of those is a measurement. The watch already
+        // draws "--" rather than a ratio here; the file now agrees with it.
+        field = _workRestField;
+        if (field != null && hadIce) { field.setData(workRest()); }
         field = _iceHrField;
         var iceHr = iceAverageHr();
         if (field != null && hadIce && iceHr > 0) { field.setData(iceHr); }
         field = _hardTimeField;
         if (field != null) { field.setData(_hardSeconds); }
         field = _strideAvgField;
-        if (field != null && hadIce) { field.setData(detector.stride.averageRate()); }
+        if (field != null && hadMotion) { field.setData(detector.stride.averageRate()); }
         field = _strideCovField;
-        if (field != null && hadIce) { field.setData(detector.stride.coveragePercent()); }
+        if (field != null && hadMotion) { field.setData(detector.stride.coveragePercent()); }
         field = _hrRecoveryField;
         if (field != null && _recoveryCount > 0) {
             // Written only when a bench spell was actually measured. Writing
@@ -1924,7 +1970,7 @@ class GameModel {
             field.setData(hrr);
         }
         field = _iceLoadField;
-        if (field != null && hadIce) { field.setData(detector.iceLoad); }
+        if (field != null && hadMotion) { field.setData(detector.iceLoad); }
 
         // Distance is pushes times the player's own stride length, so it only
         // covers the seconds the rhythm was actually measured over - which is
@@ -1933,13 +1979,13 @@ class GameModel {
         // denominator of total ice time would quietly claim a speed for every
         // second the app could not measure.
         field = _distEstField;
-        if (field != null && hadIce) { field.setData(estimatedDistanceM()); }
+        if (field != null && hadMotion) { field.setData(estimatedDistanceM()); }
         field = _speedEstField;
-        if (field != null && hadIce) { field.setData(estimatedSpeedKph()); }
+        if (field != null && hadMotion) { field.setData(estimatedSpeedKph()); }
         field = _strideLenField;
         if (field != null) { field.setData(usedStrideCm); }
         field = _intensityField;
-        if (field != null && hadIce && hasSkatingIntensity()) {
+        if (field != null && hadMotion && hasSkatingIntensity()) {
             // Not written when there was too little ice, or no readable
             // rhythm at all, to build it from. A published 0.0 would read as
             // "this player did not move", which is a measurement; silence is
@@ -1966,7 +2012,7 @@ class GameModel {
     //! wrist; where both exist in the same second, their quotient is a stride
     //! length in metres and needs no calibration skate from the player.
     private function calibrateStride() as Void {
-        var speed = _speed;
+        var speed = freshSpeed();
         if (speed == null || speed < CAL_MIN_SPEED || !onIce()) {
             return;
         }

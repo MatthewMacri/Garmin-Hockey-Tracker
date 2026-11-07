@@ -191,10 +191,11 @@ There are three ways to get it, and the app takes all three in this order:
    it; the app only infers.
 2. **GPS, on the days it can.** Whenever there is a fix *and* the stride meter
    has a rhythm in the same second, length is simply speed divided by rate —
-   `speed × 6000 ÷ pushes-per-minute` centimetres. Seconds outside 100–600 cm
-   are discarded as impossible, and a game contributes nothing unless at least
-   thirty seconds agreed, so a stray fix by the arena door cannot overwrite a
-   calibration built outdoors. What it learns is stored and reused for every
+   `speed × 6000 ÷ pushes-per-minute` centimetres. Seconds outside 100–500 cm
+   are discarded — the upper bound is the **Stride length** setting's own
+   maximum, so a learned value can never be one you are not allowed to type —
+   and a game contributes nothing unless at least thirty seconds agreed, so a
+   stray fix by the arena door cannot overwrite a calibration built outdoors. What it learns is stored and reused for every
    later game, indoors included. Nothing is asked of you.
 3. **Nothing.** Then the distance and speed fields are not created at all. The
    FIT carries no distance rather than a fabricated one.
@@ -510,7 +511,7 @@ they carry an id that will never match a listing, whatever is published later.
 The numbers are still in the files, and `tools/replay_detector.py` still reads
 them.
 
-`docs/store-2.5.0.md` has the full trace, including a way to confirm it over
+`docs/store-2.5.1.md` has the full trace, including a way to confirm it over
 USB in five minutes before spending a store submission.
 
 ### Heart rate zones per shift
@@ -582,7 +583,7 @@ cd IndoorHockey
 Upload that at <https://apps.garmin.com/en-US/developer/upload>; the dashboard
 for an app already up is <https://apps-developer.garmin.com>. `store/listing.md`
 holds the description, category and screenshot order to paste into the form,
-and `docs/store-2.5.0.md` holds the current release's text with its character
+and `docs/store-2.5.1.md` holds the current release's text with its character
 counts, so it can be pasted without reading around it.
 
 Launcher icons are generated, not hand-drawn, because the supported watches ask
