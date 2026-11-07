@@ -39,6 +39,10 @@
     <string id="FitDistEst">Distance (estimated)</string>
     <string id="FitSpeedEst">Speed While Striding</string>
     <string id="UnitSeconds">s</string>
+    <string id="FitLapAvgHr">Avg HR</string>
+    <string id="FitLapMaxHr">Max HR</string>
+    <string id="FitHrRecovery">HR Recovery (1 min)</string>
+    <string id="FitIceLoad">Skating Load</string>
     <string id="UnitBpm">bpm</string>
     <string id="UnitNone"> </string>
 

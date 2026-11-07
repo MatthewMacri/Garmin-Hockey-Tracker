@@ -121,6 +121,32 @@ class ShiftDetector {
     public var threshold as Number = MOTION_FLOOR;
     public var hasMotionSensor as Boolean = false;
 
+    //! Accumulated on-ice load, in the units the team-sport literature calls
+    //! PlayerLoad: the sample-to-sample change in the acceleration vector,
+    //! root-sum-squared across the three axes, summed, and divided by 100.
+    //!
+    //! It is accumulated ON ICE ONLY, which departs from the published metric
+    //! deliberately. Catapult's version runs over a whole session; ours would
+    //! then count a player fidgeting on the bench as work done, and this
+    //! detector's own history says bench motion is not small - it measures
+    //! HIGHER than a defenceman's glide. A load figure that rises while you
+    //! sit down is worse than no load figure, so the field is named for what
+    //! it actually counts.
+    //!
+    //! Treat it as comparable to your own past games and to nothing else.
+    //! Reliability in men's collegiate hockey is moderate-to-large, but a 2026
+    //! review reports its construct validity is still unverified.
+    public var iceLoad as Float = 0.0;
+
+    // Previous sample, for the difference the load is taken over. Held across
+    // callbacks for the same reason magnitudes are: a difference spanning two
+    // batches is a real difference, and dropping it would under-count by one
+    // sample in every batch.
+    private var _lastX as Float = 0.0;
+    private var _lastY as Float = 0.0;
+    private var _lastZ as Float = 0.0;
+    private var _lastPrimed as Boolean = false;
+
     //! Stride rate, measured from the same samples the motion index is taken
     //! over. Kept as its own object because it is a different question with
     //! a different confidence: the motion index decides where a shift starts
@@ -284,6 +310,10 @@ class ShiftDetector {
         _carry = [] as Array<Float>;
         staleSeconds = 0;
         stride.reset();
+        // A difference taken across a pause is not a difference: the two
+        // samples either side of it can be minutes apart, and the load would
+        // collect one large spurious step per resume.
+        _lastPrimed = false;
     }
 
     //! The fastest rate this watch will give us, capped: the decision only
@@ -342,6 +372,20 @@ class ShiftDetector {
             var z = zs[i].toFloat();
             var magnitude = Math.sqrt((x * x) + (y * y) + (z * z)).toFloat();
             magnitudes.add(magnitude);
+
+            // PlayerLoad, on ice only. The axes arrive in milli-g and the
+            // published formula is in g, hence the 1000; the further 100 is
+            // the divisor Catapult uses to keep the number human-sized.
+            if (_lastPrimed && state == ON_ICE) {
+                var dx = (x - _lastX) / 1000.0;
+                var dy = (y - _lastY) / 1000.0;
+                var dz = (z - _lastZ) / 1000.0;
+                iceLoad += Math.sqrt((dx * dx) + (dy * dy) + (dz * dz)).toFloat() / 100.0;
+            }
+            _lastX = x;
+            _lastY = y;
+            _lastZ = z;
+            _lastPrimed = true;
             // Every sample, exactly once, whatever happens to the window
             // below - the stride meter keeps its own six-second history and
             // must not see a sample twice or miss one.
@@ -603,6 +647,9 @@ class ShiftDetector {
         motion = 0;
         threshold = MOTION_FLOOR;
         staleSeconds = 0;
+        iceLoad = 0.0;
+        _lastPrimed = false;
+        stride.reset();
         forceState(OFF_ICE);
     }
 }

@@ -98,5 +98,21 @@
                   dataLabel="@Strings.FitDistEst" unitLabel="@Strings.UnitMetres" />
         <fitField id="20" sortOrder="20" displayInActivitySummary="true" precision="1"
                   dataLabel="@Strings.FitSpeedEst" unitLabel="@Strings.UnitKph" />
+
+        <!-- Beside the shift and bench columns in the Splits tab. A shift
+             length only means something next to what the heart was doing
+             during it, and these are the two numbers that supply that. -->
+        <fitField id="21" sortOrder="21" displayInActivityLaps="true" precision="0"
+                  dataLabel="@Strings.FitLapAvgHr" unitLabel="@Strings.UnitBpm" />
+        <fitField id="22" sortOrder="22" displayInActivityLaps="true" precision="0"
+                  dataLabel="@Strings.FitLapMaxHr" unitLabel="@Strings.UnitBpm" />
+
+        <!-- The one genuinely diagnostic number in the file: how far the
+             heart rate falls in the first minute on the bench, averaged over
+             the game. It tracks conditioning, and it moves week to week. -->
+        <fitField id="23" sortOrder="23" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitHrRecovery" unitLabel="@Strings.UnitBpm" />
+        <fitField id="24" sortOrder="24" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitIceLoad" unitLabel="@Strings.UnitNone" />
     </fitContributions>
 </resources>

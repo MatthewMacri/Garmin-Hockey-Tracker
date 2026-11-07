@@ -187,6 +187,36 @@ skating, so there is no reference to check against either. Stride Confidence
 and Stride Lag are written to every record for exactly this reason — the first
 real game recorded with it is what settles the thresholds.
 
+## Heart rate recovery
+
+Every other number this app produces measures how hard a game was. This one
+measures how fit you are, which is not the same thing and is the only one that
+should improve over a season.
+
+It is the standard **HRR60**: heart rate at the moment a shift ends, minus
+heart rate sixty seconds later, averaged over the game. Hockey gives it away
+for free — a game is forty-odd repeats of exactly the protocol a lab uses, and
+the app already knows the instant each one starts. A bench spell shorter than a
+minute reports nothing rather than guessing at a partial drop.
+
+A negative result is kept, not floored at zero. A heart rate still climbing a
+minute after a shift is a real reading about a player who is not recovering,
+and averaging it in is what makes this a measurement rather than a highlight
+reel. The field is a signed byte for that reason.
+
+## Skating load
+
+`Skating Load` is Catapult's PlayerLoad, computed on the accelerometer already
+on your wrist: the running sum of `sqrt(dx² + dy² + dz²)` across consecutive
+samples, in g, divided by 100. It accumulates only while the app judges you to
+be on the ice, so a game spent mostly on the bench does not quietly inflate it.
+
+Two honest limits. A wrist is not a torso — the professional units sit between
+the shoulder blades, and a wrist sees stick work the trunk never does — so the
+number is comparable with your own past games and with nobody else's. And a
+difference measured across a paused timer is not a difference, so the running
+sample is dropped whenever the accelerometer buffer breaks.
+
 ## Controls
 
 Laid out the way Garmin's own activities are, so muscle memory from the stock
@@ -349,7 +379,10 @@ calories, time and — where there was a fix — GPS. On top of that:
 | Rest per Work | session | Bench seconds per ice second, to one decimal — `2.4` means nearly two and a half minutes of bench for every minute of ice |
 | On-Ice Avg HR | session | Average heart rate over on-ice seconds only |
 | Time above 85 % HR | session | Seconds above 85 % of max heart rate |
+| HR Recovery (1 min) | session | How far the heart rate falls in the first minute on the bench, averaged over the game. The one number here that tracks conditioning rather than effort |
+| Skating Load | session | Accumulated acceleration change while on the ice — the same construction the professional sides buy, on the accelerometer you already own |
 | Shift Time / Bench Time | lap | One lap per shift and one per bench spell, so the Splits tab reads as a shift chart |
+| Avg HR / Max HR | lap | The heart rate during each shift and each bench spell, beside its length. A 48-second shift means one thing at 150 and another at 188 |
 | Avg Stride Rate | session | Mean skating rhythm over the seconds that produced one, in pushes per minute |
 | Stride Coverage | session | What share of judged on-ice seconds produced a readable rhythm |
 | Distance (estimated) | session | Only written if you set a stride length |

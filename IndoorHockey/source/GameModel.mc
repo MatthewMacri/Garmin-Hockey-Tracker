@@ -91,6 +91,21 @@ class GameModel {
     private const FIELD_DIST_EST    = 19;
     private const FIELD_SPEED_EST   = 20;
 
+    // Per-shift heart rate, so the Splits tab reads as an intensity chart
+    // rather than a list of durations. Lap scope: one value per shift and
+    // per bench spell.
+    private const FIELD_LAP_AVG_HR  = 21;
+    private const FIELD_LAP_MAX_HR  = 22;
+
+    // Heart-rate recovery: beats dropped in the first 60 seconds of a bench
+    // spell, averaged over the spells long enough to measure. A fitness
+    // number rather than a game number - it should improve across a season
+    // while the shift counts stay the same.
+    private const FIELD_HR_RECOVERY = 23;
+
+    // Accumulated on-ice load. See ShiftDetector.iceLoad.
+    private const FIELD_ICE_LOAD    = 24;
+
     // ---- settings, refreshed whenever Garmin Connect pushes a change ----
     public var shiftTargetMs as Number = 60 * 1000;
     public var shiftAlerts as Boolean = true;
@@ -138,6 +153,19 @@ class GameModel {
     // game. The difference between the two is the number this app exists to
     // produce: a game average includes the bench and badly understates how hard
     // the player was actually working.
+    // Per-segment heart rate, reset at every shift and bench boundary.
+    private var _segHrSum as Number = 0;
+    private var _segHrSamples as Number = 0;
+    private var _segHrMax as Number = 0;
+
+    // Heart-rate recovery. _recoveryFrom is the rate at the instant the shift
+    // ended; _recoverySeconds counts the bench spell. Both are armed only by
+    // a shift ending, so the pre-game bench never contributes.
+    private var _recoveryFrom as Number = 0;
+    private var _recoverySeconds as Number = -1;
+    private var _recoverySum as Number = 0;
+    private var _recoveryCount as Number = 0;
+
     private var _iceHrSum as Number = 0;
     private var _iceHrSamples as Number = 0;
     private var _hardSeconds as Number = 0;
@@ -171,6 +199,10 @@ class GameModel {
     private var _strideCovField as FitContributor.Field? = null;
     private var _distEstField as FitContributor.Field? = null;
     private var _speedEstField as FitContributor.Field? = null;
+    private var _lapAvgHrField as FitContributor.Field? = null;
+    private var _lapMaxHrField as FitContributor.Field? = null;
+    private var _hrRecoveryField as FitContributor.Field? = null;
+    private var _iceLoadField as FitContributor.Field? = null;
 
     // Whether the player has already been warned that motion data stopped.
     private var _sensorWarned as Boolean = false;
@@ -353,6 +385,21 @@ class GameModel {
             return 0;
         }
         return (_iceHrSum / _iceHrSamples).toNumber();
+    }
+
+    //! Mean beats dropped in the first 60 seconds after a shift, over the
+    //! bench spells long enough to measure one. 0 when none were.
+    public function heartRateRecovery() as Number {
+        if (_recoveryCount < 1) {
+            return 0;
+        }
+        return (_recoverySum / _recoveryCount).toNumber();
+    }
+
+    //! How many bench spells that average rests on. A recovery figure from one
+    //! spell is an anecdote; this is what says whether to believe it.
+    public function recoveryCount() as Number {
+        return _recoveryCount;
     }
 
     //! Seconds spent above 85% of maximum heart rate.
@@ -621,6 +668,34 @@ class GameModel {
             }
         }
 
+        // Arm the recovery clock when a SHIFT ends, and only then. A bench
+        // spell that follows nothing - the pre-game stand-around - has no
+        // exertion to recover from, so measuring a drop across it would
+        // report the player's resting drift as a fitness number.
+        //
+        // The rate is read now, which is a few seconds after the boundary the
+        // backdate says the shift really ended at. Heart rate keeps climbing
+        // for 10-20 seconds after a shift ends, so this reads at or near the
+        // peak either way, and moving it earlier would not obviously be more
+        // correct.
+        if (wasIce) {
+            var hrNow = currentHeartRate();
+            if (hrNow != null && hrNow > 0) {
+                _recoveryFrom = hrNow;
+                _recoverySeconds = 0;
+            } else {
+                _recoverySeconds = -1;
+            }
+        } else {
+            _recoverySeconds = -1;
+        }
+
+        // Start the next segment's heart rate from nothing. Carrying it would
+        // average a shift together with the bench spell before it.
+        _segHrSum = 0;
+        _segHrSamples = 0;
+        _segHrMax = 0;
+
         detector.forceState(toIce ? ON_ICE : OFF_ICE);
         // Carried as accumulated time rather than by moving the marker into the
         // past, so the marker is never negative and sinceMs() cannot read it as
@@ -712,6 +787,19 @@ class GameModel {
         if (benchField != null) {
             benchField.setData(wasIce ? 0 : seconds);
         }
+
+        // Written for bench laps as well as shifts. A bench spell's average
+        // heart rate is how hard the last shift was still costing you, which
+        // is the number beside it in the Splits tab that makes the shift's own
+        // average mean something.
+        var avgHrField = _lapAvgHrField;
+        if (avgHrField != null) {
+            avgHrField.setData(_segHrSamples > 0 ? (_segHrSum / _segHrSamples).toNumber() : 0);
+        }
+        var maxHrField = _lapMaxHrField;
+        if (maxHrField != null) {
+            maxHrField.setData(_segHrMax);
+        }
     }
 
     private function closeLap(elapsedMs as Number, wasIce as Boolean) as Void {
@@ -763,6 +851,31 @@ class GameModel {
             if (onTheIce) {
                 _iceHrSum += heartRate;
                 _iceHrSamples++;
+            }
+
+            // Per-segment, for the lap fields.
+            _segHrSum += heartRate;
+            _segHrSamples++;
+            if (heartRate > _segHrMax) {
+                _segHrMax = heartRate;
+            }
+
+            // Recovery. The clock only runs on the bench and only when a
+            // shift armed it; a spell that ends before 60 seconds simply
+            // never reports, which is correct - there is no 60-second drop
+            // to measure across a 20-second bench.
+            if (!onTheIce && _recoverySeconds >= 0) {
+                _recoverySeconds++;
+                if (_recoverySeconds >= 60) {
+                    var drop = _recoveryFrom - heartRate;
+                    // A negative drop is a rate still climbing a minute after
+                    // a shift. It is real, it is informative, and averaging it
+                    // in is what makes this a measurement rather than a
+                    // highlight reel, so it is kept rather than floored at 0.
+                    _recoverySum += drop;
+                    _recoveryCount++;
+                    _recoverySeconds = -1;
+                }
             }
 
             // Self-calibrate the ceiling. The zones on the watch are often
@@ -1253,6 +1366,10 @@ class GameModel {
         _strideCovField = null;
         _distEstField = null;
         _speedEstField = null;
+        _lapAvgHrField = null;
+        _lapMaxHrField = null;
+        _hrRecoveryField = null;
+        _iceLoadField = null;
     }
 
     //! The FIT sport the activity is filed under.
@@ -1341,6 +1458,12 @@ class GameModel {
         _lapBenchField = session.createField("bench_time_lap", FIELD_LAP_BENCH,
             FitContributor.DATA_TYPE_UINT16,
             {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "s"});
+        _lapAvgHrField = session.createField("shift_avg_hr", FIELD_LAP_AVG_HR,
+            FitContributor.DATA_TYPE_UINT8,
+            {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "bpm"});
+        _lapMaxHrField = session.createField("shift_max_hr", FIELD_LAP_MAX_HR,
+            FitContributor.DATA_TYPE_UINT8,
+            {:mesgType => FitContributor.MESG_TYPE_LAP, :units => "bpm"});
 
         _onIceField = session.createField("on_ice", FIELD_ON_ICE,
             FitContributor.DATA_TYPE_UINT8, {:mesgType => FitContributor.MESG_TYPE_RECORD});
@@ -1370,6 +1493,16 @@ class GameModel {
         _strideCovField = session.createField("stride_coverage", FIELD_STRIDE_COV,
             FitContributor.DATA_TYPE_UINT8,
             {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "%"});
+
+        // SINT8, not UINT8: a heart rate still climbing a minute after a shift
+        // gives a negative drop, and that is a real reading about a player who
+        // is not recovering, not an error to be clamped away.
+        _hrRecoveryField = session.createField("hr_recovery", FIELD_HR_RECOVERY,
+            FitContributor.DATA_TYPE_SINT8,
+            {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
+        _iceLoadField = session.createField("ice_load", FIELD_ICE_LOAD,
+            FitContributor.DATA_TYPE_FLOAT,
+            {:mesgType => FitContributor.MESG_TYPE_SESSION});
 
         // Not created at all when the player has not calibrated, so an
         // uncalibrated game carries no distance field rather than a zero one.
@@ -1407,6 +1540,15 @@ class GameModel {
         if (field != null) { field.setData(detector.stride.averageRate()); }
         field = _strideCovField;
         if (field != null) { field.setData(detector.stride.coveragePercent()); }
+        field = _hrRecoveryField;
+        if (field != null) {
+            var hrr = heartRateRecovery();
+            if (hrr > 127) { hrr = 127; }
+            if (hrr < -128) { hrr = -128; }
+            field.setData(hrr);
+        }
+        field = _iceLoadField;
+        if (field != null) { field.setData(detector.iceLoad); }
 
         // Distance is pushes times the player's own stride length, so it only
         // covers the seconds the rhythm was actually measured over - which is
