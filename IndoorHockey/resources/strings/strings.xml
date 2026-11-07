@@ -39,6 +39,9 @@
     <string id="FitDistEst">Distance (estimated)</string>
     <string id="FitSpeedEst">Speed While Striding</string>
     <string id="UnitSeconds">s</string>
+    <string id="FitStrideLen">Stride Length Used</string>
+    <string id="FitIntensity">Skating Intensity</string>
+    <string id="UnitCm">cm</string>
     <string id="SetMaxHr">Max heart rate</string>
     <string id="SetMaxHrPrompt">Your true maximum, used for the 85% threshold. Leave at 0 to take it from your Garmin profile - which is often a formula nobody has checked. A higher rate recorded during a game always wins.</string>
     <string id="FitLapAvgHr">Avg HR</string>

@@ -64,7 +64,32 @@ class ShiftDetector {
     // back with 45 shifts of a median 18 seconds against the 31 cycles its
     // own heart rate trace shows. At fourteen seconds the same game reads 32
     // shifts of a median 41 seconds.
-    private const CONFIRM_ICE = 6;
+    // Entering the ice went from six seconds to ten after 2026-11-07, and
+    // the reason is the complaint that moving a wrist on the bench collects
+    // shifts nobody played. That is an ENTRY-edge problem, and it cannot be
+    // solved by raising the motion threshold: the spurious shifts carry
+    // HIGHER wrist motion than a defenceman's glide does, so no amplitude cut
+    // separates them. What does separate them is duration. A fidget is a
+    // burst; a shift is not.
+    //
+    // Replayed against both recorded games, with the harness dating
+    // transitions back the way transition() does:
+    //
+    //   2026-11-05   6s -> 35 shifts, 11 below-baseline   10s -> 33, 9
+    //   2026-11-03   6s -> 18 shifts,  5 below-baseline   10s -> 17, 4
+    //
+    // Every shift the change removes is one whose own mean heart rate sits
+    // below the game's baseline - a player sitting down. Not one shift that
+    // the heart rate supports is lost, on either game. Past ten it stops
+    // being selective: twelve seconds costs a good shift on 11-05 and buys
+    // nothing, and fifteen buys one more at the same price.
+    //
+    // It costs no recorded ice time. transition() dates the change back by
+    // the length of the window that confirmed it, so the extra four seconds
+    // come back into the shift. What it costs is four seconds of the screen
+    // still saying BENCH after a shift that heart rate has not yet agreed
+    // with - and when it does agree, entry is still CONFIRM_ICE_FAST.
+    private const CONFIRM_ICE = 10;
     private const CONFIRM_BENCH = 14;
 
     // Shortened windows, used when heart rate or GPS agrees with motion.

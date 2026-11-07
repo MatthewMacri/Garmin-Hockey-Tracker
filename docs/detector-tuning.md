@@ -16,17 +16,82 @@ replayed through a candidate detector offline, as many times as needed,
 without going back to a rink.
 
 ```
-python3 -m venv .venv-fit
-.venv-fit/bin/pip install -r tools/requirements.txt
-.venv-fit/bin/python tools/replay_detector.py <game.fit>
+python3 tools/replay_detector.py <game.fit>            # threshold rule only
+python3 tools/replay_detector.py <game.fit> --shifts   # the whole state machine
+python3 tools/replay_detector.py <game.fit> --sweep 8,10,12
 ```
 
-The harness is only worth anything if it agrees with the watch, so it checks:
-it replays the recorded motion through the same rule and compares against the
-threshold the watch actually recorded. **Max disagreement is 3 mg over an hour**,
-which is Monkey C's Float-to-Number truncation against Python's. The full state
-machine - hysteresis, confirmation streaks, dwell guards, heart-rate
-corroboration - reproduces **98.9%** of the watch's own on-ice decisions.
+No virtualenv and no pip: it reads the file with this repo's own decoder in
+`tools/fit/`. The harness is the thing that says whether a detector change is
+safe, so it should not be the one file in the project that cannot run without
+a dependency.
+
+The harness is only worth anything if it agrees with the watch, so it checks,
+and `--shifts` prints the check before anything else. It replays each file
+**with the constants that shipped in the release the file was recorded
+against**, recovered from the band the watch wrote into the file. Running
+today's constants against a 2.1.0 recording and calling the disagreement an
+error is how a harness gets "fixed" until it reproduces the wrong thing.
+
+| Game | Reproduces |
+|---|---|
+| 2026-11-03 | **100.0%** of the watch's on-ice seconds |
+| 2026-11-05 | **97.4%** |
+
+Three things had to be right before those numbers were:
+
+- **Stale seconds still tick.** When no accelerometer sample arrives, the
+  watch returns from `tick()` before `learn()` — but `_secondsInState` has
+  already been incremented, and `observe()` ran before `tick()` was called at
+  all. The harness used to drop those rows entirely, so every minimum-dwell
+  guard fired earlier in the replay than it did on the wrist. The 2026-11-03
+  game has 501 of them, 13.9% of the file.
+- **Transitions are dated back.** `transition()` sets `_backtrackMs` to the
+  length of the window that confirmed the change. Without that the harness
+  charges every confirmation window to the player as lost ice time, and a
+  sweep over window lengths measures mostly its own omission.
+- **Two traces, not one.** The `on_ice` developer field is written as the
+  watch goes and never revised, so it is the trace to validate against. The
+  session's `ice_time` uses the backdated boundaries, so it is the one to
+  quote an ice share from. On 2026-11-05 they differ by nearly three points —
+  26.3% against 23.5% — because a bench spell is dated back fourteen seconds
+  and a shift only six.
+
+## The entry window: ten seconds, not six
+
+Moving a wrist on the bench was collecting shifts nobody played. This is an
+**entry-edge** problem and it cannot be fixed by raising the motion threshold:
+the spurious shifts carry *higher* wrist motion than a defenceman gliding at
+the point does, so no amplitude cut separates them. What separates them is
+duration. A fidget is a burst; a shift is not.
+
+The metric is shifts whose own mean heart rate sits below the game's median —
+a player sitting down. It is a proxy, not ground truth, but it is the only one
+a FIT file supplies without someone writing down line changes at the rink.
+
+| Plain entry | 2026-11-05 shifts / below baseline | 2026-11-03 |
+|---|---|---|
+| 6 s (to 2.4.0) | 35 / 11 | 18 / 5 |
+| 8 s | 34 / 10 | 18 / 5 |
+| **10 s (shipped)** | **33 / 9** | **17 / 4** |
+| 12 s | 32 / 9 | 17 / 4 |
+| 15 s | 31 / 8 | 17 / 4 |
+
+Every shift the change removes between six and ten seconds is one the heart
+rate says was not a shift, and not one that the heart rate supports is lost on
+either game. At twelve it stops being selective: 11-05 loses a good shift and
+gains nothing. Ten is the knee on both files.
+
+It costs no recorded ice time, because the boundary is dated back by the
+length of the window that confirmed it. What it costs is four seconds of the
+screen still saying BENCH at the start of a shift that heart rate has not yet
+agreed with — and when heart rate does agree, entry is still three seconds.
+
+**What this does not settle.** Two games, one player, one rink, and a proxy
+for ground truth rather than ground truth. It does not touch the warm-up
+problem, which is larger: a game started seventeen minutes before the opening
+faceoff collects shifts no detector constant can refuse, because warm-up
+skating *is* skating.
 
 The validation replays at the band the recording was made with, not at the
 band currently shipped. Those have not been the same number since v2.0.0, and
@@ -273,13 +338,13 @@ So the harness recovers it instead. Exactly one band reproduces the threshold
 the watch wrote, and `replay_detector.py` now searches for it by default:
 
 ```
-$ .venv-fit/bin/python tools/replay_detector.py \
+$ python3 tools/replay_detector.py \
       data/2026-11-05-game/2026-11-05-20-06-45.fit
 samples: 5048   band recovered from the file: 0.270
 replayed threshold vs recorded: max abs difference = 3 mg
 VERDICT: replay matches the watch
 
-$ .venv-fit/bin/python tools/replay_detector.py \
+$ python3 tools/replay_detector.py \
       data/2026-11-03-game/2026-11-03-22-11-07.fit
 samples: 3104   band recovered from the file: 0.450
 replayed threshold vs recorded: max abs difference = 3 mg

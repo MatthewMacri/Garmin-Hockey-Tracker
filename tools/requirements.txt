@@ -7,8 +7,9 @@
 # needs the Connect IQ SDK. These are for inspecting recorded games and
 # regenerating the images in docs/.
 
-# Reads .fit files, including the developer fields this app writes.
-fitdecode>=0.10
+# Nothing is needed to read a FIT file any more: tools/fit/ decodes them,
+# developer fields included, and replay_detector.py uses it. fitdecode was
+# dropped on 2026-11-07.
 
 # Crops and assembles the simulator captures in docs/screenshots/.
 Pillow>=10.0

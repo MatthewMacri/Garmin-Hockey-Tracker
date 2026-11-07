@@ -82,10 +82,23 @@ exception noted below, where heart rate overrules motion by refusing a shift:
   absolute numbers depend on the player, where the watch sits and how tight the
   strap is. The app tracks a slow estimate of your resting level and your
   working level and puts the boundary between them.
-- A change is only believed once it **persists**: six seconds to open a shift,
+- A change is only believed once it **persists**: ten seconds to open a shift,
   fourteen to close one, with a dead band around the boundary so noise cannot
   make the state flap. Heart rate climbing, or GPS agreeing, shortens those to
   three and seven.
+- **Entry takes ten seconds, not six, and that is the fix for extra shifts off
+  the bench.** Moving a wrist while sitting down used to collect shifts nobody
+  played, and it cannot be fixed by raising the motion threshold: those
+  spurious shifts carry *higher* wrist motion than a defenceman gliding at the
+  point does, so no amplitude cut separates them. Duration does. A fidget is a
+  burst; a shift is not. Replayed against both recorded games, ten seconds
+  removes two shifts on 2026-11-05 and one on 2026-11-03 — and **every one it
+  removes is a shift whose own mean heart rate sits below the game baseline**,
+  which is a player sitting down. Not one shift the heart rate supports is
+  lost. Past ten it stops being selective. It costs no recorded ice time
+  either, because the boundary is dated back by the length of the window that
+  confirmed it; what it costs is four seconds of the screen still saying BENCH
+  at the start of a shift heart rate has not yet agreed with.
 - A shift is **refused outright** while heart rate sits 12 bpm or more below its
   own drifting baseline, whatever the motion says. This is the one place a
   signal other than motion overrules it, and it exists because a player sitting
@@ -165,21 +178,64 @@ A second that fails either gate contributes nothing to the average and writes a
 zero to the per-second trace — the app saying it looked and found no rhythm,
 which is the truth during a glide, a faceoff or a scrum.
 
-### Why there is no distance by default
+### Where the stride length comes from
 
-Distance would be pushes times stride length, and **there is no stride length
-to use**. The walking-stride coefficients a phone pedometer seeds from your
-height are a category error for a 2.6–3.6 m skating push; GPS cannot calibrate
-one indoors, which is the whole reason this app exists; and a push-counted
-distance systematically misses glide, where you cover ground without pushing at
-all. One rival app shipped an indoor speed and then withdrew it.
+Distance is pushes times stride length, and stride length is the one term a
+wrist cannot measure. Speed is rate times length, so it has the same problem.
 
-So the app asks. Set **Stride length** in the settings and it writes an
-estimated distance and a speed; leave it at 0, the default, and those two
-fields are not created at all — the FIT carries no distance rather than a
-fabricated one. The speed field is labelled **Speed While Striding** because
-its denominator is the measured seconds and not your ice time: dividing by ice
-time would quietly claim a speed for every second the app could not read.
+What makes this tractable is that **stride length is close to a constant for a
+given skater.** Marino found skating velocity rises with stride *rate* while
+stride length barely moves across speeds within one person; what separates a
+fast skater from a slow one is length, but that difference is between people,
+not between one person's shifts. So length is a calibration constant, needed
+once, not a per-second measurement.
+
+There are three ways to get it, and the app takes all three in this order:
+
+1. **Your setting.** Set **Stride length** and that number wins. You measured
+   it; the app only infers.
+2. **GPS, on the days it can.** Whenever there is a fix *and* the stride meter
+   has a rhythm in the same second, length is simply speed divided by rate —
+   `speed × 6000 ÷ pushes-per-minute` centimetres. Seconds outside 100–600 cm
+   are discarded as impossible, and a game contributes nothing unless at least
+   thirty seconds agreed, so a stray fix by the arena door cannot overwrite a
+   calibration built outdoors. What it learns is stored and reused for every
+   later game, indoors included. Nothing is asked of you.
+3. **Nothing.** Then the distance and speed fields are not created at all. The
+   FIT carries no distance rather than a fabricated one.
+
+This rink has never produced a fix — **0 of 5,011 records** — so for this
+player route 2 may never fire. It costs nothing on the days it does not, and
+it fires at an outdoor rink, on a pond, or in an arena with enough glass.
+
+What the app will *not* do is seed a stride length from your height. A phone
+pedometer's walking coefficient is about 0.4 × height; a skating push is
+2.6–3.6 m. It would produce a confident number that is wrong by a quarter,
+which is worse than the blank field.
+
+A calibration always lands in the file as **Stride Length Used**, so a
+distance in Connect carries the number it was built from.
+
+The speed field is labelled **Speed While Striding** because its denominator
+is the measured seconds and not your ice time: dividing by ice time would
+quietly claim a speed for every second the app could not read.
+
+### Skating intensity, which needs no calibration at all
+
+`Skating Intensity` is mean on-ice wrist motion multiplied by mean stride
+rate. Amplitude times cadence — the shape of a mechanical power term, which is
+exactly why it is **left unitless**. Nothing here is calibrated in watts, and
+dressing it up as though it were would be the same mistake as inventing a
+stride length.
+
+It is the one speed-like number that is always available: no GPS, no setting,
+no calibration skate. Compare it with your own past games and with nobody
+else's.
+
+The two terms are averaged separately rather than multiplied second by second.
+Multiplying first would send the whole index to zero on every second with no
+readable rhythm, which would make it a measure of stride coverage wearing a
+different name. Coverage is already reported on its own.
 
 **What is not yet verified:** the gates were sized against synthetic signals
 and a line-for-line Python port of the shipped code, not against a recording of
@@ -406,8 +462,10 @@ calories, time and — where there was a fix — GPS. On top of that:
 | Avg HR / Max HR | lap | The heart rate during each shift and each bench spell, beside its length. A 48-second shift means one thing at 150 and another at 188 |
 | Avg Stride Rate | session | Mean skating rhythm over the seconds that produced one, in pushes per minute |
 | Stride Coverage | session | What share of judged on-ice seconds produced a readable rhythm |
-| Distance (estimated) | session | Only written if you set a stride length |
-| Speed While Striding | session | Only written if you set a stride length |
+| Distance (estimated) | session | Only written once a stride length exists |
+| Speed While Striding | session | Only written once a stride length exists |
+| Stride Length Used | session | The number the distance was built from, so you can see which one it used |
+| Skating Intensity | session | Mean wrist motion times mean stride rate. Unitless, and comparable only with your own past games |
 | Stride Rate | record | The rhythm second by second; 0 means "looked, found none" |
 | On Ice | record | 1 on the ice, 0 on the bench — a square wave against the heart rate trace |
 | Shift Time (live) | record | The running shift clock |

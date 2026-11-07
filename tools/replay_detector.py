@@ -6,33 +6,61 @@ once a second, which means a real game can be run through a candidate detector
 offline, as many times as needed, without going back to a rink. That is the
 whole point of the motion/motion_threshold developer fields.
 """
-import sys, fitdecode
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fit import fitread
+
 
 def load(path):
-    """Per-second motion, threshold, on_ice and heart rate from one game."""
+    """Per-second motion, threshold, on_ice and heart rate from one game.
+
+    Read with this repo's own decoder rather than fitdecode. The harness is
+    the thing that says whether a detector change is safe, so it should not
+    be the one file in the project that cannot run without pip.
+    """
     out = []
-    with fitdecode.FitReader(path) as fr:
-        for m in fr:
-            if not isinstance(m, fitdecode.FitDataMessage) or m.name != 'record':
-                continue
-            dev = {f.name: f.value for f in m.fields
-                   if type(f.field).__name__ == 'DevField'}
-            if 'motion' not in dev:
-                continue
-            out.append({
-                'motion': dev.get('motion'),
-                'threshold': dev.get('motion_threshold'),
-                'on_ice': 1 if dev.get('on_ice') else 0,
-                'hr': m.get_value('heart_rate') if m.has_field('heart_rate') else None,
-            })
+    for m in fitread.parse(path)['record']:
+        if m.get('dev:motion') is None:
+            continue
+        out.append({
+            'motion': m.get('dev:motion'),
+            'threshold': m.get('dev:motion_threshold'),
+            'on_ice': 1 if m.get('dev:on_ice') else 0,
+            'hr': m.get('heart_rate'),
+        })
     return out
+
+
+def mark_stale(rows):
+    """Flag the seconds the accelerometer delivered nothing.
+
+    The watch still ticks on those seconds - _secondsInState advances before
+    tick() checks for a sample - so the harness has to tick on them too, or
+    every minimum-dwell guard fires earlier in the replay than it did on the
+    wrist. The 2026-11-03 game has 501 of them.
+
+    They are recognisable because tick() returns before learn(): motion and
+    threshold both repeat the row before. The leading motion-0 rows are the
+    same case before any sample had arrived at all.
+    """
+    prev = None
+    for r in rows:
+        r['stale'] = (not r['motion']) or (
+            prev is not None
+            and r['motion'] == prev['motion']
+            and r['threshold'] == prev['threshold'])
+        prev = r
+    return rows
 
 
 class Learner:
     """The threshold rule as currently shipped in ShiftDetector.learn()."""
     MOTION_FLOOR = 85
 
-    def __init__(self, band=0.27, rest=40.0, work=400.0,
+    # 0.18 is what v2.2.0 and later ship as Normal. The default used to be
+    # 0.27, which was two releases stale, and a stale default here is not a
+    # cosmetic problem: it silently replays a detector nobody is running.
+    def __init__(self, band=0.18, rest=40.0, work=400.0,
                  down_fast=0.15, up_slow=0.01, min_gap=60.0):
         self.rest, self.work, self.band = rest, work, band
         self.down_fast, self.up_slow, self.min_gap = down_fast, up_slow, min_gap
@@ -61,17 +89,7 @@ def live(rows):
 
     The leading motion-0 rows are the same case before any sample had arrived.
     """
-    out, prev = [], None
-    for r in rows:
-        if not r['motion']:
-            continue
-        if prev is not None and r['motion'] == prev['motion'] \
-                and r['threshold'] == prev['threshold']:
-            prev = r
-            continue
-        out.append(r)
-        prev = r
-    return out
+    return [r for r in mark_stale(rows) if not r['stale']]
 
 
 # Which band a recording was made with is a property OF THE FILE, and getting
@@ -103,16 +121,141 @@ def fit_band(rows, grid=None):
     return best, best_err
 
 
+# The detector constants each era shipped, keyed by the band that identifies
+# it. A replay is only a test of the harness if it runs the constants the
+# recording was made with; running today's constants against a 2.1.0 recording
+# and calling the disagreement an error is how a harness gets "fixed" until it
+# reproduces the wrong thing.
+ERAS = {
+    0.45: dict(CONFIRM_ICE=6, CONFIRM_BENCH=10, CONFIRM_BENCH_FAST=5, HR_VETO=None),
+    0.27: dict(CONFIRM_ICE=6, CONFIRM_BENCH=10, CONFIRM_BENCH_FAST=5, HR_VETO=None),
+    # v2.2.0 to v2.4.0: today's constants but the six-second entry window.
+    0.24: dict(CONFIRM_ICE=6), 0.18: dict(CONFIRM_ICE=6), 0.14: dict(CONFIRM_ICE=6),
+}
+
+
+def era_for(band):
+    """The constants that shipped with the band this file was recorded at."""
+    key = min(ERAS, key=lambda b: abs(b - band))
+    return ERAS[key] if abs(key - band) < 0.005 else None
+
+
+def run(rows, band, confirm_ice_slow=None, start_on_ice=True, era=None):
+    """Replay the whole state machine. Returns the per-second on-ice flags.
+
+    `rows` must be ALL the rows, stale ones included - see mark_stale().
+    """
+    det = Detector(Learner(band=band), start_on_ice=start_on_ice,
+                   confirm_ice_slow=confirm_ice_slow)
+    for k, v in (era or {}).items():
+        setattr(det, k, v)
+    # TWO traces, because the watch keeps two and they are not the same.
+    #
+    # `raw` is the state second by second, which is what the on_ice developer
+    # field records - the watch writes it as it goes and never revises it.
+    # That is the trace to validate against, because it is the one in the file.
+    #
+    # `dated` applies the backdate: transition() sets _backtrackMs to the
+    # length of the window that confirmed the change, and the segment
+    # accounting dates the boundary back by that much. That is what feeds
+    # ice_time, so it is the trace to quote an ice share from. On the game of
+    # 2026-11-05 the difference is not academic - the record trace says 26.3%
+    # and the session says 23.5%, because a bench spell is backdated 14
+    # seconds and a shift only 6.
+    raw, dated = [], []
+    for r in rows:
+        if det.tick(r['motion'] or 0, r['hr'], stale=r['stale']):
+            now = 1 if det.on_ice else 0
+            for i in range(max(0, len(dated) - det.backtrack), len(dated)):
+                dated[i] = now
+        v = 1 if det.on_ice else 0
+        raw.append(v); dated.append(v)
+    return raw, dated
+
+
+def agreement(flags, rows):
+    """Share of seconds the replay and the watch agree on."""
+    same = sum(1 for f, r in zip(flags, rows) if f == r['on_ice'])
+    return 100.0 * same / len(rows) if rows else 0.0
+
+
+def session_ice_pct(path):
+    """The ice share the watch itself reported, from the session message."""
+    d = fitread.parse(path)
+    for m in d['session']:
+        ice = m.get('dev:ice_time')
+        total = m.get('total_elapsed_time')
+        if ice is not None and total:
+            return 100.0 * ice / (total / 1000.0)
+    return float('nan')
+
+
 def _main(argv):
     args = list(argv)
     band = None
+    mode_shifts = '--shifts' in args
+    if mode_shifts:
+        args.remove('--shifts')
+    sweep = None
+    if '--sweep' in args:
+        i = args.index('--sweep')
+        sweep = [int(x) for x in args[i + 1].split(',')]
+        del args[i:i + 2]
+        mode_shifts = True
     if '--band' in args:
         i = args.index('--band')
         band = args[i + 1]
         del args[i:i + 2]
     if not args:
         print("usage: replay_detector.py GAME.fit [--band auto|0.18]")
+        print("                                   [--shifts] [--sweep 6,9,12]")
         return 2
+
+    if mode_shifts:
+        allrows = mark_stale(load(args[0]))
+        if not allrows:
+            print("No motion developer fields in this file.")
+            return 1
+        livedup = [r for r in allrows if not r['stale']]
+        if band is None or band == 'auto':
+            band, _ = fit_band(livedup)
+        else:
+            band = float(band)
+        total = len(allrows)
+        print("%d seconds, %d of them stale (%.1f%%), band %.3f"
+              % (total, total - len(livedup),
+                 100.0 * (total - len(livedup)) / total, band))
+        # Quoted from the session, not from the trace: the two differ by the
+        # backdate and the session is the one the player sees.
+        report("the watch, as recorded", [r['on_ice'] for r in allrows],
+               total, allrows)
+        print("  (that line's ice%% is the record trace; this file's session "
+              "says %.1f%%)" % session_ice_pct(args[0]))
+
+        # Validation first: can the harness reproduce what the watch did, with
+        # the constants the watch was running? Everything after this is only
+        # worth reading if that number is high.
+        era = era_for(band)
+        if era is None:
+            print("band %.3f matches no known release - cannot validate" % band)
+        else:
+            raw, dated = run(allrows, band, era=era)
+            print("replay at this file's own era reproduces %.1f%% of the "
+                  "watch's seconds" % agreement(raw, allrows))
+            report("replay, that era", dated, total, allrows)
+
+        _, dated = run(allrows, band)
+        report("replay, today's constants", dated, total, allrows)
+        for n in (sweep or []):
+            report("replay, plain entry %2ds" % n,
+                   run(allrows, band, confirm_ice_slow=n)[1], total, allrows)
+        if sweep:
+            print("\n(plain entry = how long motion alone, with no heart rate\n"
+                  " agreeing, must hold before a shift opens. The transition is\n"
+                  " backdated by that many seconds, so a longer window costs\n"
+                  " on-screen latency, not recorded ice time.)")
+        return 0
+
     rows = live(load(args[0]))
     if not rows:
         print("No motion/motion_threshold developer fields in this file - it")
@@ -151,19 +294,30 @@ class Detector:
     replaying a game and comparing against the on_ice the watch recorded.
     """
     HYSTERESIS = 0.18
-    CONFIRM_ICE, CONFIRM_BENCH = 6, 14
+    CONFIRM_ICE, CONFIRM_BENCH = 10, 14
     CONFIRM_ICE_FAST, CONFIRM_BENCH_FAST = 3, 7
     MIN_SHIFT_SEC, MIN_BENCH_SEC = 8, 8
     HR_SLOPE, HR_OFFSET, HR_WINDOW = 0.25, 4.0, 20
     HR_VETO = 12.0
 
-    def __init__(self, learner=None, hysteresis=None, start_on_ice=True):
+    # The plain entry window: how long motion alone, with nothing agreeing
+    # with it, has to hold before a shift opens. None means "same as
+    # CONFIRM_ICE", which is what shipped up to and including 2.4.0.
+    CONFIRM_ICE_SLOW = None
+
+    def __init__(self, learner=None, hysteresis=None, start_on_ice=True,
+                 confirm_ice_slow=None):
         self.lr = learner or Learner()
         if hysteresis is not None:
             self.HYSTERESIS = hysteresis
+        if confirm_ice_slow is not None:
+            self.CONFIRM_ICE_SLOW = confirm_ice_slow
+        # The watch opens a game ON the ice: the press that starts it is the
+        # one at the faceoff. See GameModel.toggleRun().
         self.on_ice = start_on_ice
         self.ice_streak = self.bench_streak = 0
         self.dwell = 0
+        self.backtrack = 0
         self.hr, self.base = [], 0.0
 
     def observe(self, hr):
@@ -203,11 +357,20 @@ class Detector:
         that is what the watch does: learn() and the streak update both sit
         above the transition test in tick().
         """
+        if self.HR_VETO is None:
+            return False        # the veto did not exist before v2.2.0
         return self._offset() <= -self.HR_VETO
 
-    def tick(self, sample, hr):
+    def tick(self, sample, hr, stale=False):
+        # observe() and the dwell counter run on EVERY second, including the
+        # ones with no accelerometer sample: on the watch, GameModel calls
+        # observe() before tick(), and tick() increments _secondsInState
+        # before it checks for a sample. Only learn() and the streaks are
+        # skipped. Getting this wrong makes every dwell guard fire early.
         self.observe(hr)
         self.dwell += 1
+        if stale:
+            return False
         t = self.lr.step(sample)
         upper, lower = int(t * (1 + self.HYSTERESIS)), int(t * (1 - self.HYSTERESIS))
         if sample >= upper:
@@ -220,15 +383,22 @@ class Detector:
 
         if not self.on_ice:
             fast = self._slope() >= self.HR_SLOPE or self._offset() >= self.HR_OFFSET
-            need = self.CONFIRM_ICE_FAST if fast else self.CONFIRM_ICE
+            if fast:
+                need = self.CONFIRM_ICE_FAST
+            elif self.CONFIRM_ICE_SLOW is not None:
+                need = self.CONFIRM_ICE_SLOW
+            else:
+                need = self.CONFIRM_ICE
             if self.ice_streak >= need and self.dwell >= self.MIN_BENCH_SEC \
                     and not self._resting():
-                self.on_ice = True; self._reset_streaks(); return True
+                self.on_ice = True; self.backtrack = need
+                self._reset_streaks(); return True
         else:
             fast = self._slope() <= -self.HR_SLOPE or self._offset() <= -self.HR_OFFSET
             need = self.CONFIRM_BENCH_FAST if fast else self.CONFIRM_BENCH
             if self.bench_streak >= need and self.dwell >= self.MIN_SHIFT_SEC:
-                self.on_ice = False; self._reset_streaks(); return True
+                self.on_ice = False; self.backtrack = need
+                self._reset_streaks(); return True
         return False
 
     def _reset_streaks(self):
@@ -252,15 +422,56 @@ def segments(flags):
     return out
 
 
-def report(name, flags, total):
+def shift_spans(flags):
+    """(start, end) index pairs for each on-ice run."""
+    out, start = [], None
+    for i, v in enumerate(flags):
+        if v and start is None:
+            start = i
+        elif not v and start is not None:
+            out.append((start, i)); start = None
+    if start is not None:
+        out.append((start, len(flags)))
+    return out
+
+
+def suspect(flags, rows):
+    """Shifts the heart rate says were not shifts.
+
+    A real shift raises the rate: across twelve recorded games the swing
+    between a shift and the bench after it is 42-62 bpm. A shift whose own
+    mean rate sits BELOW the game's slow baseline is a player who was sitting
+    down and moved their arm - which is the complaint this metric exists to
+    count. It is a proxy, not ground truth, but it is the only one a FIT file
+    can supply without someone writing down line changes at the rink.
+    """
+    hrs = [r['hr'] for r in rows]
+    known = [h for h in hrs if h]
+    if not known:
+        return 0, 0
+    base = sorted(known)[len(known) // 2]
+    bad = 0
+    spans = shift_spans(flags)
+    for a, b in spans:
+        seg = [h for h in hrs[a:b] if h]
+        if seg and sum(seg) / float(len(seg)) < base:
+            bad += 1
+    return bad, len(spans)
+
+
+def report(name, flags, total, rows=None):
     segs = segments(flags)
     ice = [n for v, n in segs if v == 1]
     ben = [n for v, n in segs if v == 0]
     icesec = sum(ice)
     med = sorted(ice)[len(ice) // 2] if ice else 0
-    print("%-26s ice %5.1f%%  shifts %3d  median shift %3ds  median bench %3ds"
+    extra = ""
+    if rows is not None:
+        bad, n = suspect(flags, rows)
+        extra = "  below-baseline HR %2d/%-3d" % (bad, n)
+    print("%-26s ice %5.1f%%  shifts %3d  median shift %3ds  median bench %3ds%s"
           % (name, 100.0 * icesec / total, len(ice), med,
-             sorted(ben)[len(ben) // 2] if ben else 0))
+             sorted(ben)[len(ben) // 2] if ben else 0, extra))
     return {'ice_pct': 100.0 * icesec / total, 'shifts': len(ice), 'median': med}
 
 if __name__ == '__main__':

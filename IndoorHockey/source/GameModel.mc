@@ -105,6 +105,8 @@ class GameModel {
 
     // Accumulated on-ice load. See ShiftDetector.iceLoad.
     private const FIELD_ICE_LOAD    = 24;
+    private const FIELD_STRIDE_LEN  = 25;
+    private const FIELD_INTENSITY   = 26;
 
     // ---- settings, refreshed whenever Garmin Connect pushes a change ----
     public var shiftTargetMs as Number = 60 * 1000;
@@ -122,6 +124,39 @@ class GameModel {
     public var strideLengthCm as Number = 0;
     //! Maximum heart rate for the 85% threshold; 0 means use the profile.
     public var maxHeartRate as Number = 0;
+
+    //! The stride length actually used this game, in centimetres: the
+    //! player's setting if they gave one, otherwise the one GPS taught the
+    //! app on some earlier day. Resolved once, when the session is created,
+    //! because a FIT field cannot be added to a session already running.
+    public var usedStrideCm as Number = 0;
+
+    // ---- GPS stride calibration ----
+    //
+    // Stride length is the one term in speed = rate x length that a wrist
+    // cannot measure, and asking the player to skate a measured length is a
+    // tax most will not pay. But the watch already has a second opinion on
+    // the days it can get one: when GPS has a fix AND the stride meter has a
+    // rhythm in the same second, length is simply speed divided by rate. That
+    // never happens in this rink - 0 fixes in 5011 records - but it happens
+    // at an outdoor rink, on a pond, and in arenas with enough glass, and it
+    // costs nothing on the days it does not.
+    //
+    // Learned once and kept: the number is a property of the skater, not of
+    // the day. Marino found stride length barely moves with velocity within
+    // one skater, which is exactly what makes a stored constant defensible
+    // and a per-second estimate not.
+    private const CAL_KEY = "learnedStrideCm";
+    private const CAL_MIN_SPEED = 1.5;      // m/s; below this nobody is skating
+    private const CAL_MIN_CM = 100;         // a stride shorter than a metre
+    private const CAL_MAX_CM = 600;         // or longer than six is not one
+    private const CAL_MIN_SAMPLES = 30;     // half a minute of agreement
+    private var _calSum as Number = 0;
+    private var _calCount as Number = 0;
+
+    // Mean on-ice wrist motion, for the intensity index.
+    private var _iceMotionSum as Number = 0;
+    private var _iceMotionSamples as Number = 0;
 
     // ---- live game state ----
     public var state as GameState = STATE_READY;
@@ -238,6 +273,8 @@ class GameModel {
     private var _lapMaxHrField as FitContributor.Field? = null;
     private var _hrRecoveryField as FitContributor.Field? = null;
     private var _iceLoadField as FitContributor.Field? = null;
+    private var _strideLenField as FitContributor.Field? = null;
+    private var _intensityField as FitContributor.Field? = null;
 
     // Whether the player has already been warned that motion data stopped.
     private var _sensorWarned as Boolean = false;
@@ -909,6 +946,12 @@ class GameModel {
 
         var onTheIce = onIce();
 
+        if (onTheIce && detector.hasMotionSensor) {
+            _iceMotionSum += detector.motion;
+            _iceMotionSamples++;
+        }
+        calibrateStride();
+
         if (heartRate != null && heartRate > 0) {
             if (onTheIce) {
                 _iceHrSum += heartRate;
@@ -1305,6 +1348,9 @@ class GameModel {
         disableGps();
 
         captureSummary();
+        // Saved whether the game is kept or discarded: a discarded game still
+        // happened, and what GPS taught the app during it is still true.
+        saveCalibration();
         writeSessionFields();
 
         var session = _session;
@@ -1462,6 +1508,8 @@ class GameModel {
         _lapMaxHrField = null;
         _hrRecoveryField = null;
         _iceLoadField = null;
+        _strideLenField = null;
+        _intensityField = null;
     }
 
     //! The FIT sport the activity is filed under.
@@ -1598,7 +1646,18 @@ class GameModel {
 
         // Not created at all when the player has not calibrated, so an
         // uncalibrated game carries no distance field rather than a zero one.
-        if (strideLengthCm > 0) {
+        // Resolved once, here. The player's own setting outranks anything
+        // the app taught itself: they measured it, we inferred it.
+        usedStrideCm = (strideLengthCm > 0) ? strideLengthCm : learnedStrideCm();
+
+        _intensityField = session.createField("skating_intensity", FIELD_INTENSITY,
+            FitContributor.DATA_TYPE_FLOAT,
+            {:mesgType => FitContributor.MESG_TYPE_SESSION});
+
+        if (usedStrideCm > 0) {
+            _strideLenField = session.createField("stride_length_used", FIELD_STRIDE_LEN,
+                FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "cm"});
             _distEstField = session.createField("distance_est", FIELD_DIST_EST,
                 FitContributor.DATA_TYPE_UINT32,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "m"});
@@ -1652,22 +1711,103 @@ class GameModel {
         if (field != null) { field.setData(estimatedDistanceM()); }
         field = _speedEstField;
         if (field != null) { field.setData(estimatedSpeedKph()); }
+        field = _strideLenField;
+        if (field != null) { field.setData(usedStrideCm); }
+        field = _intensityField;
+        if (field != null) { field.setData(skatingIntensity()); }
+    }
+
+    //! The stride length stored by an earlier game that had a GPS fix, in
+    //! centimetres, or 0 if no game ever has.
+    public function learnedStrideCm() as Number {
+        try {
+            var raw = Application.Storage.getValue(CAL_KEY);
+            if (raw instanceof Lang.Number && raw >= CAL_MIN_CM && raw <= CAL_MAX_CM) {
+                return raw;
+            }
+        } catch (ex) {
+            // Storage can be unavailable; an absent calibration is not an error.
+        }
+        return 0;
+    }
+
+    //! One second of GPS calibration. Speed from the fix, rhythm from the
+    //! wrist; where both exist in the same second, their quotient is a stride
+    //! length in metres and needs no calibration skate from the player.
+    private function calibrateStride() as Void {
+        var speed = _speed;
+        if (speed == null || speed < CAL_MIN_SPEED || !onIce()) {
+            return;
+        }
+        var rate = detector.stride.rate;
+        if (rate <= 0) {
+            return;       // no rhythm this second: nothing to divide by.
+        }
+        // metres per second / strides per second = metres per stride.
+        var cm = ((speed * 6000.0) / rate.toFloat()).toNumber();
+        if (cm < CAL_MIN_CM || cm > CAL_MAX_CM) {
+            return;       // outside anything a skating stride can be.
+        }
+        _calSum += cm;
+        _calCount++;
+    }
+
+    //! Store what this game learned, if it learned enough to be worth
+    //! keeping. Called once, at the end, so a handful of seconds near the
+    //! arena door cannot overwrite a calibration built over a whole game
+    //! outdoors.
+    private function saveCalibration() as Void {
+        if (_calCount < CAL_MIN_SAMPLES) {
+            return;
+        }
+        var cm = (_calSum / _calCount).toNumber();
+        if (cm < CAL_MIN_CM || cm > CAL_MAX_CM) {
+            return;
+        }
+        try {
+            Application.Storage.setValue(CAL_KEY, cm);
+        } catch (ex) {
+            // Nothing to do about a storage failure, and nothing is lost that
+            // the next game outdoors will not learn again.
+        }
+    }
+
+    //! How many seconds of GPS and rhythm agreed this game.
+    public function calibrationSamples() as Number {
+        return _calCount;
+    }
+
+    //! Wrist motion times stride rate, averaged over the ice.
+    //!
+    //! Deliberately unitless. It is amplitude multiplied by cadence, which is
+    //! the shape of a mechanical power term, but nothing here is calibrated
+    //! in watts and pretending otherwise would be the same mistake as
+    //! inventing a stride length. It is comparable with your own past games
+    //! and with nobody else's. The two terms are averaged separately rather
+    //! than multiplied second by second, so that seconds with no readable
+    //! rhythm pull the coverage figure down instead of pulling this to zero.
+    public function skatingIntensity() as Float {
+        if (_iceMotionSamples < 1) {
+            return 0.0;
+        }
+        var meanMotion = _iceMotionSum.toFloat() / _iceMotionSamples.toFloat();
+        return (meanMotion * detector.stride.averageRate().toFloat()) / 1000.0;
     }
 
     //! Metres, from counted pushes and the player's calibration. 0 when
     //! uncalibrated.
     public function estimatedDistanceM() as Number {
-        if (strideLengthCm <= 0) {
+        if (usedStrideCm <= 0) {
             return 0;
         }
-        return ((detector.stride.strideCount * strideLengthCm.toFloat()) / 100.0).toNumber();
+        return ((detector.stride.strideCount * usedStrideCm.toFloat()) / 100.0).toNumber();
     }
 
     //! km/h over the measured seconds only. 0 when uncalibrated or when
     //! nothing was measured.
     public function estimatedSpeedKph() as Float {
         var seconds = detector.stride.measuredSeconds();
-        if (strideLengthCm <= 0 || seconds < 1) {
+        if (usedStrideCm <= 0 || seconds < 1) {
             return 0.0;
         }
         return (estimatedDistanceM().toFloat() / seconds.toFloat()) * 3.6;

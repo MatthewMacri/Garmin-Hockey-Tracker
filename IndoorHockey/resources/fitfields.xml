@@ -114,5 +114,13 @@
                   dataLabel="@Strings.FitHrRecovery" unitLabel="@Strings.UnitBpm" />
         <fitField id="24" sortOrder="24" displayInActivitySummary="true" precision="0"
                   dataLabel="@Strings.FitIceLoad" unitLabel="@Strings.UnitNone" />
+
+        <!-- Written whenever a stride length was available at all, from
+             either source, so a distance in Connect always carries the number
+             it was built from. -->
+        <fitField id="25" sortOrder="25" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitStrideLen" unitLabel="@Strings.UnitCm" />
+        <fitField id="26" sortOrder="26" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitIntensity" unitLabel="@Strings.UnitNone" />
     </fitContributions>
 </resources>
