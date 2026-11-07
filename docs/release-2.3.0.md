@@ -53,8 +53,9 @@ Tested against a line-for-line Python port of the shipped code:
 | random noise | — | 0 windows | 0% |
 | one impact, no rhythm | — | 0 windows | 0% |
 
-The meter also measures its own sample rate rather than assuming one. The FR570
-advertises a 100 Hz accelerometer and delivers about 21.4 Hz to a watch app; a
+The meter also measures its own sample rate rather than assuming one. The app
+asks for 25 Hz and gets 25-sample batches every 1.171 s — 21.4 Hz of wall
+clock, which is 32768/1536, a timer division rather than lost samples. A
 hard-coded 25 would have reported every stride 17% fast.
 
 **What is not verified:** the gates were sized against synthetic signals, not

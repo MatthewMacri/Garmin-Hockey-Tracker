@@ -153,9 +153,10 @@ Three things keep it honest:
   sits between them and every false-positive case drops to zero accepted
   windows.
 
-It also measures its own sample rate rather than assuming one. The FR570
-reports a 100 Hz accelerometer and delivers about 21.4 Hz to a watch app; a
-hard-coded 25 would have reported every stride 17 % fast.
+It also measures its own sample rate rather than assuming one. The app asks
+the FR570 for 25 Hz and gets 25-sample batches every 1.171 s, which is 21.4 Hz
+of wall clock — 32768/1536, a timer division, not a dropped-sample problem.
+A hard-coded 25 would have reported every stride 17 % fast.
 
 **Coverage is reported beside the average**, and it is the point. A stride rate
 averaged over 80 % of your on-ice seconds is a different claim from one
