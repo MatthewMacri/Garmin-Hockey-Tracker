@@ -9,11 +9,13 @@ already up is <https://apps-developer.garmin.com>.
 
 Build it with that script and nothing else. It stages the source to a neutral
 path first, because a plain `-e` build writes the absolute path of every source
-file into a debug record for all 202 device variants - about 180,000 copies of
-the builder's home directory, shipped inside the package.
+file into a debug record for every one of the 126 products in `manifest.xml` -
+the 202 device variants they expand to, and on the order of a hundred thousand
+copies of the builder's home directory, shipped inside the package.
 
 Step 1 also asks for **App Version**, a free text box. Type the version there -
-`2.2.0`, then `2.3.0`, and so on.
+`2.3.0`, then `2.5.0`, and so on. (2.4.0 was tagged and never uploaded, so the
+store's sequence skips it.)
 
 **Nothing in the build carries the version.** `manifest.xml` has no version
 attribute and never has; the packaged `.iq` has none either, only `apiVersion`,
@@ -32,16 +34,16 @@ you anything while a release is queued.
 | Form field | What to put |
 |---|---|
 | Title | `Ice Hockey Shifts` (17 of 50 chars) |
-| Description | The block under *Description* below (2,825 of 4,000 chars) |
-| What's New | See below. This is an **update**: the dashboard shows *Ice Hockey Shifts* live at 2.1.0 (Internal: 3) since 2026-11-04. A 404 on the manifest's application id means nothing — the store assigns a listing its own UUID |
-| Hero Image (optional) | `store/images/hero-1440x720.jpg` (1440x720, 75 KB of 2048 KB) |
+| Description | **Take it from `docs/store-2.5.0.md`**, which carries the current text with a scripted character count. The block under *Description* below is the older text and is kept only for diffing - see the note there |
+| What's New | See `docs/store-2.5.0.md`. This is an **update**: the listing has been live since 2026-11-04 and is live at 2.3.0 (Internal: 4). A 404 on the manifest's application id means nothing — the store assigns a listing its own UUID |
+| Hero Image (optional) | `store/images/hero-1440x720.jpg` (1440x720, 82 KB of 2048 KB) |
 | Category | Health & Fitness — then the closest subcategory to hockey or winter sports |
 | Does your app collect user data? | **No** — it sends nothing anywhere |
 | Does your app decode/encode ANT+ profiles? | **No** |
 | Does your app have regional limits? | **No** |
-| Cover Image (500x500) | `store/images/cover-500x500.png` (46 KB of 300 KB) |
+| Cover Image (500x500) | `store/images/cover-500x500.png` (40 KB of 300 KB) |
 | Add icons for app store on device? | **No** — optional, and the launcher icon already covers every device |
-| Screen Images | The six PNGs in `docs/screenshots/`, in filename order (390x390, ~47 KB each, limit 150 KB) |
+| Screen Images | The six PNGs in `docs/screenshots/`, in filename order (390x390, 10-38 KB each, limit 150 KB) |
 | Preview Video | `https://youtu.be/LM8cZ_diB8s` |
 | Email Address | Shown publicly, so use an address you are happy to publish rather than your personal one |
 | Source Code URL | `https://github.com/MatthewMacri/Garmin-Hockey-Tracker` |
@@ -80,6 +82,16 @@ Tracks a hockey game from your wrist without being touched. Works out every
 shift and every spell on the bench by itself.
 
 ## Description
+
+**This is the text currently live on the listing, from the 2.1.0/2.2.0 era. It
+is kept to diff against, not to paste.** Paste the description in
+`docs/store-2.5.0.md` instead. Three things below have since gone wrong and are
+left in place deliberately, because they describe what the public listing still
+says: the field list and the settings list both predate stride rate, heart rate
+recovery, skating load, skating intensity and the Max Heart Rate setting; and
+the chest-strap sentence is a claim that was **withdrawn** in 2.4.0 and is still
+live on the store. Its character count was also stated as 2,825 for a text that
+measures 3,840.
 
 One press at the opening faceoff. After that the app works out when you are on
 the ice and when you are on the bench on its own, and keeps recording until you
@@ -156,6 +168,10 @@ tell them apart.
 Wear the watch on your wrist. Shifts come from wrist motion, so a watch in a
 vest or a bag has nothing to detect and records one long shift. A paired chest
 strap is fine and is used for heart rate as normal.
+    <<< WITHDRAWN: that last sentence is false and is still live on the store.
+    The app has never called Sensor.setEnabledSensors and nobody has skated
+    with a strap. The replacement, already in docs/store-2.5.0.md, is: "Heart
+    rate comes from the watch; a paired chest strap is untested." >>>
 
 GPS is on by default, but expect no fix inside most arenas; the app falls back
 to motion-only detection and records normally.
@@ -172,7 +188,10 @@ Health & Fitness
 hockey, ice hockey, shifts, shift timer, line change, on-ice heart rate,
 bench, shifts, rink, skating
 
-## What's New (version 2.2.0)
+## What's New (version 2.2.0 — superseded)
+
+This is the text that went up with 2.2.0, kept for reference. The current one
+is in `docs/store-2.5.0.md`.
 
 ```
 Shift detection has been retuned, and you will see it in your own numbers.
@@ -191,8 +210,8 @@ it off.
 
 Also fixed: a watch delivering accelerometer samples in very small batches
 could read as having no accelerometer at all, disabling shift detection for
-a whole game. And Rest per Work reads as a ratio, 3.2, rather than as the
-number 317.
+a whole game. And Rest per Work reads as a decimal ratio rather than as a
+three-digit integer.
 ```
 
 If the form's counter accepts more than the ~1,000 characters above,

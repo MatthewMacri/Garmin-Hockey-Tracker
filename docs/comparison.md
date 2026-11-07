@@ -16,8 +16,9 @@ has no idea when you were on the ice.
 Three Connect IQ apps fill that gap, and they have split along a clear line.
 RinkPulse and Ice Hockey Tracker add metrics - shots, speed, distance, zones,
 goalie stats, scorekeeping - and RinkPulse puts the history in its own
-companion app. This one adds no metrics beyond the shift structure and puts
-everything in Garmin Connect instead.
+companion app. This one adds the shift structure first and a short list of
+metrics built on it — stride rate, skating load, skating intensity, heart rate
+recovery — and puts all of it in Garmin Connect instead.
 
 So the honest framing is not "better". It is: do you want more numbers, or do
 you want the numbers in the place you already keep your training?
@@ -144,7 +145,7 @@ Stated plainly, because a comparison that only flatters is worth nothing.
 
 | Missing here | Who has it |
 |---|---|
-| Speed and distance | RinkPulse, Ice Hockey Tracker |
+| Speed and distance from GPS, and without a calibrated stride length | RinkPulse, Ice Hockey Tracker |
 | Shot counting | Ice Hockey Tracker |
 | Goalie mode, save percentage | RinkPulse |
 | Scorekeeping - goals, assists, plus/minus | RinkPulse |
@@ -164,11 +165,14 @@ activity, plus the on-ice-against-bench split RinkPulse cannot do because it
 does not separate the two. On a screen, mid-season, RinkPulse still wins that
 row - a script you run on a laptop is not a feature most players will use.
 
-The speed and distance gap is a deliberate choice rather than a todo: GPS does
-not fix indoors, and an accelerometer alone cannot produce a trustworthy skating
-speed. RinkPulse's developer says as much about his own. Reporting nothing is
-the honest option, but it is still a gap, and for anyone who wants a distance
-number it is the wrong trade.
+The speed and distance gap narrowed in 2.5.0 but did not close. GPS still does
+not fix indoors, and an accelerometer alone still cannot produce a trustworthy
+skating speed - RinkPulse's developer says as much about his own. What this app
+now does is report `Skating Intensity`, which is unitless and comparable only
+with your own past games, and report a distance and speed *only* once a stride
+length exists, from the player's own setting or learned from GPS on a day there
+is a fix. With no stride length both fields are left out. For anyone who wants
+a distance number on every indoor game, it is still the wrong trade.
 
 ## Claims to avoid making
 

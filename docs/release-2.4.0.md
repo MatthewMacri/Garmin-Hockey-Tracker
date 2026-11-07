@@ -16,7 +16,7 @@ a season.
 
 It is the standard **HRR60**: heart rate at the moment a shift ends, minus
 heart rate sixty seconds later, averaged across the game. Hockey hands it over
-for free. A game is forty-odd repeats of exactly the protocol a lab uses — a
+for free. A game is thirty-odd repeats of exactly the protocol a lab uses — a
 hard effort, then a seated minute — and the app already knows the instant each
 one starts, because finding that instant is what it was built to do. Nothing
 new is asked of the player and nothing new is sensed.
@@ -31,7 +31,7 @@ a signed byte for that reason.
 
 ### The accuracy work, which was most of it
 
-The first implementation was three lines and both of them were wrong.
+The first implementation was short and two things about it were wrong.
 
 **The clock only advanced on seconds the sensor reported.** Wrist optical
 heart rate drops out, and a ten-second dropout silently turned HRR60 into
@@ -145,10 +145,15 @@ reason given for it was wrong.
 
 ## Not in this release
 
-- **The bench-fidget retune.** Six agents diagnosed it and agreed it is an
-  entry-edge problem; the detector change itself has not been made. Starting
-  the game at the opening faceoff rather than in the warm-up removes most of
-  it at zero cost, and that note is in the listing.
+- **The bench-fidget retune.** It was diagnosed as an entry-edge problem; the
+  detector change itself has not been made. Starting the game at the opening
+  faceoff rather than in the warm-up removes most of it at zero cost, and that
+  note is in the listing.
+
+  *Still true as of 2.5.0.* A ten-second entry window was built for 2.5.0 and
+  withdrawn before release — unreachable by motion alone, and it can record a
+  whole game as one shift when heart rate is absent. The entry-edge diagnosis
+  survives; the duration fix does not. See `docs/detector-tuning.md`.
 - **Distance and speed without a stride length.** Still off by default. There
   is no way to measure a skating stride length from a wrist, and the open
   question is now whether to anchor one from GPS on the days a fix exists.

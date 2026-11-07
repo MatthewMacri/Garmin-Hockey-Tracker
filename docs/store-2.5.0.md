@@ -19,8 +19,8 @@ store numbers releases by the string typed into the form, and no user ever saw
 
 Earlier drafts of this file said the opposite, at length, and were wrong on
 every count: that nothing was live, that 2.0.0 never ended in a listing, and
-that 2.1.0 was tagged on GitHub and never uploaded. 2.1.0 **is** the live
-version. Two bad arguments got there. One was a 404 on
+that 2.1.0 was tagged on GitHub and never uploaded. The listing **is** live,
+and it is live at 2.3.0. Two bad arguments got there. One was a 404 on
 <https://apps.garmin.com/en-US/apps/d979409c-45c9-41b6-a1ec-092f51bd6006>, the
 manifest's application id — but the store assigns a listing its own UUID, and
 RinkPulse proves it on this watch: `GarminDevice.xml` gives it
@@ -35,13 +35,15 @@ So: **Upload New Version**, not the first-publish form.
 ## Read this before uploading: one thing 2.3.0 has to answer first
 
 **Record one game on the installed 2.3.0 build and open its activity page
-before uploading 2.4.0.** That game answers the question in *Does a later
+before uploading this release.** That game answers the question in *Does a later
 upload update the rendering metadata?* below, and the answer decides whether
 any of this release is worth typing.
 
-- If Rest per Work reads `3.2` and Avg Stride Rate is there, a later upload
-  does update the metadata. Everything in 2.4.0 will render too. Upload it.
-- If Rest per Work still reads `317` and there are no stride fields, the
+- If Rest per Work reads as a decimal (e.g. `3.2`) and Avg Stride Rate is
+  there, a later upload does update the metadata. Everything in 2.4.0 will
+  render too. Upload it.
+- If Rest per Work still reads as a three-digit integer and there are no
+  stride fields, the
   listing is frozen on the metadata 2.0.0 set on 4 November. No upload fixes
   that, and the only route to rendering the new fields is a **new listing** —
   a decision worth making deliberately, since it abandons 100+ installs and
@@ -145,7 +147,8 @@ stop rendering when it goes away.
 4. Record two minutes of waving an arm around, sync, and decode the file:
    `developer_data_id` should carry a real UUID and a non-zero version.
 5. The activity should read Shifts, Ice Time, Bench Time, Avg Shift, Longest
-   Shift, Rest per Work (as `3.2`, not `317`), On-Ice Avg HR, Time above 85%
+   Shift, Rest per Work (as a decimal such as `3.2`, not a three-digit
+   integer), On-Ice Avg HR, Time above 85%
    HR, Avg Stride Rate, Stride Coverage, HR Recovery (1 min), Skating Load and
    Skating Intensity, with Avg HR and Max HR beside each row in the Splits
    tab.
@@ -159,8 +162,9 @@ never been set.
 ## Step 1 — the package
 
 Attach `IndoorHockey/dist/IndoorHockey.iq`, built by `IndoorHockey/package.sh`.
-All 202 device variants, signed, with no build paths in the packaged files —
-`package.sh` refuses to produce a package that carries them.
+All 126 products in `manifest.xml` — the 202 device variants they expand to —
+signed, with no build paths in the packaged files; `package.sh` refuses to
+produce a package that carries them.
 
 **App Version:** type `2.5.0`
 
@@ -185,28 +189,26 @@ passes the new one.
 
 ## What's New
 
-982 characters (1002 if the form counts CRLF line endings). Paste verbatim.
+969 characters (987 if the form counts CRLF line endings). Paste verbatim.
 
 ```
 New: heart rate recovery - the one number here that measures how fit you are
 rather than how hard the game was. HRR60: your rate when a shift ends, minus
-your rate sixty seconds later, averaged over the game.
+your rate sixty seconds later, averaged over the game. Both ends are
+five-second means, so a wrist sensor's jitter stays out of the answer.
 
-New: skating load, the accumulated acceleration of your skating, on ice
-only. And skating intensity - wrist motion times stride rate - which needs no
-GPS and no setting.
+New: skating load, the accumulated acceleration of your skating, counted on
+the ice only so a game spent on the bench cannot inflate it. And skating
+intensity - wrist motion times stride rate - which needs no GPS and no
+setting at all.
 
-New: the average and maximum heart rate of every shift and bench spell in the
-Splits tab.
-
-Fixed: moving your wrist on the bench was collecting shifts you never played.
-Opening a shift now takes ten seconds of motion rather than six, unless heart
-rate agrees. It removes only shifts your heart rate says you sat out, and
-costs no ice time.
+New: the average and maximum heart rate of every shift and every bench spell
+in the Splits tab, beside its length.
 
 New: distance and speed can calibrate themselves. Where GPS has a fix and the
 app has your rhythm in the same second, it works out your stride length and
-keeps it for indoor games.
+keeps it for indoor games. Until it has one, both fields are left out rather
+than invented.
 
 New setting: Max Heart Rate, so Time above 85% is 85% of the right number.
 ```
@@ -215,6 +217,14 @@ New setting: Max Heart Rate, so Time above 85% is 85% of the right number.
 already have stride rate, the retuned detector and the `work_rest` fix — the
 whole of the current What's New text. Repeating any of it would say nothing.
 2.4.0 is in here because it was tagged and never uploaded.
+
+**The bench-fidget fix is deliberately not in this text.** It was the intended
+headline of this upload — a ten-second entry window instead of six — and it was
+withdrawn before release once it was measured without heart rate present. Do
+not put it back. The reasons are in `docs/release-2.5.0.md` and at length in
+`docs/detector-tuning.md`; the short version is that the window is unreachable
+by motion alone, and that with no heart rate it can record a whole game as one
+shift. Nothing about shift detection changed in 2.5.0.
 
 No character limit for this field is documented anywhere I could find, and the
 form's own counter is the authority. This lands under 1,000 in case that is the
@@ -228,14 +238,14 @@ same heart rate as a shift does, so a game started early collects shifts
 nobody played - and nothing in the recording can tell them apart afterwards.
 ```
 
-With the tail it is 1284 characters (1309 with CRLF).
+With the tail it is 1271 characters (1294 with CRLF).
 
 ---
 
 ## Description
 
-3885 characters of 4,000 (3973 if the form counts CRLF line endings — it fits
-either way). Paste verbatim.
+3855 characters of 4,000 (3942 if the form counts CRLF line endings — it fits
+either way, with 58 characters to spare on the CRLF count). Paste verbatim.
 
 ```
 One press at the opening faceoff. After that the app works out when you are on
@@ -251,8 +261,8 @@ WHAT IT DOES
 • Ends itself if you forget — after 25 minutes with no skating it counts down
   and saves rather than discards.
 • Total ice time on screen all game.
-• On-ice heart rate, separately from bench heart rate: in elite match play it
-  averages 84% of maximum, a figure a game average hides.
+• On-ice heart rate as its own number, not blended with the bench: in elite
+  match play it averages 84% of maximum, a figure a game average hides.
 
 HOW THE DETECTION WORKS
 
@@ -260,9 +270,9 @@ Wrist motion is the only signal fast enough to open and close a shift, so it
 decides and GPS only agrees with it. Heart rate mostly agrees too, with one
 exception: while it sits well below its baseline, no amount of arm movement
 will open a shift. That is a player sitting down. Thresholds are learned
-during the game, and a change is believed only once it persists - ten seconds
-to open a shift - then dated back to when it happened, so the wait costs no
-ice time.
+during the game, and a change is believed only once it persists - six seconds
+to open a shift - then dated back to when it happened, so a shift keeps its
+opening seconds.
 
 It will get some boundaries wrong. The LAP button flips the state by hand.
 
@@ -271,16 +281,15 @@ WHAT LANDS IN GARMIN CONNECT
 Shifts, ice time, bench time, average and longest shift, rest-per-work ratio,
 on-ice average heart rate, time above 85% of maximum HR, average stride rate
 with its coverage, heart rate recovery, skating load and skating intensity.
-One lap per shift and
-one per bench spell, each with its own average and maximum heart rate, so the
-Splits tab reads as a shift chart. Plus the on-ice state second by second.
+One lap per shift and one per bench spell, each with its own average and
+maximum heart rate, so the Splits tab reads as a shift chart. Plus the on-ice
+state second by second.
 
 FITNESS, NOT JUST EFFORT
 
 Heart rate recovery is the one number here that should improve over a season.
 The standard HRR60: your heart rate when a shift ends, minus your rate sixty
-seconds later, averaged over the game - forty repeats of a lab test the app
-already knew the start of.
+seconds later, averaged over every shift of the game.
 
 Skating load is the accumulated acceleration of your skating, counted on the
 ice only - what the professional sides measure, on the sensor you own.
@@ -329,12 +338,12 @@ Strava has no ice hockey type: set Activity Type to Ice Skate if you sync
 there.
 ```
 
-It was over the limit before this release: 4,434 characters once the warm-up
-note went in, against a cap of 4,000, and the file claimed 3,864. The claim
-had gone stale — text was added twice without re-counting. It is counted here
-by script rather than by eye, and the margin is 24 characters on the CRLF
-count. Adding the stride section cost 462 characters and paid for them by
-tightening six paragraphs that were saying the same thing twice.
+This description went over the cap once before — 4,434 characters against
+4,000, while the file claimed 3,864, because text was added twice without
+re-counting. Every count in this file is now produced by script rather than by
+eye, and re-counted after any edit. The 58 characters above is the real
+margin; the previous revision of this file claimed 24 where the true figure
+was 27, so the claim had started drifting again.
 
 ---
 
@@ -366,7 +375,7 @@ shift and every spell on the bench by itself.
 ## Still outstanding on the listing
 
 **The screenshots.** The listing shows five images from the batch that was
-wrong. The six corrected PNGs are in `docs/screenshots/`, 390x390, about 47 KB
+wrong. The six corrected PNGs are in `docs/screenshots/`, 390x390, 10 to 38 KB
 each against a 150 KB limit. Upload them in filename order:
 
 1. `01-ready.png` — ready to start

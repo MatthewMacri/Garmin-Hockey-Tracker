@@ -34,8 +34,10 @@ github.com/MatthewMacri/Garmin-Hockey-Tracker
 
 Being straight about the trade-offs:
 
-- No speed or distance at all. GPS doesn't fix indoors and I'd rather report
-  nothing than a number I don't trust.
+- No GPS speed or distance indoors. There's a unitless skating-intensity
+  number, and a distance and speed if you supply a stride length or it learns
+  one from GPS outdoors; otherwise those fields are left out. I'd rather
+  report nothing than a number I don't trust.
 - No goalie mode, no scorekeeping.
 - Per-shift HR zones aren't on the watch — but it turns out the watch has been
   recording them all along, because every shift here is a lap and Garmin writes
@@ -46,9 +48,9 @@ Being straight about the trade-offs:
   will get boundaries wrong. The lap button flips the state by hand when it
   does.
 
-It detects from wrist motion, so the watch has to be on your wrist — a paired
-chest strap is fine for heart rate, but watch-in-a-vest gives it nothing to work
-with. That came up a few times above.
+It detects from wrist motion, so the watch has to be on your wrist —
+watch-in-a-vest gives it nothing to work with. That came up a few times above.
+Heart rate comes from the watch; a paired chest strap is untested.
 
 [STORE LINK]
 

@@ -47,9 +47,11 @@ github.com/MatthewMacri/Garmin-Hockey-Tracker
 
 **What it doesn't do**, because I'd rather you know before you install it:
 
-- No speed, no distance. GPS doesn't fix in most rinks and an accelerometer
-  alone won't give you a skating speed worth printing. If that's your main
-  thing, this isn't your app.
+- No GPS speed or distance indoors, and nothing invented to replace it. There
+  is a unitless skating-intensity number, and a distance and speed if you give
+  it a stride length or it picks one up from GPS outdoors - otherwise those
+  fields are left out rather than guessed. If a distance on every indoor game
+  is your main thing, this isn't your app.
 - No goalie mode, no scorekeeping.
 - It's new. The detection is tuned against one recorded game, mine. That's the
   single biggest weakness and it's the reason I'm posting.
@@ -70,9 +72,9 @@ Pausing takes two presses of start, because the screen is a touchscreen and one
 press was too easy to make through a glove, and ending a game asks for
 confirmation.
 
-It detects from wrist motion, so the watch has to be on your wrist. A paired
-chest strap works fine for heart rate, but watch-in-a-vest gives it nothing to
-detect.
+It detects from wrist motion, so the watch has to be on your wrist -
+watch-in-a-vest gives it nothing to detect. Heart rate comes from the watch; a
+paired chest strap is untested, and I'd rather say so than guess.
 
 [STORE LINK]
 

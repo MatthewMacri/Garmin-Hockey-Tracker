@@ -6,7 +6,8 @@ every shift and every spell on the bench by itself and keeps recording until
 you stop it. It records a real hockey activity that syncs to Garmin Connect.
 
 Built and tested on the **Forerunner 570**. The layout is resolution-independent,
-so the same build runs across the Garmin watch range.
+so one build covers every product in `manifest.xml` — 126 of them, across most
+of the current Garmin watch range.
 
 <p align="center">
   <img src="docs/demo.gif" width="300" alt="A game being tracked: the game clock runs unbroken, the shift clock opens and closes, and the summary lands at the end" />
@@ -69,7 +70,7 @@ Three signals are available and they are not equally good:
 |---|---|---|
 | **Wrist motion** | ~1 s | The only signal that responds fast enough, and the only one that separates skating from standing on the bench. Noisy. |
 | **Heart rate** | 20–60 s | Reliable but far too slow to open or close a shift. HR keeps climbing after a shift ends and falls for a minute afterwards. It can, however, *refuse* one: a rate far below its own baseline is a player at rest. |
-| **GPS speed** | instant, when it exists | Unambiguous — nobody reaches 3 m/s on a bench — but indoor rinks usually never get a fix. |
+| **GPS speed** | instant, when it exists | Unambiguous — the gate is 2.5 m/s on entry and 0.6 m/s on exit, and nobody reaches either on a bench — but indoor rinks usually never get a fix. |
 
 So motion decides, and the other two only agree with it — with the single
 exception noted below, where heart rate overrules motion by refusing a shift:
@@ -82,28 +83,20 @@ exception noted below, where heart rate overrules motion by refusing a shift:
   absolute numbers depend on the player, where the watch sits and how tight the
   strap is. The app tracks a slow estimate of your resting level and your
   working level and puts the boundary between them.
-- A change is only believed once it **persists**: ten seconds to open a shift,
+- A change is only believed once it **persists**: six seconds to open a shift,
   fourteen to close one, with a dead band around the boundary so noise cannot
   make the state flap. Heart rate climbing, or GPS agreeing, shortens those to
   three and seven.
-- **Entry takes ten seconds, not six, and that is the fix for extra shifts off
-  the bench.** Moving a wrist while sitting down used to collect shifts nobody
-  played, and it cannot be fixed by raising the motion threshold: those
-  spurious shifts carry *higher* wrist motion than a defenceman gliding at the
-  point does, so no amplitude cut separates them. Duration does. A fidget is a
-  burst; a shift is not. Replayed against both recorded games, ten seconds
-  removes two shifts on 2026-11-05 and one on 2026-11-03 — and **every one it
-  removes is a shift whose own mean heart rate sits below the game baseline**,
-  which is a player sitting down. Not one shift the heart rate supports is
-  lost. Past ten it stops being selective. It costs no recorded ice time
-  either, because the boundary is dated back by the length of the window that
-  confirmed it; what it costs is four seconds of the screen still saying BENCH
-  at the start of a shift heart rate has not yet agreed with.
 - A shift is **refused outright** while heart rate sits 12 bpm or more below its
   own drifting baseline, whatever the motion says. This is the one place a
   signal other than motion overrules it, and it exists because a player sitting
   between periods and moving their arms is indistinguishable from a shift to an
   accelerometer alone.
+- **All of that depends on having a heart rate.** With no reading at all — no
+  strap, a wrist sensor that never acquires — the shortened windows never
+  trigger and the refusal above never fires, so the detector falls back to
+  motion alone and runs longer, coarser shifts. There is no warning on screen
+  for this: the sensor-health check watches the accelerometer only.
 - Because a boundary is confirmed late, it is **dated back** to when it actually
   happened. Without that, every shift would lose its first seconds to the bench
   and every bench spell its first seconds to the shift.
@@ -156,8 +149,10 @@ Three things keep it honest:
 - **A band-pass first.** Two one-pole filters, fast minus slow, which is a
   cheap band-pass that removes gravity and the slow drift of a changing arm
   posture without an FIR's ring buffer of coefficients.
-- **A confidence gate.** The peak has to reach 0.45 of the zero-lag energy. A
-  real skating window scores 0.7 to 0.95; noise does not get near it.
+- **A confidence gate.** The peak has to reach 0.45 of the zero-lag energy.
+  Sized against synthetic pulse trains: coasting, standing, impacts, 25% period
+  jitter and half the pushes missing are all refused by it. No real skating
+  recording has been measured against it yet.
 - **A prominence gate.** The peak also has to stand 0.60 above the mean of the
   whole lag curve. This is the one that matters: a single hard impact in an
   otherwise quiet window scores 0.91 on confidence alone and reports a stride
@@ -204,8 +199,9 @@ There are three ways to get it, and the app takes all three in this order:
 3. **Nothing.** Then the distance and speed fields are not created at all. The
    FIT carries no distance rather than a fabricated one.
 
-This rink has never produced a fix — **0 of 5,011 records** — so for this
-player route 2 may never fire. It costs nothing on the days it does not, and
+This rink has never produced a fix — **0 in 5,122 records** in the longest
+game recorded there, and none in any other — so for this player route 2 may
+never fire. It costs nothing on the days it does not, and
 it fires at an outdoor rink, on a pond, or in an arena with enough glass.
 
 What the app will *not* do is seed a stride length from your height. A phone
@@ -252,9 +248,11 @@ should improve over a season.
 
 It is the standard **HRR60**: heart rate at the moment a shift ends, minus
 heart rate sixty seconds later, averaged over the game. Hockey gives it away
-for free — a game is forty-odd repeats of exactly the protocol a lab uses, and
+for free — a game is thirty-odd repeats of exactly the protocol a lab uses, and
 the app already knows the instant each one starts. A bench spell shorter than a
-minute reports nothing rather than guessing at a partial drop.
+minute reports nothing rather than guessing at a partial drop, so the number of
+repeats that actually report is lower again — twenty to thirty on the games on
+file.
 
 Both ends are averaged over five seconds rather than read as single samples.
 HRR60 is a difference between two numbers, so the several beats of jitter a
@@ -327,9 +325,9 @@ app started:
 Shifts come from wrist motion, so the watch has to be on the arm. Carried in a
 vest pocket or a bag it has nothing to detect: the detector never flips, and
 the game records as one shift the length of the game. This comes up because
-plenty of players wear a chest strap and stow the watch - the strap is fine and
-is used for heart rate exactly as normal, but it cannot stand in for the one
-signal the detection actually runs on.
+plenty of players wear a chest strap and stow the watch. Heart rate comes from
+the watch; a paired chest strap is untested. Either way a strap cannot stand in
+for the one signal the detection actually runs on.
 
 ## Start it at the faceoff, not in the warm-up
 
@@ -345,8 +343,9 @@ a real shift does, so neither signal can rule it out afterwards. On 2026-11-05
 the watch ran for seventeen minutes before the first shift of the game. Of the
 nine detected shifts in that game whose heart rate never left zone 2 - the
 ones the player's own body says were not shifts - **five fall in that opening
-window and three more in the two minutes after the last real shift.** Eight of
-the nine are time he was not in a game. The game on 2026-11-03, whose timer was
+window and one in the two minutes after the last real shift.** Six of the nine
+are time he was not in a game; the other three are mid-game, and no
+confirmation window can refuse those without refusing real play. The game on 2026-11-03, whose timer was
 paused at every break, has almost none of them.
 
 No setting fixes this. The detector can only compare a second against the
@@ -364,7 +363,7 @@ Editable in Garmin Connect; the defaults are a regulation game.
 | Shift alerts | on | |
 | Lap per shift | on | |
 | Use GPS | on | |
-| End game when idle | 25 min | 0–180, 0 = never |
+| End game when idle | 25 min | 0, or 20–180; 0 = never |
 | Stride length | 0 cm (off) | 0–500 |
 | Max heart rate | 0 (use profile) | 0, or 100–240 |
 | Activity type | Ice Hockey | Ice Hockey / Ice Skate |
@@ -484,8 +483,8 @@ graphs labelled "mg" under every activity. They stay in the file, where
 `tools/replay_detector.py` reads them; nobody has to scroll past them.
 
 `Rest per Work` is a float. It was a UINT16 holding the ratio times 100 —
-which is all an integer FIT field can carry — and Connect dutifully rendered a
-3.2 ratio as the number `317`.
+which is all an integer FIT field can carry — so Connect dutifully rendered a
+3.2 ratio as a three-digit integer instead.
 
 **Developer fields only render for games recorded by a build installed from
 the store.** Not merely published — *installed*. The app has been live as
@@ -561,7 +560,7 @@ fields show up in Garmin Connect. Listed once Garmin's review completes.
 | File | What it is |
 |---|---|
 | `IndoorHockey.prg` | A single build for the Forerunner 570. Copy it to `GARMIN/APPS/` on the watch over USB and eject, or run `tools/watch.sh install IndoorHockey.prg`. |
-| `IndoorHockey.iq` | The store package: the same app built for all 202 supported device variants. This is what gets uploaded to Garmin, not what gets copied to a watch. |
+| `IndoorHockey.iq` | The store package: the same app built for all 126 products in `manifest.xml`, which the store expands to 202 device variants. This is what gets uploaded to Garmin, not what gets copied to a watch. |
 
 For any watch other than a Forerunner 570, build the `.prg` yourself —
 `./build.sh <device>`, see [Build from source](#build-from-source). The `.iq` is

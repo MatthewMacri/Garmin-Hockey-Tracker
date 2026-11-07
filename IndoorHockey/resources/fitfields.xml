@@ -92,8 +92,9 @@
         <fitField id="18" sortOrder="18" displayInActivitySummary="true" precision="0"
                   dataLabel="@Strings.FitStrideCover" unitLabel="@Strings.UnitPercent" />
 
-        <!-- Only written when the player has set a stride length. Left at the
-             default they stay absent rather than reporting a zero. -->
+        <!-- Written when a stride length is available from either the
+             player's setting or GPS self-calibration. With neither they stay
+             absent rather than reporting a zero. -->
         <fitField id="19" sortOrder="19" displayInActivitySummary="true" precision="0"
                   dataLabel="@Strings.FitDistEst" unitLabel="@Strings.UnitMetres" />
         <fitField id="20" sortOrder="20" displayInActivitySummary="true" precision="1"

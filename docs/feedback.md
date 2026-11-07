@@ -21,7 +21,7 @@ Status means:
 | Question | Status |
 |---|---|
 | "Sense when the game is over so I don't forget about it for 4 hours" | **Added** - `b51d493`, [#1](../../issues/1). 25 min idle, buzzes, saves itself. |
-| "Does it still give an overall HR zone chart?" | **In the app.** Verified by decoding a recording: four `time_in_zone` messages (one session, three laps) plus `zones_target`. The watch writes them, not the app. |
+| "Does it still give an overall HR zone chart?" | **In the app.** Verified by decoding a recording: four `time_in_zone` messages, one session plus three laps, in `2026-11-03-14-48-56.fit`. The watch writes them, not the app. (An earlier version of this row also cited `zones_target`; `tools/fit/fitread.py` does not decode that message, so it cannot be re-checked here and the claim is dropped rather than carried.) |
 | "Does it work with an HRM 600 chest strap?" | **Unverified.** See [#2](../../issues/2). |
 | "Does it still log vigorous minutes to health metrics?" | **Unverified.** See [#3](../../issues/3). |
 
@@ -34,11 +34,11 @@ player would hit the same thing here, and most of them this app already answers.
 |---|---|
 | Shift buzz "driving me crazy… thought I was getting tons of calls" | **In the app.** `shiftAlerts` turns it off entirely; `shiftSeconds` moves it. |
 | "I can't figure out how to start/stop" | **In the app.** START twice reaches the stop menu, hold UP reaches the same, and both exits confirm. |
-| "Text from screens is cut off on some corners" | **In the app.** Everything goes through `drawFitted`, which walks a font ladder down to `FONT_XTINY` rather than clipping. Not proof it never clips on 202 variants, but it is designed against. |
+| "Text from screens is cut off on some corners" | **In the app.** Everything goes through `drawFitted`, which walks a font ladder down to `FONT_XTINY` rather than clipping. Not proof it never clips on all 202 device variants, but it is designed against. |
 | "HR zones show 1 at the top and 5 at the bottom, backwards" | **Not applicable.** No zone list is drawn on the watch. Zones come from Garmin Connect, in Connect's own order. |
 | "Swiping through screens seems inverted" | **Not applicable.** One screen, no paging, and swipes are ignored while a game is live. |
 | Shift count wrong - 16 vs 13, 28 vs 16 against hand counts | **Partly.** The lap key corrects a boundary in the moment, and the raw motion and learned threshold are written per second so a miscount can be charted afterwards. But this app's detector has been tuned against one game, so it has no right to claim it does better. |
-| "Reported speeds seem low" / indoor speed | **Not doing.** No speed, no distance. GPS does not fix indoors and an accelerometer alone cannot produce a skating speed worth printing. |
+| "Reported speeds seem low" / indoor speed | **Partly, as of 2.5.0 — this row used to read "Not doing".** There is still no GPS speed indoors and an accelerometer alone cannot produce one. What 2.5.0 adds is narrower: `Skating Intensity` (mean wrist motion times mean stride rate, unitless, always available), and `Distance (estimated)` / `Speed While Striding` — but only once a stride length exists, either set by the player or learned from GPS on a day there is a fix. With no stride length those two fields are not created at all. |
 | "Does it work for goalies?" | **Not doing yet.** See [#4](../../issues/4). |
 | Scorekeeping - goals, assists, plus/minus | **Not doing yet.** See [#5](../../issues/5). |
 | Per-shift HR zones | **Added** - `tools/fit/shift-zones.py` reads them out of a saved game, plus the ice-versus-bench zone split Connect cannot draw. See [#6](../../issues/6). |
@@ -49,9 +49,9 @@ player would hit the same thing here, and most of them this app already answers.
 
 ## The pattern worth remembering
 
-Three of the four questions asked about this app resolve to "probably fine,
-never tested": chest straps, zone charts, intensity minutes. Only the zone
-chart could be settled from a file already on disk. The other two need one real
+Two of the four questions asked about this app resolve to "probably fine,
+never tested" — chest straps and intensity minutes — and the zone chart was a
+third until it was settled from a file already on disk. The other two need one real
 game and ten minutes in Garmin Connect afterwards, which is worth more than any
 amount of reasoning from the SDK documentation.
 

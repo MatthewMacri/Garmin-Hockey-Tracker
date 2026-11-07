@@ -61,35 +61,70 @@ class ShiftDetector {
     // defenceman standing at the point, gliding, or waiting out a stoppage
     // drops below the boundary for long enough to end the shift, and the
     // detector then started a fresh one when he moved again. That game came
-    // back with 45 shifts of a median 18 seconds against the 31 cycles its
+    // back with 48 shifts of a median 21 seconds against the 31 cycles its
     // own heart rate trace shows. At fourteen seconds the same game reads 32
     // shifts of a median 41 seconds.
-    // Entering the ice went from six seconds to ten after 2026-11-07, and
-    // the reason is the complaint that moving a wrist on the bench collects
-    // shifts nobody played. That is an ENTRY-edge problem, and it cannot be
-    // solved by raising the motion threshold: the spurious shifts carry
-    // HIGHER wrist motion than a defenceman's glide does, so no amplitude cut
-    // separates them. What does separate them is duration. A fidget is a
-    // burst; a shift is not.
     //
-    // Replayed against both recorded games, with the harness dating
-    // transitions back the way transition() does:
+    // (48 and 21s are the watch's own recorded session figures. An earlier
+    // comment here said 45 of a median 18s, which was a replay at a band the
+    // file was not recorded at.)
+    // Entry stays at SIX seconds. It was raised to ten on 2026-11-07 to answer
+    // the complaint that moving a wrist on the bench collects shifts nobody
+    // played, and it was reverted the same day. The reasoning was sound and
+    // the measurement was not; keeping the record here so nobody re-runs it.
     //
-    //   2026-11-05   6s -> 35 shifts, 11 below-baseline   10s -> 33, 9
-    //   2026-11-03   6s -> 18 shifts,  5 below-baseline   10s -> 17, 4
+    // Three things killed it:
     //
-    // Every shift the change removes is one whose own mean heart rate sits
-    // below the game's baseline - a player sitting down. Not one shift that
-    // the heart rate supports is lost, on either game. Past ten it stops
-    // being selective: twelve seconds costs a good shift on 11-05 and buys
-    // nothing, and fifteen buys one more at the same price.
+    //  - Ten seconds is unreachable by motion alone. ice_streak resets to
+    //    zero on any second at or below the lower hysteresis band, and real
+    //    skating dips below it. With the fast path disabled, 0 of 232 off-ice
+    //    motion bursts on 2026-11-03 ever reach a ten-second streak, and only
+    //    12 of 459 on 2026-11-05.
     //
-    // It costs no recorded ice time. transition() dates the change back by
-    // the length of the window that confirmed it, so the extra four seconds
-    // come back into the shift. What it costs is four seconds of the screen
-    // still saying BENCH after a shift that heart rate has not yet agreed
-    // with - and when it does agree, entry is still CONFIRM_ICE_FAST.
-    private const CONFIRM_ICE = 10;
+    //  - The sweep that chose it measured almost nothing. corroboratesIce()
+    //    is true on roughly half of all judgeable seconds, so nearly every
+    //    real entry takes CONFIRM_ICE_FAST: 29 fast against 3 slow on
+    //    2026-11-05, and 16 against 0 on 2026-11-03. The 6/10/12/15 table
+    //    that justified the change turned on three slow-path entries on one
+    //    game and none at all on the other, and it left every one of the
+    //    fast path's false positives in place (5 and 3, unchanged).
+    //
+    //  - With no heart rate it fails hard, which is the case that matters:
+    //    wrist optical only, no strap, and 0 position fixes in 5,122 records
+    //    at this player's rink. At the shipped band, motion alone:
+    //
+    //      2026-11-05   6s -> 21 shifts, max bench  297s
+    //                  10s -> 13 shifts, max bench 1221s
+    //      2026-11-03   6s -> 15 shifts, max bench  387s
+    //                  10s ->  8 shifts, max bench  808s
+    //
+    //    A twenty-minute single bench block on a game where the longest real
+    //    one is five minutes, and nothing warns, because isHealthy() only
+    //    watches the accelerometer.
+    //
+    // Two claims made for the change were simply false and are withdrawn: it
+    // cost 1.4 points of recorded ice on 11-03 and 2.3 on 11-05, not none,
+    // because removing a shift removes all of its seconds rather than only
+    // the confirmation window; and shifts the heart rate supports were lost.
+    // Both held only while heart rate was present, which was the unstated
+    // premise of the entire result.
+    //
+    // The diagnosis still stands: this is an ENTRY-edge problem and no
+    // amplitude cut separates it, because the spurious shifts carry HIGHER
+    // wrist motion than a defenceman's glide. What does not stand is that
+    // duration separates it. Also ruled out by measurement since: a longer
+    // fast window (removes good shifts twice as fast as bad), a
+    // preceding-bench-length rule (no separation - long benches are normal
+    // for a defenceman), and a retroactive minimum shift length (removes real
+    // shifts at the same rate). And the below-median-heart-rate proxy used to
+    // score all of it is partly a WARM-UP detector: on 11-05 those shifts sit
+    // at 112-134 bpm against a 136 median, concentrated in the first quarter
+    // of a file that started seventeen minutes before the opening faceoff.
+    // Warm-up skating is real skating.
+    //
+    // Fixing this needs ground truth for line changes, which no FIT file
+    // supplies. See docs/detector-tuning.md.
+    private const CONFIRM_ICE = 6;
     private const CONFIRM_BENCH = 14;
 
     // Shortened windows, used when heart rate or GPS agrees with motion.
@@ -110,10 +145,17 @@ class ShiftDetector {
     // which needs no slope and reads a level instead.
     private const HR_SLOPE = 0.25;
 
-    // Heart rate's distance from its own slow baseline is a much better signal
-    // than its slope: across those games the swing between a shift and the
-    // bench that follows it is 42-62 bpm, so the phase of the oscillation is
-    // unmistakable even when the derivative is buried in noise.
+    // Heart rate's distance from its own slow baseline is a better signal than
+    // its slope: across those games the peak-to-trough swing of one shift-plus-
+    // bench cycle is 42-62 bpm, so the phase of the oscillation is legible
+    // even when the derivative is buried in noise.
+    //
+    // Do not read that 42-62 as the separation available in any one second.
+    // It is a within-cycle range, measured peak to trough. Second by second
+    // the on-ice and bench means differ by 1.1 bpm on 2026-11-03 and 3.8 on
+    // 2026-11-05 - which is why four beats off the baseline only ever
+    // CORROBORATES motion here, and why corroboratesIce() turns out to be
+    // true on about half of all seconds rather than on half of the shifts.
     private const HR_OFFSET = 4.0;
 
     // A shift shorter than this is noise, not a line change.
@@ -127,7 +169,7 @@ class ShiftDetector {
     // contradict it - the slope separation is too weak to be trusted on its
     // own. This is the one exception, and it is not a slope: a rate sitting a
     // dozen beats under its drifting baseline is a player at rest, and no
-    // amount of wrist movement makes that a shift. Sixteen of the 45 shifts
+    // amount of wrist movement makes that a shift. Eighteen of the 48 shifts
     // found in the game of 2026-11-05 never lifted the rate out of zone 2 at
     // all - one of them ran 53 seconds with a peak of 119 bpm - which is what
     // sitting between periods and shifting around looks like to an
@@ -208,6 +250,23 @@ class ShiftDetector {
 
     private var _hr as Array<Number> = [] as Array<Number>;
     private var _hrBaseline as Float = 0.0;
+
+    // Seconds since observe() last had a heart rate, and since it last had a
+    // speed. Without these a sensor that stops reporting keeps its final
+    // reading on the books forever: hrOffset() would go on answering from a
+    // window whose newest sample is minutes old, latching HR_VETO or a fast
+    // path; and _speed, which GameModel caches from onPosition() and re-feeds
+    // every single second, would latch corroboratesBench() true for the rest
+    // of the game off ONE fix that happened to read near zero.
+    private var _hrAge as Number = 0;
+    private var _speedAge as Number = 0;
+
+    // How old a reading may be and still vote. Heart rate gets a generous
+    // window because optical dropouts of a few seconds are routine and the
+    // baseline moves slowly; speed gets a tight one because a position fix is
+    // a point in time and a stale one is simply wrong.
+    private const HR_MAX_AGE = 10;
+    private const SPEED_MAX_AGE = 4;
     private var _speed as Float? = null;
 
     private var _listening as Boolean = false;
@@ -319,6 +378,19 @@ class ShiftDetector {
             // Nothing useful to do; the listener is going away either way.
         }
         _listening = false;
+
+        // Drop the confirmation streaks. They are evidence about seconds that
+        // are now on the far side of a pause, and counting them toward a
+        // change confirmed after the resume would let an intermission supply
+        // most of a window that play is then credited with filling.
+        _iceStreak = 0;
+        _benchStreak = 0;
+
+        // Drop the PlayerLoad anchor too, or the first sample after the
+        // resume is differenced against the last one before the pause and a
+        // whole intermission's worth of arm movement lands in iceLoad as a
+        // single lurch.
+        _lastPrimed = false;
     }
 
     //! Throw away samples collected but not yet judged.
@@ -465,6 +537,16 @@ class ShiftDetector {
 
     //! Feed in the current heart rate and GPS speed. Both may be null.
     public function observe(heartRate as Number?, speedMps as Float?) as Void {
+        if (heartRate == null || heartRate <= 0) {
+            _hrAge++;
+        } else {
+            _hrAge = 0;
+        }
+        if (speedMps == null) {
+            _speedAge++;
+        } else {
+            _speedAge = 0;
+        }
         if (heartRate != null && heartRate > 0) {
             _hr.add(heartRate);
             if (_hr.size() > HR_WINDOW) {
@@ -478,7 +560,21 @@ class ShiftDetector {
                 _hrBaseline += (heartRate.toFloat() - _hrBaseline) * 0.0055;
             }
         }
-        _speed = speedMps;
+        if (speedMps != null) {
+            _speed = speedMps;
+        } else if (_speedAge > SPEED_MAX_AGE) {
+            _speed = null;
+        }
+    }
+
+    //! Heart rate recent enough to be allowed a vote.
+    private function hrIsFresh() as Boolean {
+        return _hrAge <= HR_MAX_AGE;
+    }
+
+    //! Speed recent enough to be allowed a vote.
+    private function speedIsFresh() as Boolean {
+        return _speed != null && _speedAge <= SPEED_MAX_AGE;
     }
 
     //! Run one second of the state machine. Returns true when the state just
@@ -581,8 +677,11 @@ class ShiftDetector {
     //! moving at skating speed.
     private function corroboratesIce() as Boolean {
         var speed = _speed;
-        if (speed != null && speed >= 2.5) {
+        if (speedIsFresh() && speed != null && speed >= 2.5) {
             return true;
+        }
+        if (!hrIsFresh()) {
+            return false;
         }
         return hrSlope() >= HR_SLOPE || hrOffset() >= HR_OFFSET;
     }
@@ -590,8 +689,11 @@ class ShiftDetector {
     //! Heart rate agreeing that work has stopped, or GPS saying the player has.
     private function corroboratesBench() as Boolean {
         var speed = _speed;
-        if (speed != null && speed <= 0.6) {
+        if (speedIsFresh() && speed != null && speed <= 0.6) {
             return true;
+        }
+        if (!hrIsFresh()) {
+            return false;
         }
         return hrSlope() <= -HR_SLOPE || hrOffset() <= -HR_OFFSET;
     }
@@ -602,6 +704,13 @@ class ShiftDetector {
     //! no baseline yet, so this is false until there is something to judge -
     //! which is what the start of a game needs.
     private function restingHeartRate() as Boolean {
+        // A stale rate may not veto. This is the only place heart rate is
+        // allowed to CONTRADICT motion rather than agree with it, so a dead
+        // sensor latching it here does not merely lose corroboration - it
+        // refuses shifts the player really skated, for the rest of the game.
+        if (!hrIsFresh()) {
+            return false;
+        }
         return hrOffset() <= -HR_VETO;
     }
 

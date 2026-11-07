@@ -11,6 +11,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fit import fitread
 
 
+_PARSED = {}
+
+
+def parsed(path):
+    """Decode a file once. Several of the checks below want the whole message
+    set, and parsing an 85-minute game four times is pure latency."""
+    if path not in _PARSED:
+        _PARSED[path] = fitread.parse(path)
+    return _PARSED[path]
+
+
 def load(path):
     """Per-second motion, threshold, on_ice and heart rate from one game.
 
@@ -19,15 +30,35 @@ def load(path):
     be the one file in the project that cannot run without pip.
     """
     out = []
-    for m in fitread.parse(path)['record']:
+    for m in parsed(path)['record']:
         if m.get('dev:motion') is None:
             continue
         out.append({
+            'ts': m.get('timestamp'),
             'motion': m.get('dev:motion'),
             'threshold': m.get('dev:motion_threshold'),
             'on_ice': 1 if m.get('dev:on_ice') else 0,
             'hr': m.get('heart_rate'),
         })
+    return out
+
+
+def record_gaps(rows):
+    """(index, missing seconds) for every break in the one-per-second stream.
+
+    A gap is a pause: onTick() returns before detector.tick() while the game
+    is not RUNNING, in both the 1.0.0 and the current GameModel, so the
+    detector genuinely did not tick through it and replaying the rows as if
+    they were contiguous is right for the STATE MACHINE. It is not right for
+    anything that divides by a clock - see session_ice_pct().
+    """
+    out = []
+    for i in range(1, len(rows)):
+        a, b = rows[i - 1].get('ts'), rows[i].get('ts')
+        if a is None or b is None:
+            continue
+        if b - a != 1:
+            out.append((i, b - a - 1))
     return out
 
 
@@ -37,18 +68,47 @@ def mark_stale(rows):
     The watch still ticks on those seconds - _secondsInState advances before
     tick() checks for a sample - so the harness has to tick on them too, or
     every minimum-dwell guard fires earlier in the replay than it did on the
-    wrist. The 2026-11-03 game has 501 of them.
+    wrist.
 
-    They are recognisable because tick() returns before learn(): motion and
-    threshold both repeat the row before. The leading motion-0 rows are the
-    same case before any sample had arrived at all.
+    A dropped second is recognisable because tick() returns before learn():
+    motion and threshold both hold whatever they last held. But that
+    implication only runs ONE WAY, and the first version of this function read
+    it as if it ran both ways. A second that really was delivered produces an
+    identical pair whenever the integer motion repeats AND the threshold did
+    not move - and the threshold cannot move at all while the learned boundary
+    sits under MOTION_FLOOR, because learn() clamps it there. That is the whole
+    bench: low, repetitive motion against a pinned threshold.
+
+    So a row at the floor is no evidence of staleness and is not flagged.
+
+    The difference is not cosmetic. On the game of 2026-11-05, 73 of the 74
+    rows the old rule flagged sat at the floor with a median motion of 7 mg,
+    and a motion-magnitude-matched null model predicted 77 such coincidences
+    against the 74 observed - no enrichment at all, which is what a rule firing
+    purely on chance looks like. Proof that those seconds were really
+    delivered: suppress the repeat rule on that file entirely and the learner
+    reproduces the watch's recorded threshold EXACTLY, 0 mg of maximum error
+    over 5121 seconds. A threshold cannot reproduce exactly unless learn() ran
+    on every one of those seconds.
+
+    That is not an argument for suppressing the rule, though, because on the
+    game of 2026-11-03 the dropped seconds are real: suppressing it there takes
+    the threshold error to 84 mg and agreement from 100% to 83%. The floor-
+    aware rule is what separates the two cases. It keeps 489 of 2026-11-03's
+    501 flags and discards 72 of 2026-11-05's 74, and on both files it takes
+    the threshold error to 1 mg - from 3 mg - while agreement goes 97.4% ->
+    98.4% on 2026-11-05 and stays at 100.0% on 2026-11-03.
+
+    The leading motion-0 row is a different case: the firmware writes one
+    record at the instant the timer starts, before onTick() has run at all.
     """
     prev = None
     for r in rows:
+        repeat = (prev is not None
+                  and r['motion'] == prev['motion']
+                  and r['threshold'] == prev['threshold'])
         r['stale'] = (not r['motion']) or (
-            prev is not None
-            and r['motion'] == prev['motion']
-            and r['threshold'] == prev['threshold'])
+            repeat and r['threshold'] != Learner.MOTION_FLOOR)
         prev = r
     return rows
 
@@ -80,32 +140,44 @@ class Learner:
 def live(rows):
     """Only the seconds the accelerometer actually delivered.
 
-    When no sample arrives, tick() returns before learn(): the threshold does
-    not move, and `motion` keeps whatever it last held. So a stale second shows
-    up in the FIT as a row whose motion AND threshold both repeat the row
-    before it. Replaying those rows feeds the same sample to the learner twice
-    and inflates its working estimate, which is what made the first versions of
-    this harness disagree with the watch.
-
-    The leading motion-0 rows are the same case before any sample had arrived.
+    Replaying a dropped second feeds the same sample to the learner twice and
+    inflates its working estimate, which is what made the first versions of
+    this harness disagree with the watch. Replaying a DELIVERED second as if it
+    had been dropped starves the learner instead, and costs just as much - see
+    mark_stale() for how the rule that tells them apart gets it wrong, and in
+    which direction.
     """
     return [r for r in mark_stale(rows) if not r['stale']]
 
 
 # Which band a recording was made with is a property OF THE FILE, and getting
-# it wrong invalidates the whole replay: the harness would compare against a
-# threshold no watch ever computed and report a disagreement that is really a
+# it wrong invalidates the whole VALIDATION: the harness would compare against
+# a threshold no watch ever computed and report a disagreement that is really a
 # settings difference. This went wrong once already, with 0.45 hardcoded while
 # the watch had shipped 0.27, and it would have gone wrong again at 0.18.
 #
 # So stop asking the reader to remember. The recorded threshold is in the file,
 # and exactly one band reproduces it, so the band can simply be recovered:
 #
-#   0.45  builds before b20a726        0.27  v2.0.0 to v2.1.0, normal
-#   0.18  from v2.2.0, normal          0.24 low   0.14 high
+#   0.55 / 0.45 / 0.35   v1.0.0            low / normal / high
+#   0.35 / 0.27 / 0.21   v2.0.0, v2.1.0    low / normal / high
+#   0.24 / 0.18 / 0.14   v2.2.0 onward     low / normal / high
+#
+# 0.35 is ambiguous between v1.0.0-high and v2.0.0-low, which is harmless:
+# those two releases ship identical detector constants, so the era lookup
+# returns the same answer either way.
+#
+# The grid has to reach 0.55 or a v1.0.0 low-sensitivity recording silently
+# recovers as 0.52 - the top of the old grid - and then fails the era lookup
+# and gets replayed at a band no watch ever used.
 #
 # --band still overrides, for asking what a different band would have done.
-BAND_GRID = [round(0.08 + 0.005 * i, 3) for i in range(0, 89)]
+BAND_GRID = [round(0.08 + 0.005 * i, 3) for i in range(0, 100)]
+
+# The band the app ships as Normal today. This is NOT the band to validate at
+# and it is the ONLY band to run a counterfactual at; see the note above
+# sweep() for why conflating the two was a decision-changing mistake.
+SHIPPED_BAND = 0.18
 
 
 def fit_band(rows, grid=None):
@@ -126,22 +198,56 @@ def fit_band(rows, grid=None):
 # recording was made with; running today's constants against a 2.1.0 recording
 # and calling the disagreement an error is how a harness gets "fixed" until it
 # reproduces the wrong thing.
+# v1.0.0 through v2.1.0. Checked line by line against
+# `git show <tag>:IndoorHockey/source/ShiftDetector.mc` for every tag: one
+# constant set covers all six of those bands.
+_OLD = dict(CONFIRM_ICE=6, CONFIRM_BENCH=10, CONFIRM_ICE_FAST=3,
+            CONFIRM_BENCH_FAST=5, HR_VETO=None)
+# v2.2.0 to v2.4.0: today's constants but the six-second entry window.
+_MID = dict(CONFIRM_ICE=6)
+
 ERAS = {
-    0.45: dict(CONFIRM_ICE=6, CONFIRM_BENCH=10, CONFIRM_BENCH_FAST=5, HR_VETO=None),
-    0.27: dict(CONFIRM_ICE=6, CONFIRM_BENCH=10, CONFIRM_BENCH_FAST=5, HR_VETO=None),
-    # v2.2.0 to v2.4.0: today's constants but the six-second entry window.
-    0.24: dict(CONFIRM_ICE=6), 0.18: dict(CONFIRM_ICE=6), 0.14: dict(CONFIRM_ICE=6),
+    0.55: _OLD, 0.45: _OLD, 0.35: _OLD, 0.27: _OLD, 0.21: _OLD,
+    0.24: _MID, 0.18: _MID, 0.14: _MID,
 }
+
+# Everything the Learner uses - MOTION_FLOOR, the 40/400 seeds, the 0.15/0.01
+# chase rates, the 60 mg minimum gap - and HYSTERESIS, MIN_SHIFT_SEC,
+# MIN_BENCH_SEC, HR_SLOPE, HR_OFFSET and HR_WINDOW are unchanged at every tag,
+# so none of them need an era entry.
 
 
 def era_for(band):
-    """The constants that shipped with the band this file was recorded at."""
+    """The constants that shipped with the band this file was recorded at,
+    or None when the band matches no release - in which case the file CANNOT
+    be validated and nothing downstream of it should be believed."""
     key = min(ERAS, key=lambda b: abs(b - band))
     return ERAS[key] if abs(key - band) < 0.005 else None
 
 
 def run(rows, band, confirm_ice_slow=None, start_on_ice=True, era=None):
-    """Replay the whole state machine. Returns the per-second on-ice flags.
+    """Replay the state machine; returns (raw, dated). See run_detector()."""
+    raw, dated, _ = run_detector(rows, band, confirm_ice_slow=confirm_ice_slow,
+                                 start_on_ice=start_on_ice, era=era)
+    return raw, dated
+
+
+def strip_hr(rows):
+    """The same game with no heart rate at all.
+
+    Not a hypothetical. The rate comes from a wrist optical sensor under a
+    glove, an elbow pad and a jersey sleeve, with no chest strap, and the
+    detector's heart-rate votes all return 0.0 the moment the window has fewer
+    than eight samples - so a dropout hands the state machine motion alone.
+    Every entry window has to be judged in that condition as well as in the
+    comfortable one, because that is the condition it will be in when it
+    matters. See sweep().
+    """
+    return mark_stale([dict(r, hr=None) for r in rows])
+
+
+def run_detector(rows, band, confirm_ice_slow=None, start_on_ice=True, era=None):
+    """Replay the whole state machine. Returns (raw, dated, detector).
 
     `rows` must be ALL the rows, stale ones included - see mark_stale().
     """
@@ -170,7 +276,7 @@ def run(rows, band, confirm_ice_slow=None, start_on_ice=True, era=None):
                 dated[i] = now
         v = 1 if det.on_ice else 0
         raw.append(v); dated.append(v)
-    return raw, dated
+    return raw, dated, det
 
 
 def agreement(flags, rows):
@@ -180,14 +286,61 @@ def agreement(flags, rows):
 
 
 def session_ice_pct(path):
-    """The ice share the watch itself reported, from the session message."""
-    d = fitread.parse(path)
+    """The ice share the watch itself reported. Returns (percent, note).
+
+    The denominator used to be total_elapsed_time, which is wrong whenever the
+    game was paused, and wrong in a way that quietly poisoned a comparison the
+    harness printed side by side with its own number.
+
+    On the game of 2026-11-03 the record stream has four breaks totalling 544
+    seconds: elapsed is 4150 s, the timer 3601 s, and the trace 3605 rows. So
+    the old line divided the watch's ice seconds by a clock 544 seconds longer
+    than the trace it was being compared against, and read 16.3% where
+    ice/timer is 18.8%.
+
+    Worse, on that file the numerator is polluted too. The v1.0.0 pause() banks
+    no segment clock and does not stop the detector, and the file's own
+    ice_time + bench_time comes to 4148 s - elapsed, not timer - so a 205
+    second pause that fell inside a shift was banked as ice time. (max_shift in
+    that session is 220 s.) There is no denominator that rescues that
+    numerator, so a gapped file gets no number at all rather than a number
+    somebody might quote.
+    """
+    gaps = record_gaps(load(path))
+    d = parsed(path)
     for m in d['session']:
         ice = m.get('dev:ice_time')
-        total = m.get('total_elapsed_time')
-        if ice is not None and total:
-            return 100.0 * ice / (total / 1000.0)
-    return float('nan')
+        timer = m.get('total_timer_time')
+        elapsed = m.get('total_elapsed_time')
+        if ice is None or not timer:
+            continue
+        if gaps:
+            return None, (
+                "refused: the record stream has %d break(s) totalling %d s, so "
+                "the session's ice_time banked paused wall-clock into whichever "
+                "segment was open and no denominator fixes it"
+                % (len(gaps), sum(n for _, n in gaps)))
+        note = "ice_time / total_timer_time"
+        if elapsed and abs(elapsed - timer) > 1000:
+            note += " (elapsed differs by %.0f s and is NOT the denominator)" \
+                    % ((elapsed - timer) / 1000.0)
+        return 100.0 * ice / (timer / 1000.0), note
+    return None, "refused: no session ice_time in this file"
+
+
+def has_position(path):
+    """Seconds carrying a GPS speed or a position.
+
+    The detector takes a speed vote the harness cannot model - see the caveat
+    sweep() prints - so a file with a fix is a file this harness should not be
+    trusted on.
+    """
+    n = 0
+    for m in parsed(path)['record']:
+        if m.get('speed') is not None or m.get('enh_speed') is not None \
+                or m.get('lat') is not None:
+            n += 1
+    return n
 
 
 def _main(argv):
@@ -196,12 +349,21 @@ def _main(argv):
     mode_shifts = '--shifts' in args
     if mode_shifts:
         args.remove('--shifts')
-    sweep = None
+    windows = None
     if '--sweep' in args:
         i = args.index('--sweep')
-        sweep = [int(x) for x in args[i + 1].split(',')]
+        windows = [int(x) for x in args[i + 1].split(',')]
         del args[i:i + 2]
         mode_shifts = True
+    # The sweep band is deliberately NOT --band. --band says what the file was
+    # recorded with, which is a validation input; this says what to run a
+    # counterfactual at, and it defaults to what the app ships. Conflating the
+    # two is the mistake that produced the 2.5.0 entry-window retune.
+    sweep_band = SHIPPED_BAND
+    if '--sweep-band' in args:
+        i = args.index('--sweep-band')
+        sweep_band = float(args[i + 1])
+        del args[i:i + 2]
     if '--band' in args:
         i = args.index('--band')
         band = args[i + 1]
@@ -209,51 +371,72 @@ def _main(argv):
     if not args:
         print("usage: replay_detector.py GAME.fit [--band auto|0.18]")
         print("                                   [--shifts] [--sweep 6,9,12]")
+        print("                                   [--sweep-band 0.18]")
+        print()
+        print("  --band       the band the FILE was recorded with. Validation")
+        print("               only; 'auto' recovers it from the file.")
+        print("  --sweep-band the band to run the counterfactual sweep at.")
+        print("               Defaults to the shipped %.2f. Changing it does"
+              % SHIPPED_BAND)
+        print("               not describe the shipped app.")
         return 2
 
     if mode_shifts:
-        allrows = mark_stale(load(args[0]))
+        path = args[0]
+        allrows = mark_stale(load(path))
         if not allrows:
             print("No motion developer fields in this file.")
             return 1
         livedup = [r for r in allrows if not r['stale']]
-        if band is None or band == 'auto':
-            band, _ = fit_band(livedup)
-        else:
+        given = band is not None and band != 'auto'
+        if given:
             band = float(band)
+        else:
+            band, _ = fit_band(livedup)
         total = len(allrows)
-        print("%d seconds, %d of them stale (%.1f%%), band %.3f"
+        print("%d seconds, %d of them stale (%.1f%%), band %.3f%s"
               % (total, total - len(livedup),
-                 100.0 * (total - len(livedup)) / total, band))
-        # Quoted from the session, not from the trace: the two differ by the
-        # backdate and the session is the one the player sees.
+                 100.0 * (total - len(livedup)) / total, band,
+                 " (given)" if given else " (recovered from the file)"))
+        gaps = record_gaps(allrows)
+        if gaps:
+            print("  the record stream has %d break(s) totalling %d s - the "
+                  "game was paused.\n  The detector does not tick while paused,"
+                  " so replaying the rows as\n  contiguous is right; any ice"
+                  " SHARE off this file is not."
+                  % (len(gaps), sum(n for _, n in gaps)))
+        fixes = has_position(path)
+        if fixes:
+            print("  WARNING: %d records carry a GPS speed or position. This"
+                  " harness does\n  not model the speed vote, so it cannot"
+                  " answer for this file." % fixes)
+
         report("the watch, as recorded", [r['on_ice'] for r in allrows],
                total, allrows)
-        print("  (that line's ice%% is the record trace; this file's session "
-              "says %.1f%%)" % session_ice_pct(args[0]))
+        pct, note = session_ice_pct(path)
+        if pct is None:
+            print("  (that line's ice%% is the record trace; the session's own "
+                  "share is\n   %s)" % note)
+        else:
+            print("  (that line's ice%% is the record trace; this file's session"
+                  " says %.1f%%,\n   %s - the two differ by the backdate)"
+                  % (pct, note))
 
-        # Validation first: can the harness reproduce what the watch did, with
-        # the constants the watch was running? Everything after this is only
-        # worth reading if that number is high.
+        # Validation first, AT THIS FILE'S OWN BAND: can the harness reproduce
+        # what the watch did, with the constants the watch was running?
+        # Everything after this is only worth reading if that number is high.
         era = era_for(band)
         if era is None:
-            print("band %.3f matches no known release - cannot validate" % band)
+            print("band %.3f matches no release in ERAS - CANNOT VALIDATE, and"
+                  " nothing\nbelow should be believed for this file." % band)
         else:
             raw, dated = run(allrows, band, era=era)
-            print("replay at this file's own era reproduces %.1f%% of the "
-                  "watch's seconds" % agreement(raw, allrows))
+            print("replay at this file's own era (band %.3f) reproduces %.1f%%"
+                  " of the watch's seconds" % (band, agreement(raw, allrows)))
             report("replay, that era", dated, total, allrows)
 
-        _, dated = run(allrows, band)
-        report("replay, today's constants", dated, total, allrows)
-        for n in (sweep or []):
-            report("replay, plain entry %2ds" % n,
-                   run(allrows, band, confirm_ice_slow=n)[1], total, allrows)
-        if sweep:
-            print("\n(plain entry = how long motion alone, with no heart rate\n"
-                  " agreeing, must hold before a shift opens. The transition is\n"
-                  " backdated by that many seconds, so a longer window costs\n"
-                  " on-screen latency, not recorded ice time.)")
+        if windows:
+            sweep(allrows, windows, band=sweep_band)
         return 0
 
     rows = live(load(args[0]))
@@ -319,6 +502,12 @@ class Detector:
         self.dwell = 0
         self.backtrack = 0
         self.hr, self.base = [], 0.0
+        # Which window actually opened each shift. Worth counting, because it
+        # turns out to decide whether an entry-window sweep means anything at
+        # all: with heart rate present, corroboratesIce() is true on about half
+        # of all judgeable seconds, so nearly every shift enters on the 3
+        # second fast path and CONFIRM_ICE is never consulted.
+        self.entries_fast = self.entries_slow = 0
 
     def observe(self, hr):
         if hr:
@@ -392,6 +581,10 @@ class Detector:
             if self.ice_streak >= need and self.dwell >= self.MIN_BENCH_SEC \
                     and not self._resting():
                 self.on_ice = True; self.backtrack = need
+                if fast:
+                    self.entries_fast += 1
+                else:
+                    self.entries_slow += 1
                 self._reset_streaks(); return True
         else:
             fast = self._slope() <= -self.HR_SLOPE or self._offset() <= -self.HR_OFFSET
@@ -435,44 +628,230 @@ def shift_spans(flags):
     return out
 
 
-def suspect(flags, rows):
-    """Shifts the heart rate says were not shifts.
+def baseline_hr(rows):
+    """The median heart rate over the whole file, or None.
 
-    A real shift raises the rate: across twelve recorded games the swing
-    between a shift and the bench after it is 42-62 bpm. A shift whose own
-    mean rate sits BELOW the game's slow baseline is a player who was sitting
-    down and moved their arm - which is the complaint this metric exists to
-    count. It is a proxy, not ground truth, but it is the only one a FIT file
-    can supply without someone writing down line changes at the rink.
+    Read what this number actually is before leaning on it. It is the median
+    of every second in the file, and both recorded games are mostly bench - 83%
+    on 2026-11-03, 74% on 2026-11-05 - so it is a BENCH heart rate, and the
+    test "is this shift above it" is a generous one. The per-second separation
+    it is being asked to resolve is 1.1 bpm on 2026-11-03 (ice mean 159.5,
+    bench mean 158.4) and 3.8 bpm on 2026-11-05. The 42-62 bpm figure quoted
+    in ShiftDetector.mc is a within-cycle peak-to-trough swing and is not this.
+
+    So the proxy is weak, and weak in the direction of UNDER-counting sitting
+    shifts on a bench-heavy game. It is still the only thing a FIT file
+    supplies without someone writing down line changes at the rink, which is
+    why it is here - but a one or two shift margin in it decides nothing.
     """
+    known = sorted(h for h in (r['hr'] for r in rows) if h)
+    return known[len(known) // 2] if known else None
+
+
+def classify(flags, rows, base=None):
+    """Each on-ice span as (start, end, mean heart rate, below baseline?)."""
+    if base is None:
+        base = baseline_hr(rows)
     hrs = [r['hr'] for r in rows]
-    known = [h for h in hrs if h]
-    if not known:
-        return 0, 0
-    base = sorted(known)[len(known) // 2]
-    bad = 0
-    spans = shift_spans(flags)
-    for a, b in spans:
+    out = []
+    for a, b in shift_spans(flags):
         seg = [h for h in hrs[a:b] if h]
-        if seg and sum(seg) / float(len(seg)) < base:
-            bad += 1
-    return bad, len(spans)
+        mean = sum(seg) / float(len(seg)) if seg else None
+        out.append((a, b, mean,
+                    bool(mean is not None and base is not None and mean < base)))
+    return out
 
 
-def report(name, flags, total, rows=None):
+def suspect(flags, rows):
+    """(below-baseline shifts, total shifts). A level, not a difference."""
+    spans = classify(flags, rows)
+    return sum(1 for s in spans if s[3]), len(spans)
+
+
+def compare(ref, cand):
+    """How a candidate's shifts differ from a reference's, counted HONESTLY.
+
+    The difference of two below-baseline COUNTS cannot be read as "the shifts
+    the change removed", and the published 6->10 table was read exactly that
+    way. Changing the entry window changes the backdate - transition() dates
+    the boundary back by the length of the window that confirmed it - so every
+    SURVIVING shift's start moves too, by (new - old) seconds, into seconds
+    whose heart rate had not caught up yet. That re-means the survivors.
+
+    On 2026-11-05 at the shipped band, 6->10 removes 3 shifts but 4
+    below-baseline ones: a shift that survived crossed the baseline because its
+    start moved, not because anything was removed. So removal and
+    reclassification are reported separately and never summed.
+
+    Spans are matched by overlap, which is the only correspondence that
+    survives a boundary moving by a few seconds.
+    """
+    def overlaps(x, ys):
+        return [y for y in ys if x[0] < y[1] and y[0] < x[1]]
+
+    removed = [r for r in ref if not overlaps(r, cand)]
+    added = [c for c in cand if not overlaps(c, ref)]
+    reclassified = 0
+    for r in ref:
+        hit = overlaps(r, cand)
+        if hit and any(h[3] != r[3] for h in hit):
+            reclassified += 1
+    return {
+        'removed': len(removed),
+        'removed_below': sum(1 for r in removed if r[3]),
+        'added': len(added),
+        'added_below': sum(1 for c in added if c[3]),
+        'reclassified': reclassified,
+    }
+
+
+# No defenceman sits for ten minutes. A bench spell this long is not a long
+# bench spell, it is the detector having stopped detecting - and nothing on the
+# watch warns about it, because isHealthy() only watches the accelerometer.
+IMPLAUSIBLE_BENCH_SEC = 600
+
+
+def shape(flags, total, rows=None):
+    """The numbers worth printing about one replayed trace."""
     segs = segments(flags)
     ice = [n for v, n in segs if v == 1]
     ben = [n for v, n in segs if v == 0]
-    icesec = sum(ice)
-    med = sorted(ice)[len(ice) // 2] if ice else 0
-    extra = ""
+    bad = n = None
     if rows is not None:
         bad, n = suspect(flags, rows)
-        extra = "  below-baseline HR %2d/%-3d" % (bad, n)
-    print("%-26s ice %5.1f%%  shifts %3d  median shift %3ds  median bench %3ds%s"
-          % (name, 100.0 * icesec / total, len(ice), med,
-             sorted(ben)[len(ben) // 2] if ben else 0, extra))
-    return {'ice_pct': 100.0 * icesec / total, 'shifts': len(ice), 'median': med}
+    return {
+        'ice_pct': 100.0 * sum(ice) / total,
+        'shifts': len(ice),
+        'median': sorted(ice)[len(ice) // 2] if ice else 0,
+        'median_bench': sorted(ben)[len(ben) // 2] if ben else 0,
+        # The signature of a detector that has stopped detecting. A median
+        # hides it; a maximum does not.
+        'max_bench': max(ben) if ben else 0,
+        'below': bad, 'spans': n,
+    }
+
+
+def report(name, flags, total, rows=None):
+    s = shape(flags, total, rows)
+    extra = ""
+    if s['below'] is not None:
+        extra = "  below-baseline HR %2d/%-3d" % (s['below'], s['spans'])
+    print("%-26s ice %5.1f%%  shifts %3d  median shift %3ds  median bench %3ds"
+          "  max bench %4ds%s"
+          % (name, s['ice_pct'], s['shifts'], s['median'], s['median_bench'],
+             s['max_bench'], extra))
+    return s
+
+
+def sweep(allrows, windows, band=SHIPPED_BAND, ref=6):
+    """What each candidate entry window would do, at the SHIPPED band.
+
+    Two separate mistakes used to live in this one function.
+
+    The band. Validation has to replay at the band the file was recorded with,
+    or it compares against a threshold no watch ever computed. A COUNTERFACTUAL
+    is the opposite case: "what would the shipped detector do" is a question
+    about the band the app actually ships, and the sweep used to inherit the
+    recovered band instead. On the two files on record that meant sweeping at
+    0.45 and 0.27 - two bands ShiftDetector.mc itself documents as wrong - and
+    it changed the answer: the reason given for stopping at ten seconds rather
+    than twelve ("twelve costs a good shift on 11-05 and buys nothing") is true
+    at 0.27 and false at 0.18.
+
+    The heart rate. Every row of the published table was computed with heart
+    rate present, and with heart rate present the sweep barely measures its own
+    variable: corroboratesIce() is true on about half of all judgeable seconds,
+    so 29 of 32 entries on 2026-11-05 and 16 of 16 on 2026-11-03 open on the 3
+    second fast path, where CONFIRM_ICE is not consulted at all. The whole
+    table turned on 3 slow-path entries on one game and none on the other.
+    Strip the rate - the real case for a wrist optical sensor under a sleeve,
+    with no strap - and the longer windows collapse: at the shipped band, entry
+    10 records a single twenty-minute bench block on 2026-11-05 and entry 12 a
+    thirty-two-minute one on 2026-11-03, because with no fast path 0 of 196
+    motion bursts on that game ever reach a ten-second streak.
+
+    So the no-heart-rate column is not optional and not a footnote. It is the
+    column that says whether a window is safe.
+    """
+    total = len(allrows)
+    nohr = strip_hr(allrows)
+    base_ref = classify(run(allrows, band, confirm_ice_slow=ref)[1], allrows)
+
+    if abs(band - SHIPPED_BAND) < 1e-9:
+        print("\nentry-window sweep at the SHIPPED band %.3f" % band)
+        print("  (a counterfactual runs at the band the app ships, not at the"
+              " band\n   this file was recorded with - that one is for"
+              " validation only)")
+    else:
+        print("\nentry-window sweep at band %.3f, which is NOT the shipped"
+              " %.3f" % (band, SHIPPED_BAND))
+        print("  (asked for explicitly. Nothing below describes what the"
+              " shipped app\n   would do, and it is not evidence for a"
+              " constant change.)")
+    print("  all \"vs\" columns are measured against the %ds row%s"
+          % (ref, "" if ref in windows else " (not listed below)"))
+
+    print("\n  with heart rate -- the comfortable case, and the one that"
+          " measures least:")
+    for n in windows:
+        dated, det = run_detector(allrows, band, confirm_ice_slow=n)[1:]
+        s = shape(dated, total, allrows)
+        d = compare(base_ref, classify(dated, allrows))
+        rel = "reference" if n == ref else (
+            "vs %ds: %d removed (%d below), %d added (%d below), %d reclassified"
+            % (ref, d['removed'], d['removed_below'], d['added'],
+               d['added_below'], d['reclassified']))
+        print("    %3ds  shifts %3d  ice %5.1f%%  below-baseline %2d/%-3d  "
+              "entries %2d fast / %2d slow\n          %s"
+              % (n, s['shifts'], s['ice_pct'], s['below'], s['spans'],
+                 det.entries_fast, det.entries_slow, rel))
+
+    print("\n  WITH NO HEART RATE -- motion alone, which is what a dropout"
+          " leaves:")
+    alarm = []
+    for n in windows:
+        dated = run(nohr, band, confirm_ice_slow=n)[1]
+        s = shape(dated, total)
+        flag = ""
+        if s['max_bench'] >= IMPLAUSIBLE_BENCH_SEC:
+            flag = "  <== %d min on the bench; the detector has stopped" \
+                   % (s['max_bench'] // 60)
+            alarm.append(n)
+        print("    %3ds  shifts %3d  ice %5.1f%%  median bench %4ds  "
+              "max bench %4ds%s"
+              % (n, s['shifts'], s['ice_pct'], s['median_bench'],
+                 s['max_bench'], flag))
+    if alarm:
+        print("\n  NOT SAFE with no heart rate: %s. A window is only a"
+              % ", ".join("%ds" % n for n in alarm))
+        print("  candidate if it survives BOTH blocks above.")
+
+    print("\n  Two caveats this harness cannot measure its way out of:")
+    print("   - The GPS speed vote is NOT modelled. corroboratesIce() returns"
+          "\n     true outright at >= 2.5 m/s and corroboratesBench() at"
+          " <= 0.6 m/s,"
+          "\n     so on a file with a fix the entry window can be bypassed"
+          " entirely"
+          "\n     and the exit window halved. Everything above holds for"
+          " FIXLESS"
+          "\n     recordings only. Worth recording while it is in view:"
+          " GameModel"
+          "\n     caches _speed from onPosition() and observe() re-feeds that"
+          " same"
+          "\n     value every second without ever ageing it, so ONE fix"
+          " reporting a"
+          "\n     near-zero speed latches corroboratesBench() true for the"
+          " rest of"
+          "\n     the game.")
+    print("   - The rate fed to observe() on the watch is"
+          " Activity.getActivityInfo()"
+          "\n     .currentHeartRate sampled when onTick ran; the rate here is"
+          " the"
+          "\n     per-second value the firmware wrote into the record. Two"
+          " samplings"
+          "\n     of one stream. Shifting this feed by a single second moves"
+          " agreement"
+          "\n     by up to 1.6 points, so treat every figure above as +-1.5.")
 
 if __name__ == '__main__':
     import sys

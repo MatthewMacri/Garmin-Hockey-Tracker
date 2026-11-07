@@ -83,11 +83,12 @@ class GameModel {
     private const FIELD_STRIDE_AVG  = 17;
     private const FIELD_STRIDE_COV  = 18;
 
-    // Distance and speed are only written when the player has set a stride
-    // length. There is no published stride length for skating, nothing on the
-    // wrist can measure one, and GPS cannot calibrate it indoors - so the
-    // alternative to asking is inventing a number, and these fields stay
-    // absent instead.
+    // Distance and speed are written when a stride length is available from
+    // EITHER source: the player's own setting, or one this app learned from
+    // GPS on a day it had a fix (see calibrateStride()). With neither they
+    // stay absent rather than reporting a zero. There is no published stride
+    // length for skating and nothing on the wrist can measure one directly,
+    // so the alternative to having one is inventing a number.
     private const FIELD_DIST_EST    = 19;
     private const FIELD_SPEED_EST   = 20;
 
@@ -149,7 +150,11 @@ class GameModel {
     private const CAL_KEY = "learnedStrideCm";
     private const CAL_MIN_SPEED = 1.5;      // m/s; below this nobody is skating
     private const CAL_MIN_CM = 100;         // a stride shorter than a metre
-    private const CAL_MAX_CM = 600;         // or longer than six is not one
+    // Matched to the Stride length setting's own maximum of 500, so a learned
+    // value can never be one the player is not allowed to type. They were 600
+    // and 500, which meant a calibration could outrank the range it claimed
+    // to belong to.
+    private const CAL_MAX_CM = 500;
     private const CAL_MIN_SAMPLES = 30;     // half a minute of agreement
     private var _calSum as Number = 0;
     private var _calCount as Number = 0;
@@ -157,6 +162,10 @@ class GameModel {
     // Mean on-ice wrist motion, for the intensity index.
     private var _iceMotionSum as Number = 0;
     private var _iceMotionSamples as Number = 0;
+    // Fewest on-ice seconds the intensity index may be built from. Half a
+    // minute of ice is the least that says anything about how a game was
+    // skated; below it the mean is one burst.
+    private const INTENSITY_MIN_SAMPLES = 30;
 
     // ---- live game state ----
     public var state as GameState = STATE_READY;
@@ -211,12 +220,28 @@ class GameModel {
     private const HRR_WINDOW = 5;       // samples averaged at each end
     private const HRR_AT = 60;          // the "60" in HRR60
     private const HRR_GIVE_UP = 70;     // stop waiting for a usable sample
+    // Fewest far-end samples that may stand as a measurement. A five-second
+    // mean was the whole point of the window; one sample carries the several
+    // beats of jitter a 1 Hz optical sensor has, at full size, straight into
+    // a difference of two numbers.
+    private const HRR_MIN_END = 3;
+    // The longest a transition can be dated back by, so the longest a
+    // committed recovery stays revocable. Matches the detector's widest
+    // confirmation window.
+    private const HRR_ROLLBACK = 14;
     private var _recoveryFrom as Number = 0;
     private var _recoverySeconds as Number = -1;
     private var _recoverySum as Number = 0;
     private var _recoveryCount as Number = 0;
     private var _recoveryEndSum as Number = 0;
     private var _recoveryEndCount as Number = 0;
+    // The last recovery committed, and how many seconds ago. A transition is
+    // dated back by the window that confirmed it, so the final seconds of a
+    // bench spell can be reassigned to the shift AFTER a recovery has already
+    // averaged them in. -1 means there is nothing that could still be taken
+    // back.
+    private var _recoveryLast as Number = 0;
+    private var _recoveryDoneAgo as Number = -1;
 
     // The last few heart rates, oldest overwritten. Supplies the average at
     // the near end of a recovery, which has to be known the instant a shift
@@ -241,6 +266,9 @@ class GameModel {
     private var _hrSeed as Number = 0;
     private var _hrObservedMax as Number = 0;
     private var _hrCeiling as Number = 0;
+    // A candidate maximum, and how many seconds have supported it.
+    private var _hrMaxPending as Number = 0;
+    private var _hrMaxSeen as Number = 0;
 
     private var _speed as Float? = null;
     private var _gpsOn as Boolean = false;
@@ -466,7 +494,16 @@ class GameModel {
         if (_iceHrSamples < 1) {
             return 0;
         }
-        return (_iceHrSum / _iceHrSamples).toNumber();
+        if (_iceMs < 1000) {
+            return 0;
+        }
+        // No ice time means no on-ice heart rate to report. The two are
+        // accumulated separately - the rate every second the detector says
+        // ON, the time only once a shift banks - so a game whose shifts were
+        // all dated back out of existence used to show "On-Ice HR 162"
+        // directly above "Ice 0:00". Whatever that pair means, it is not a
+        // measurement of anything.
+        return ((2 * _iceHrSum + _iceHrSamples) / (2 * _iceHrSamples)).toNumber();
     }
 
     //! Mean beats dropped in the first 60 seconds after a shift, over the
@@ -475,7 +512,15 @@ class GameModel {
         if (_recoveryCount < 1) {
             return 0;
         }
-        return (_recoverySum / _recoveryCount).toNumber();
+        // Rounded toward zero's correct side for either sign: a negative mean
+        // is a real result here (a rate still climbing a minute after a
+        // shift), so it cannot be rounded with the positive formula.
+        if (_recoverySum >= 0) {
+            return ((2 * _recoverySum + _recoveryCount)
+                / (2 * _recoveryCount)).toNumber();
+        }
+        return -((2 * -_recoverySum + _recoveryCount)
+            / (2 * _recoveryCount)).toNumber();
     }
 
     //! How many bench spells that average rests on. A recovery figure from one
@@ -491,7 +536,7 @@ class GameModel {
         for (var i = 0; i < n; i++) {
             sum += _hrRecent[i];
         }
-        return (sum / n).toNumber();
+        return ((2 * sum + n) / (2 * n)).toNumber();
     }
 
     public function recoveryCount() as Number {
@@ -701,6 +746,27 @@ class GameModel {
         state = STATE_PAUSED;
         _pauseArmedAt = -1;
         _endArmedAt = -1;
+
+        // Abandon any recovery in flight. _recoverySeconds counts ticks, and
+        // onTick() returns early while paused, so a recovery armed before a
+        // pause would resume counting afterwards and measure a "sixty second"
+        // drop across an intermission - the largest and most flattering
+        // number in the file, and pure artefact.
+        _recoverySeconds = -1;
+        _recoveryEndSum = 0;
+        _recoveryEndCount = 0;
+        // Nothing banked before a pause stays revocable: the streaks are
+        // cleared too, so no later backdate can reach back across it.
+        _recoveryDoneAgo = -1;
+        _recoveryLast = 0;
+
+        // Invalidate the heart rate ring as well. After the resume its newest
+        // entry is from before the pause, and switchSegment() would start a
+        // recovery from a rate the player had minutes ago. _hrStaleTicks is
+        // what guards that, so it has to reflect the gap rather than the last
+        // second the sensor happened to report.
+        _hrRecentCount = 0;
+        _hrStaleTicks = HRR_WINDOW + 1;
         // Restart the idle window rather than carrying the bench spell into
         // it. A player who sits out an intermission and then pauses the watch
         // partway through has done nothing wrong, and carrying over would
@@ -753,7 +819,20 @@ class GameModel {
 
         if (wasIce) {
             _iceMs += elapsed;
-            bankShift(elapsed);
+            if (!bankShift(elapsed) && shiftCount > 0) {
+                // The whole shift was dated back out of existence, so it
+                // contributed no ice time, no average and no maximum. Take
+                // back the count as well: a `shifts` of 7 against an
+                // `avg_shift` built from 5 of them makes shifts x avg_shift
+                // disagree with ice_time, and Garmin Connect shows all three
+                // side by side. Better six real shifts than seven of which
+                // two are bookkeeping.
+                shiftCount--;
+                var undo = _shiftsField;
+                if (undo != null) {
+                    undo.setData(shiftCount);
+                }
+            }
             if (autoLap) {
                 closeLap(elapsed, true);
             }
@@ -780,6 +859,20 @@ class GameModel {
         // from some earlier part of the shift, and starting a recovery from a
         // rate the player no longer had would report a drop that never
         // happened.
+        // A recovery measured across seconds that have just been reassigned
+        // to this shift is not a recovery. transition() dates the boundary
+        // back by the window that confirmed it, so the bench spell the drop
+        // was measured over may have ended before the drop finished - which
+        // makes the far end a mid-shift rate, read while the player was
+        // skating, and a drop that never happened.
+        if (toIce && _recoveryDoneAgo >= 0
+                && _recoveryDoneAgo * 1000 < backdate) {
+            _recoverySum -= _recoveryLast;
+            _recoveryCount--;
+            _recoveryLast = 0;
+            _recoveryDoneAgo = -1;
+        }
+
         if (wasIce && _hrRecentCount > 0 && _hrStaleTicks <= HRR_WINDOW) {
             _recoveryFrom = recentHrAverage();
             _recoverySeconds = 0;
@@ -816,24 +909,49 @@ class GameModel {
     }
 
     //! Manual correction from the menu, for when the detector got it wrong.
+    //! Toggles from whatever the state is NOW. Safe from a button, where the
+    //! press and the read are the same instant; not safe from a menu item
+    //! whose label was chosen when the menu opened - that goes through
+    //! markSwitchTo().
     public function markSwitch() as Void {
         if (state != STATE_RUNNING) {
             return;
         }
-        switchSegment(!onIce(), 0);
+        markSwitchTo(!onIce());
+    }
+
+    //! Correct to a STATED state rather than to the opposite of the current
+    //! one, so a correction cannot invert itself if the detector flips between
+    //! the player reading the label and choosing it.
+    public function markSwitchTo(toIce as Boolean) as Void {
+        if (state != STATE_RUNNING) {
+            return;
+        }
+        // Already there: the detector agreed with the player before the
+        // correction arrived. Doing nothing is right, and switching would
+        // bank a zero-length segment and a phantom shift.
+        if (onIce() == toIce) {
+            return;
+        }
+        switchSegment(toIce, 0);
     }
 
     //! Bank one finished shift. Every caller that ends a shift goes through
     //! here so the count, the total and the maximum can never drift apart.
-    private function bankShift(elapsed as Number) as Void {
-        if (elapsed <= 0) {
-            return;
+    private function bankShift(elapsed as Number) as Boolean {
+        // A shift has to survive into the published units. Anything under a
+        // second rounds to an ice_time of 0, and counting it would put
+        // `shifts 1` next to `ice_time 0` - the same disagreement one scale
+        // down from the fully-backdated case this guard already caught.
+        if (elapsed < 1000) {
+            return false;
         }
         _completedShiftMs += elapsed;
         _completedShiftCount++;
         if (elapsed > _longestShiftMs) {
             _longestShiftMs = elapsed;
         }
+        return true;
     }
 
     //! Write the segment's length into the right lap field, then close the lap.
@@ -946,7 +1064,12 @@ class GameModel {
 
         var onTheIce = onIce();
 
-        if (onTheIce && detector.hasMotionSensor) {
+        // Both terms of the intensity index need the same gate. The stride
+        // term only ever sees seconds with a readable rhythm; the motion term
+        // used to take every on-ice second including the stale ones, where
+        // detector.motion still holds the last window it managed to average.
+        // A dropout therefore quietly weighted an old value into the mean.
+        if (onTheIce && detector.hasMotionSensor && detector.staleSeconds == 0) {
             _iceMotionSum += detector.motion;
             _iceMotionSamples++;
         }
@@ -973,10 +1096,7 @@ class GameModel {
             // across twelve recorded games this player's profile ceiling was
             // beaten repeatedly, peaking at 199. A beat that has actually
             // happened outranks both the setting and the formula.
-            if (heartRate > _hrObservedMax) {
-                _hrObservedMax = heartRate;
-                refreshHrCeiling();
-            }
+            offerHrMaximum(heartRate);
 
             if (_hardThreshold > 0 && heartRate >= _hardThreshold) {
                 _hardSeconds++;
@@ -994,10 +1114,22 @@ class GameModel {
         // The clock runs on the bench and only when a shift armed it. A spell
         // that ends before the window is simply not reported: there is no
         // 60-second drop to measure across a 20-second bench.
+        if (_recoveryDoneAgo >= 0) {
+            _recoveryDoneAgo++;
+            if (_recoveryDoneAgo > HRR_ROLLBACK) {
+                _recoveryDoneAgo = -1;   // out of reach of any backdate now
+            }
+        }
+
         if (!onTheIce && _recoverySeconds >= 0) {
             _recoverySeconds++;
 
-            if (_recoverySeconds >= HRR_AT - 2 && _recoveryEndCount < HRR_WINDOW
+            // Centre the far window ON sixty seconds: seconds 58 to 62
+            // inclusive average to 60. Starting at HRR_AT - 2 collected 58
+            // through 62 but only fired once five had arrived, which put the
+            // mean at 62 s and made this HRR62 whenever the sensor was
+            // reporting cleanly - a bigger drop, for no physiological reason.
+            if (_recoverySeconds >= HRR_AT - 4 && _recoveryEndCount < HRR_WINDOW
                     && heartRate != null && heartRate > 0) {
                 _recoveryEndSum += heartRate;
                 _recoveryEndCount++;
@@ -1006,14 +1138,23 @@ class GameModel {
             var done = (_recoveryEndCount >= HRR_WINDOW);
             var timedOut = (_recoverySeconds >= HRR_GIVE_UP);
             if (done || timedOut) {
-                if (_recoveryEndCount > 0) {
+                // Too few samples at the far end is NOT a recovery of zero.
+                // It is a bench spell the sensor did not cover, and averaging
+                // it in would pull the game's figure toward nothing measured.
+                if (_recoveryEndCount >= HRR_MIN_END) {
                     // A negative drop is a rate still climbing a minute after
                     // a shift. It is real, it is informative, and averaging it
                     // in is what makes this a measurement rather than a
                     // highlight reel, so it is kept rather than floored at 0.
-                    _recoverySum += _recoveryFrom
-                        - (_recoveryEndSum / _recoveryEndCount).toNumber();
+                    // Rounded, not truncated. Truncating both ends biases a
+                    // difference of two means upward by up to a beat, every
+                    // time, in the same direction.
+                    var endMean = (2 * _recoveryEndSum + _recoveryEndCount)
+                        / (2 * _recoveryEndCount);
+                    _recoveryLast = _recoveryFrom - endMean.toNumber();
+                    _recoverySum += _recoveryLast;
                     _recoveryCount++;
+                    _recoveryDoneAgo = 0;
                 }
                 _recoverySeconds = -1;
                 _recoveryEndSum = 0;
@@ -1236,9 +1377,64 @@ class GameModel {
     //! The ceiling, and the 85% line under it, from whichever evidence is
     //! strongest. Recomputed rather than nudged, so a settings change during a
     //! game takes effect without losing a maximum already recorded.
+    // The highest beat worth believing from a wrist sensor. Optical heart
+    // rate spikes on cadence lock and on a knock; a single 230 would move the
+    // 85% line to 196 and silence hard_time for the rest of the game.
+    private const HR_MAX_CREDIBLE = 230;
+
+    // How many seconds a new maximum has to be ALMOST matched before it is
+    // allowed to raise the ceiling. A genuine maximum is approached, held and
+    // approached again; a spike is one sample.
+    private const HR_MAX_CONFIRM = 3;
+
     private function refreshHrCeiling() as Void {
+        // A seed of 0 means nobody told us a maximum and the profile had none.
+        // The running observed maximum must NOT stand in for it: early in a
+        // game the highest beat so far is whatever the warm-up reached, and
+        // 85% of that is a line the player crosses constantly. With no seed
+        // there is no threshold and hard_time stays 0, which is the honest
+        // answer - the field is documented as needing a maximum.
+        if (_hrSeed <= 0) {
+            _hrCeiling = _hrObservedMax;
+            _hardThreshold = 0;
+            return;
+        }
         _hrCeiling = (_hrSeed > _hrObservedMax) ? _hrSeed : _hrObservedMax;
-        _hardThreshold = (_hrCeiling > 0) ? ((_hrCeiling * 85) / 100).toNumber() : 0;
+        _hardThreshold = ((_hrCeiling * 85) / 100).toNumber();
+    }
+
+    //! Offer a beat as a new observed maximum. Raises the ceiling only when the
+    //! reading is credible and has been very nearly repeated, so one optical
+    //! spike cannot raise the bar for a whole game.
+    private function offerHrMaximum(heartRate as Number) as Void {
+        if (heartRate > HR_MAX_CREDIBLE) {
+            return;
+        }
+        if (heartRate <= _hrObservedMax) {
+            // Within a beat of the standing maximum counts as repeating it.
+            if (_hrMaxPending > 0 && heartRate >= _hrMaxPending - 1) {
+                _hrMaxSeen++;
+                if (_hrMaxSeen >= HR_MAX_CONFIRM && _hrMaxPending > _hrObservedMax) {
+                    _hrObservedMax = _hrMaxPending;
+                    refreshHrCeiling();
+                }
+            }
+            return;
+        }
+        // A new high. Hold it as a candidate rather than acting on it.
+        if (_hrMaxPending <= 0 || heartRate >= _hrMaxPending - 1) {
+            if (heartRate > _hrMaxPending) {
+                _hrMaxPending = heartRate;
+            }
+            _hrMaxSeen++;
+        } else {
+            _hrMaxPending = heartRate;
+            _hrMaxSeen = 1;
+        }
+        if (_hrMaxSeen >= HR_MAX_CONFIRM) {
+            _hrObservedMax = _hrMaxPending;
+            refreshHrCeiling();
+        }
     }
 
     private function profileMaxHeartRate() as Number {
@@ -1297,7 +1493,11 @@ class GameModel {
     //! enough to be worth believing.
     public function onPosition(info as Position.Info) as Void {
         var accuracy = info.accuracy;
-        if (accuracy == null || accuracy < Position.QUALITY_POOR) {
+        // QUALITY_USABLE or better, not merely "not unavailable". The old test
+        // was `< QUALITY_POOR`, which admitted a POOR fix - and a POOR fix's
+        // speed is the input to a stride length that is then stored and reused
+        // for every later game. A wrong constant is worse than none.
+        if (accuracy == null || accuracy < Position.QUALITY_USABLE) {
             _speed = null;
             return;
         }
@@ -1382,6 +1582,11 @@ class GameModel {
         if (session == null) {
             return;
         }
+        // Keep what this game learned about the player's stride. endGame()
+        // does this too; this is the path taken when the system shuts the app
+        // down instead, and a calibration thrown away there is a whole game's
+        // worth of agreement lost for no reason. It is two storage calls.
+        saveCalibration();
         // onStop() runs on a tight shutdown budget, so do the minimum that
         // still gets the game into the FIT file. captureSummary() is skipped
         // deliberately: it only feeds the on-screen summary, which nobody is
@@ -1683,23 +1888,43 @@ class GameModel {
         if (field != null) { field.setData((_longestShiftMs / 1000).toNumber()); }
         field = _workRestField;
         if (field != null) { field.setData(workRest()); }
+        // Nothing derived from ice time may be published when no ice time
+        // banked. These are accumulated on the detector's LIVE state, second
+        // by second, while ice_time is only credited once a shift survives
+        // the backdate - so a game whose shifts were all dated back out of
+        // existence reported an on-ice heart rate, a skating load and a
+        // stride coverage beside an ice_time of zero. An unwritten developer
+        // field decodes as the FIT invalid value, which is the honest form of
+        // "not measured"; a written 0 is a claim.
+        // Tested against the PUBLISHED value, not the internal one. ice_time
+        // is written in whole seconds, so a shift of 400 ms passes `_iceMs >
+        // 0` and still reports ice_time 0 - which put an on-ice heart rate
+        // and a skating load beside a zero again, one rounding step further
+        // down. Whatever gates these has to be the number the reader sees.
+        var hadIce = (_iceMs >= 1000);
         field = _iceHrField;
-        if (field != null) { field.setData(iceAverageHr()); }
+        var iceHr = iceAverageHr();
+        if (field != null && hadIce && iceHr > 0) { field.setData(iceHr); }
         field = _hardTimeField;
         if (field != null) { field.setData(_hardSeconds); }
         field = _strideAvgField;
-        if (field != null) { field.setData(detector.stride.averageRate()); }
+        if (field != null && hadIce) { field.setData(detector.stride.averageRate()); }
         field = _strideCovField;
-        if (field != null) { field.setData(detector.stride.coveragePercent()); }
+        if (field != null && hadIce) { field.setData(detector.stride.coveragePercent()); }
         field = _hrRecoveryField;
-        if (field != null) {
+        if (field != null && _recoveryCount > 0) {
+            // Written only when a bench spell was actually measured. Writing
+            // 0 otherwise would publish "no drop in a minute", which is a
+            // claim about a very unfit player, as though it were the reading
+            // from a game where the sensor simply never covered a full
+            // window. An absent field is the honest form of "not measured".
             var hrr = heartRateRecovery();
             if (hrr > 127) { hrr = 127; }
             if (hrr < -128) { hrr = -128; }
             field.setData(hrr);
         }
         field = _iceLoadField;
-        if (field != null) { field.setData(detector.iceLoad); }
+        if (field != null && hadIce) { field.setData(detector.iceLoad); }
 
         // Distance is pushes times the player's own stride length, so it only
         // covers the seconds the rhythm was actually measured over - which is
@@ -1708,13 +1933,19 @@ class GameModel {
         // denominator of total ice time would quietly claim a speed for every
         // second the app could not measure.
         field = _distEstField;
-        if (field != null) { field.setData(estimatedDistanceM()); }
+        if (field != null && hadIce) { field.setData(estimatedDistanceM()); }
         field = _speedEstField;
-        if (field != null) { field.setData(estimatedSpeedKph()); }
+        if (field != null && hadIce) { field.setData(estimatedSpeedKph()); }
         field = _strideLenField;
         if (field != null) { field.setData(usedStrideCm); }
         field = _intensityField;
-        if (field != null) { field.setData(skatingIntensity()); }
+        if (field != null && hadIce && hasSkatingIntensity()) {
+            // Not written when there was too little ice, or no readable
+            // rhythm at all, to build it from. A published 0.0 would read as
+            // "this player did not move", which is a measurement; silence is
+            // the honest form of "not measured".
+            field.setData(skatingIntensity());
+        }
     }
 
     //! The stride length stored by an earlier game that had a GPS fix, in
@@ -1739,6 +1970,14 @@ class GameModel {
         if (speed == null || speed < CAL_MIN_SPEED || !onIce()) {
             return;
         }
+        // Both halves of the quotient have to be from THIS second. A stale
+        // accelerometer leaves detector.stride.rate reporting the last rhythm
+        // it managed to measure, and dividing a live speed by an old cadence
+        // produces a confident stride length out of two numbers that were
+        // never true together.
+        if (detector.staleSeconds > 0) {
+            return;
+        }
         var rate = detector.stride.rate;
         if (rate <= 0) {
             return;       // no rhythm this second: nothing to divide by.
@@ -1756,6 +1995,16 @@ class GameModel {
     //! keeping. Called once, at the end, so a handful of seconds near the
     //! arena door cannot overwrite a calibration built over a whole game
     //! outdoors.
+    //!
+    //! A later game does not replace what an earlier one learned, it is
+    //! averaged into it, three parts old to one part new. Stride length is a
+    //! constant of the skater, so every game is another estimate of the same
+    //! number rather than news about a changed one - and one windy afternoon
+    //! on a pond should not be able to discard a calibration that a dozen
+    //! games agreed on. The weighting is deliberately blunt: there is no
+    //! sample count stored alongside it to do anything cleverer with, and
+    //! storing one would need a migration for the players who already have a
+    //! bare number saved.
     private function saveCalibration() as Void {
         if (_calCount < CAL_MIN_SAMPLES) {
             return;
@@ -1763,6 +2012,13 @@ class GameModel {
         var cm = (_calSum / _calCount).toNumber();
         if (cm < CAL_MIN_CM || cm > CAL_MAX_CM) {
             return;
+        }
+        var stored = learnedStrideCm();
+        if (stored > 0) {
+            cm = ((3 * stored) + cm) / 4;
+            if (cm < CAL_MIN_CM || cm > CAL_MAX_CM) {
+                return;
+            }
         }
         try {
             Application.Storage.setValue(CAL_KEY, cm);
@@ -1787,11 +2043,19 @@ class GameModel {
     //! than multiplied second by second, so that seconds with no readable
     //! rhythm pull the coverage figure down instead of pulling this to zero.
     public function skatingIntensity() as Float {
-        if (_iceMotionSamples < 1) {
+        if (_iceMotionSamples < INTENSITY_MIN_SAMPLES) {
             return 0.0;
         }
         var meanMotion = _iceMotionSum.toFloat() / _iceMotionSamples.toFloat();
         return (meanMotion * detector.stride.averageRate().toFloat()) / 1000.0;
+    }
+
+    //! True when the index rests on enough ice to mean anything. Checked
+    //! before the field is written, so a game that never got going reports
+    //! nothing rather than reporting zero intensity.
+    public function hasSkatingIntensity() as Boolean {
+        return _iceMotionSamples >= INTENSITY_MIN_SAMPLES
+            && detector.stride.averageRate() > 0;
     }
 
     //! Metres, from counted pushes and the player's calibration. 0 when

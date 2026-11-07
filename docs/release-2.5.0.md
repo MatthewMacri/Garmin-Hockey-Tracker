@@ -1,4 +1,4 @@
-# v2.5.0 — the bench fidget, and a stride length nobody has to measure
+# v2.5.0 — a self-calibrating stride length, and skating intensity
 
 Released 2026-11-07.
 <https://github.com/MatthewMacri/Garmin-Hockey-Tracker/releases/tag/v2.5.0>
@@ -12,66 +12,84 @@ What's New covers both. Nothing is lost: no user ever saw 2.4.0.
 
 ---
 
-## Moving your wrist on the bench no longer collects shifts
+## Withdrawn before release: the ten-second entry window
 
-This was the complaint, and it needed the right diagnosis before it could have
-a fix. It is an **entry-edge** problem, and it cannot be solved by turning the
-sensitivity down. The spurious shifts carry *higher* wrist motion than a
-defenceman gliding at the point does, so no amplitude cut separates them.
+This release was going to open a shift only after **ten** seconds of wrist
+motion rather than six, as a fix for the complaint that moving a wrist on the
+bench collected shifts nobody played. **It has been withdrawn.** `CONFIRM_ICE`
+stays at six, and nothing about shift detection changes in 2.5.0.
 
-What separates them is duration. A fidget is a burst; a shift is not.
+It was not refined or softened. It was wrong, and re-measuring it without
+heart rate present took it apart three separate ways.
 
-**Opening a shift now takes ten seconds of motion rather than six**, when
-nothing else agrees with it. When heart rate or GPS does agree, entry is still
-three seconds, unchanged.
+**The window is unreachable by motion alone.** On 2026-11-03, with the
+heart-rate fast path disabled, **0 of 232** off-ice motion bursts ever reach a
+ten-second ice streak. No shift in that game would have opened on motion alone
+at either value, so the setting does not do the thing its name describes.
 
-Replayed against both recorded games. The metric is shifts whose own mean
-heart rate sits below the game's median — a player sitting down. It is a
-proxy, not ground truth, but it is the only one a FIT file supplies without
-somebody writing down line changes at the rink.
+**The sweep that chose it was decided by three entries.** With heart rate
+present, `corroboratesIce()` is true on roughly half of all judgeable seconds,
+so about nine entries in ten take the three-second fast path and never consult
+`CONFIRM_ICE` at all — 29 fast against 3 slow on 11-05, and 16 fast against 0
+slow on 11-03. The entry sweep this section used to carry was therefore a
+result about three slow-path entries on one game and none on the other, quoted
+as though it were a result about the detector.
 
-| Plain entry | 2026-11-05 | 2026-11-03 |
+**It fails hard when heart rate is absent**, which is this player's ordinary
+case: wrist optical only, no chest strap, and not one position fix ever
+recorded at his rink. Replayed with heart rate blanked on every row:
+
+| | entry 6 s | entry 10 s |
 |---|---|---|
-| 6 s (to 2.4.0) | 35 shifts, 11 below baseline | 18 shifts, 5 below |
-| **10 s (shipped)** | **33, 9** | **17, 4** |
-| 12 s | 32, 9 | 17, 4 |
-| 15 s | 31, 8 | 17, 4 |
+| 11-05, shipped band | 21 shifts, 52.1% ice, longest bench 297 s | 13 shifts, 26.3%, **longest bench 1221 s** |
+| 11-03, shipped band | 15 shifts, 46.3% ice, longest bench 387 s | 8 shifts, 17.2%, longest bench 808 s |
+| 11-03, its own recorded band | 9 shifts, 14.5% ice, longest bench 1435 s | 1 shift, 3.2%, longest bench 3491 s |
 
-Every shift the change removes between six and ten seconds is one the heart
-rate says was not a shift, and **not one shift the heart rate supports is lost
-on either game**. At twelve it stops being selective: 11-05 loses a good shift
-and gains nothing.
+The 11-03 percentages show the size of the collapse within one file rather
+than a true ice share — that game was paused four times — so it is the shift
+counts and the bench lengths that carry the point.
 
-**It costs no recorded ice time.** `transition()` dates the boundary back by
-the length of the window that confirmed it, so the extra four seconds come
-back into the shift. What it costs is four seconds of the screen still saying
-BENCH at the start of a shift heart rate has not yet agreed with.
+That is a twenty-minute bench block mid-game at the shipped band, and in the
+worst case an entire game recorded as one shift followed by a 58-minute bench.
+Nothing on the watch would have said so: `isHealthy()` watches the
+accelerometer and reports nothing at all about heart rate.
 
-### What this does not settle
+**Two claims made for the change were false, and both rested on the same
+unstated premise.** That it "costs no recorded ice time" — measured, six to ten
+seconds costs **1.4 points of recorded ice on 11-03 and 2.3 on 11-05** at the
+shipped band, so that one is false by measurement rather than by
+interpretation. And that "not one shift the heart rate supports is lost on
+either game" — true only where there is a heart rate to support one. Every figure quoted in favour of the change was
+measured with heart rate present. That premise was never written down, so it
+was never tested.
 
-Two games, one player, one rink, and a proxy for ground truth rather than
-ground truth. It also does not touch the larger problem, which is the warm-up:
-a game started seventeen minutes before the opening faceoff collects shifts no
-detector constant can refuse, because warm-up skating *is* skating.
+The negative result is kept in
+[detector-tuning.md](detector-tuning.md#the-entry-window-a-negative-result) so
+nobody re-runs it. The complaint it was aimed at is real and still open, and
+the thing that measurably reduces it needs no detector constant at all:
+starting the game at the opening faceoff rather than in the warm-up.
 
 ## The replay harness, which had to be fixed first
 
-None of the table above could be measured until the harness was honest. Three
+None of the measurement above was possible until the harness was honest — and
+once it was honest, it is what exposed the entry window as unreachable. Three
 things were wrong, and all three flattered the result in different directions.
 
 - **Stale seconds were dropped.** When no accelerometer sample arrives the
   watch returns from `tick()` before `learn()` — but `_secondsInState` has
   already advanced, and `observe()` ran before `tick()` was called at all. The
   harness skipped those rows entirely, so every minimum-dwell guard fired
-  earlier in the replay than on the wrist. The 2026-11-03 file has 501 of
-  them, 13.9%.
+  earlier in the replay than on the wrist. The 2026-11-03 file has **489 of
+  them, 13.6%**. (An earlier figure of 501 / 13.9% was `mark_stale()`
+  over-flagging and then being cited as an independent count; the heuristic
+  has since been fixed. On 11-05 it now flags 2 rows rather than 74.)
 - **Transitions were not dated back.** A sweep over confirmation windows was
   therefore measuring mostly the harness's own omission.
 - **Two traces were treated as one.** The `on_ice` developer field is written
   as the watch goes and never revised; the session's `ice_time` uses the
   backdated boundaries. On 2026-11-05 they differ by nearly three points —
-  26.3% against 23.5% — because a bench spell is dated back fourteen seconds
-  and a shift only six.
+  26.3% against 23.5% — because the build that recorded it dated a bench
+  spell back ten seconds and a shift only six.
 
 It now replays each file with **the constants of the release it was recorded
 against**, recovered from the band the watch wrote into the file. Running
@@ -81,7 +99,11 @@ error is how a harness gets "fixed" until it reproduces the wrong thing.
 | Game | Reproduces the watch's on-ice seconds |
 |---|---|
 | 2026-11-03 | **100.0%** |
-| 2026-11-05 | **97.4%** |
+| 2026-11-05 | **98.4%** |
+
+And the structure, not just the seconds: on 11-05 the replay now produces **48
+shifts against the watch's 48**, where it used to make 92 transitions against
+94.
 
 Against 84% before. The band default was also two releases stale at 0.27.
 
@@ -119,8 +141,9 @@ What it learns is stored and reused for every later game, indoors included,
 and lands in the file as **Stride Length Used** so a distance always carries
 the number it was built from.
 
-**It may never fire for this player.** His rink has produced 0 fixes in 5,011
-records. It costs nothing on the days it does not, and it fires at an outdoor
+**It may never fire for this player.** His rink has produced 0 position fixes
+in any game recorded there — 5,122 records in the 2026-11-05 game alone, and
+not one of them with a fix. It costs nothing on the days it does not, and it fires at an outdoor
 rink, on a pond, or in an arena with enough glass.
 
 Verified end to end in the simulator, with one injection: the GPS side ran on
@@ -160,5 +183,12 @@ different name — and coverage is already reported on its own.
 
 ## Size
 
-29.0 kB of the 98,304 B available on the tightest supported device
-(instinct2 and its siblings), static. The FR570 has 786,432 B.
+**35,290 B** of the 98,304 B available on the tightest supported device
+(instinct2 and its siblings) — 35.9%, static. 26,647 B of code and 8,643 B of
+data. The FR570 has 786,432 B.
+
+Measured with `monkeyc -d instinct2 --build-stats 0`, which is the only figure
+here worth quoting: the earlier notes said 27.2 kB for 2.4.0 and 29.0 kB for
+2.5.0, and neither reproduces. The same command against the commit that 2.5.0
+was cut from gives 34,081 B, so the 29.0 kB was already wrong before the QA
+fixes, which added 1,209 B between them.

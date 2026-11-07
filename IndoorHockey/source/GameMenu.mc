@@ -43,10 +43,20 @@ module GameMenus {
         });
 
         if (model.state == $.STATE_RUNNING) {
+            // The id carries the DIRECTION, not "flip whatever you are now".
+            // The label is chosen here, at build time; :mark used to call
+            // markSwitch(), which re-read onIce() when the item was selected.
+            // Leave the menu open for half a minute, let the detector bench
+            // the player behind it, and the item then did the opposite of
+            // what it said - corrupting the ice/bench split and adding a
+            // phantom shift. A correction has to mean what it said when the
+            // player read it.
+            var onIceNow = model.onIce();
             menu.addItem(new WatchUi.MenuItem(
-                WatchUi.loadResource(model.onIce()
+                WatchUi.loadResource(onIceNow
                     ? $.Rez.Strings.MenuMarkBench
-                    : $.Rez.Strings.MenuMarkIce) as String, null, :mark, null));
+                    : $.Rez.Strings.MenuMarkIce) as String, null,
+                onIceNow ? :markBench : :markIce, null));
             menu.addItem(new WatchUi.MenuItem(
                 WatchUi.loadResource($.Rez.Strings.MenuPause) as String, null, :pause, null));
         } else if (model.state == $.STATE_PAUSED) {
@@ -90,6 +100,21 @@ class GameMenuDelegate extends WatchUi.Menu2InputDelegate {
             // back on the game rather than on a menu describing a game that
             // has just been ended.
             WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
+            // UNRESOLVED, and not fixable from here: which answer this
+            // prompt opens on is the firmware's to decide. WatchUi.
+            // Confirmation takes a prompt and nothing else - SDK 9.3.0 has
+            // no :defaultResponse option and no setDefaultResponse() - so
+            // the app cannot ask for "no" to be preselected.
+            //
+            // In the simulator the prompt draws NO highlight on either
+            // option and a bare START press through it ends or discards the
+            // game, which would make this guard one extra press rather than
+            // a decision. That is most likely the simulator failing to
+            // render a selection rather than the watch defaulting to yes -
+            // stock Garmin confirmations preselect no - but it is untested
+            // on hardware. Check it on the FR570 before trusting the guard.
+            // If the watch really does open on yes, this has to become a
+            // Menu2 with the safe item first, since a dialog cannot be told.
             WatchUi.pushView(new WatchUi.Confirmation(prompt),
                 new $.EndConfirmDelegate(_model, keep), WatchUi.SLIDE_UP);
             return;
@@ -99,8 +124,10 @@ class GameMenuDelegate extends WatchUi.Menu2InputDelegate {
             _model.pause();
         } else if (id == :resume) {
             _model.toggleRun();
-        } else if (id == :mark) {
-            _model.markSwitch();
+        } else if (id == :markIce) {
+            _model.markSwitchTo(true);
+        } else if (id == :markBench) {
+            _model.markSwitchTo(false);
         }
 
         WatchUi.popView(WatchUi.SLIDE_DOWN);
