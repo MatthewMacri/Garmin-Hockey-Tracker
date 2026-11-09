@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="store/images/hero-1440x720.jpg" alt="Ice Hockey Shifts — one press at the faceoff, it does the rest" width="860" />
+</p>
+
 # Garmin Hockey Tracker
 
 A Connect IQ watch app that tracks an ice hockey game from your wrist **without
