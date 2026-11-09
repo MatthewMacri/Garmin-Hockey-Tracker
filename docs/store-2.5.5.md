@@ -261,47 +261,45 @@ passes the new one.
 
 ## What's New
 
-969 characters (987 if the form counts CRLF line endings). Paste verbatim.
+964 characters (980 if the form counts CRLF line endings). Paste verbatim.
 
 ```
-New: heart rate recovery - the one number here that measures how fit you are
-rather than how hard the game was. HRR60: your rate when a shift ends, minus
-your rate sixty seconds later, averaged over the game. Both ends are
-five-second means, so a wrist sensor's jitter stays out of the answer.
+Changed: pausing is now a HOLD of the start button for one second, not two
+presses, and a short press during a game does nothing at all. This came from
+a player whose glove kept nudging the button: it paused the game, then ended
+it, then discarded it. Discard has also been taken off the stop menu
+entirely - it is only on the menu you reach by holding UP, and it now asks
+first with "No, keep playing" already selected.
 
-New: skating load, the accumulated acceleration of your skating, counted on
-the ice only so a game spent on the bench cannot inflate it. And skating
-intensity - wrist motion times stride rate - which needs no GPS and no
-setting at all.
+Changed: the buzz on every line change is OFF by default. If you want it,
+turn on "Line change alerts" in settings.
 
-New: the average and maximum heart rate of every shift and every bench spell
-in the Splits tab, beside its length.
+Fixed: fewer phantom shifts while you sit on the bench. The detector can no
+longer change its mind more than once every twenty seconds, and it no longer
+counts a small rise in heart rate as agreement with wrist motion.
 
-New: distance and speed can calibrate themselves. Where GPS has a fix and the
-app has your rhythm in the same second, it works out your stride length and
-keeps it for indoor games. Until it has one, both fields are left out rather
-than invented.
-
-New setting: Max Heart Rate, so Time above 85% is 85% of the right number.
+New since 2.3.0: heart rate recovery (HRR60), skating load and skating
+intensity, the heart rate of every shift and bench spell in Splits,
+self-calibrating distance and speed, and a Max Heart Rate setting.
 ```
 
-**This covers 2.4.0 and 2.5.0.** The live listing is 2.3.0, so its users
-already have stride rate, the retuned detector and the `work_rest` fix — the
-whole of the current What's New text. Repeating any of it would say nothing.
-2.4.0 is in here because it was tagged and never uploaded.
+**This covers 2.4.0 through 2.5.5.** The live listing is 2.3.0, so its users
+have none of it.
 
-**The bench-fidget fix is deliberately not in this text.** It was the intended
-headline of this upload — a ten-second entry window instead of six — and it was
-withdrawn before release once it was measured without heart rate present. Do
-not put it back. The reasons are in `docs/release-2.5.0.md` and at length in
-`docs/detector-tuning.md`; the short version is that the window is unreachable
-by motion alone, and that with no heart rate it can record a whole game as one
-shift. Nothing about shift detection changed in 2.5.0.
+**The order is deliberate.** The two behaviour changes come first because they
+change how the app is *used* - a player who does not know pausing became a
+hold will think the start button has stopped working. The new metrics come
+last, as one line, because a player who has not seen 2.4.0 or 2.5.0 can read
+about them on the listing itself.
+
+**Say the pause changed even if space gets tight.** Everything else in this
+text is an improvement a player discovers on their own; that one is a
+different gesture for the button they press most.
 
 No character limit for this field is documented anywhere I could find, and the
-form's own counter is the authority. This lands under 1,000 in case that is the
-cap. **If the form accepts more**, append this — it is the only part of the
-release that asks anything of the player:
+form's own counter is the authority. This lands under 1,000 in case that is
+the cap. **If the form accepts more**, append this - it is the only part of
+the release that asks anything of the player:
 
 ```
 One thing that costs nothing: start the game at the opening faceoff rather
@@ -309,8 +307,6 @@ than in the warm-up. A warm-up skate produces the same wrist motion and the
 same heart rate as a shift does, so a game started early collects shifts
 nobody played - and nothing in the recording can tell them apart afterwards.
 ```
-
-With the tail it is 1271 characters (1294 with CRLF).
 
 ---
 
