@@ -32,7 +32,7 @@ player would hit the same thing here, and most of them this app already answers.
 
 | Complaint | Status here |
 |---|---|
-| Shift buzz "driving me crazy… thought I was getting tons of calls" | **In the app.** `shiftAlerts` turns it off entirely; `shiftSeconds` moves it. |
+| Shift buzz "driving me crazy… thought I was getting tons of calls" | **Was wrong, now fixed.** This row claimed `shiftAlerts` "turns it off entirely". It did not. `shiftAlerts` gates the long-shift alert only; the buzz on every on-ice/bench change had no setting at all. A player hit exactly this in the field on 2026-11-09, below. `changeAlerts` now gates it and is **off by default**. `9431bf1`. |
 | "I can't figure out how to start/stop" | **In the app.** START twice reaches the stop menu, hold UP reaches the same, and both exits confirm. |
 | "Text from screens is cut off on some corners" | **In the app.** Everything goes through `drawFitted`, which walks a font ladder down to `FONT_XTINY` rather than clipping. Not proof it never clips on all 202 device variants, but it is designed against. |
 | "HR zones show 1 at the top and 5 at the bottom, backwards" | **Not applicable.** No zone list is drawn on the watch. Zones come from Garmin Connect, in Connect's own order. |
@@ -78,3 +78,35 @@ noticed, already recorded on every game ever played with this app - so the
 feature a player asked for had existed for months with nothing reading it. The
 cost of answering from memory is not only a wrong answer; it is never finding
 out what is already in the file.
+
+
+## The first report from a real game
+
+2026-11-09, r/hockeyplayers, on this app rather than a rival. The player used
+it for one game and went back to Garmin's native hockey activity. Everything
+he reported was right, and two of the three were things this file had already
+recorded as handled.
+
+| Complaint | Status |
+|---|---|
+| "The button press to start/stop the session is too sensitive. Every time the button got barely touched moving around in my glove it would pause the workout, and at one point it even pressed it enough times to end and discard the workout." | **Fixed, partly.** The data loss is closed: Discard is gone from the stop menu, which is where an accidental press chain lands, and the confirmation is now a menu whose first and preselected item is "No, keep playing" rather than a dialog the app could not preselect. `PAUSE_ARM_MS` drops 5000 → 2000 ms. The *pausing* is narrowed, not solved - see below. `9431bf1`. |
+| "I was sitting on the bench and it was vibrating every ten seconds switching between on ice and bench while I was sitting there." | **Fixed.** `MIN_SHIFT_SEC` and `MIN_BENCH_SEC` were both 8, so a full on-ice/bench/on-ice cycle was legal in 16 s. Both are 20. Measured over the two recorded games, this costs under a point of ice share. `9431bf1`. |
+| "The vibration when changing between bench and on ice is unnecessary and becomes an annoyance… I don't need to be alerted that I'm sitting on the bench. I already know I'm sitting down." | **Fixed.** New `changeAlerts` setting, **default off**. Until now this buzz had no setting; the row above about the RinkPulse shift buzz claimed otherwise and was wrong. `9431bf1`. |
+
+### What is still open from this report
+
+**Accidental pausing is narrowed, not solved.** Any press-twice scheme is one
+a button rubbing inside a glove can satisfy; a shorter window only shortens
+the odds. The guaranteed fix is hold-to-pause, which no stray contact can
+produce, and the cost is the Garmin muscle memory the two-press binding was
+chosen for. That is a product decision and has not been taken.
+
+### What this report says about the process
+
+Two of these three were listed in the table above as answered. One was a
+design argument - `shiftAlerts` looked like it covered the buzz, and nobody
+checked which alert it gated. The other, the discard guard, was marked in the
+source as unresolved pending a hardware check that never happened; this report
+was that check, and it came as a lost game. The lesson is the one this file
+already states at the top and did not follow: an **Unverified** row is not a
+"yes".
