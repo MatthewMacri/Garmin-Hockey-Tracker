@@ -202,9 +202,10 @@ def fit_band(rows, grid=None):
 # `git show <tag>:IndoorHockey/source/ShiftDetector.mc` for every tag: one
 # constant set covers all six of those bands.
 _OLD = dict(CONFIRM_ICE=6, CONFIRM_BENCH=10, CONFIRM_ICE_FAST=3,
-            CONFIRM_BENCH_FAST=5, HR_VETO=None)
-# v2.2.0 to v2.4.0: today's constants but the six-second entry window.
-_MID = dict(CONFIRM_ICE=6)
+            CONFIRM_BENCH_FAST=5, HR_VETO=None, HR_OFFSET_ARM=True)
+# v2.2.0 to v2.5.2: today's constants, plus the heart-rate offset arm on
+# corroboration that 2.5.3 removed.
+_MID = dict(CONFIRM_ICE=6, HR_OFFSET_ARM=True)
 
 ERAS = {
     0.55: _OLD, 0.45: _OLD, 0.35: _OLD, 0.27: _OLD, 0.21: _OLD,
@@ -220,7 +221,14 @@ ERAS = {
 def era_for(band):
     """The constants that shipped with the band this file was recorded at,
     or None when the band matches no release - in which case the file CANNOT
-    be validated and nothing downstream of it should be believed."""
+    be validated and nothing downstream of it should be believed.
+
+    One caveat, new in 2.5.3. The band stopped identifying the era at that
+    release: 2.5.3 changed corroboration and left HYSTERESIS alone, so a
+    2.5.3 recording and a 2.4.0 recording are both band 0.18 and this
+    function returns _MID for either. _MID is wrong for the newer file by
+    exactly one constant, HR_OFFSET_ARM. Pass --no-offset-arm for a file a
+    2.5.3-or-later build recorded."""
     key = min(ERAS, key=lambda b: abs(b - band))
     return ERAS[key] if abs(key - band) < 0.005 else None
 
@@ -364,6 +372,13 @@ def _main(argv):
         i = args.index('--sweep-band')
         sweep_band = float(args[i + 1])
         del args[i:i + 2]
+    # 2.5.3 removed the offset arm without changing the band, so era_for()
+    # cannot tell a 2.5.3 recording from a 2.4.0 one. This says which.
+    offset_arm = None
+    if '--no-offset-arm' in args:
+        args.remove('--no-offset-arm'); offset_arm = False
+    if '--offset-arm' in args:
+        args.remove('--offset-arm'); offset_arm = True
     if '--band' in args:
         i = args.index('--band')
         band = args[i + 1]
@@ -375,6 +390,10 @@ def _main(argv):
         print()
         print("  --band       the band the FILE was recorded with. Validation")
         print("               only; 'auto' recovers it from the file.")
+        print("  --no-offset-arm  the file was recorded by 2.5.3 or later,")
+        print("               where corroboration stopped consulting")
+        print("               hrOffset(). --offset-arm forces the old")
+        print("               behaviour. The band cannot tell them apart.")
         print("  --sweep-band the band to run the counterfactual sweep at.")
         print("               Defaults to the shipped %.2f. Changing it does"
               % SHIPPED_BAND)
@@ -426,6 +445,8 @@ def _main(argv):
         # what the watch did, with the constants the watch was running?
         # Everything after this is only worth reading if that number is high.
         era = era_for(band)
+        if era is not None and offset_arm is not None:
+            era = dict(era, HR_OFFSET_ARM=offset_arm)
         if era is None:
             print("band %.3f matches no release in ERAS - CANNOT VALIDATE, and"
                   " nothing\nbelow should be believed for this file." % band)
@@ -477,11 +498,22 @@ class Detector:
     replaying a game and comparing against the on_ice the watch recorded.
     """
     HYSTERESIS = 0.18
-    CONFIRM_ICE, CONFIRM_BENCH = 10, 14
+    # Six, not ten. Ten was the reverted entry-window experiment of
+    # 2026-11-07; this default sat at it afterwards, which quietly scored
+    # every replay that did not come through an era dict at a window the app
+    # has never shipped.
+    CONFIRM_ICE, CONFIRM_BENCH = 6, 14
     CONFIRM_ICE_FAST, CONFIRM_BENCH_FAST = 3, 7
     MIN_SHIFT_SEC, MIN_BENCH_SEC = 8, 8
     HR_SLOPE, HR_OFFSET, HR_WINDOW = 0.25, 4.0, 20
     HR_VETO = 12.0
+
+    # Whether corroboration consults hrOffset() at all. False from 2.5.3,
+    # where the arm was removed: scored over the three recorded games it ran
+    # at a likelihood ratio of 1.54, flat across its whole range, while
+    # taking the combined test's false-positive rate from 0.185 to 0.424.
+    # HR_OFFSET itself stays, because HR_VETO still reads it.
+    HR_OFFSET_ARM = False
 
     # The plain entry window: how long motion alone, with nothing agreeing
     # with it, has to hold before a shift opens. None means "same as
@@ -571,7 +603,8 @@ class Detector:
             self.bench_streak = max(0, self.bench_streak - 1)
 
         if not self.on_ice:
-            fast = self._slope() >= self.HR_SLOPE or self._offset() >= self.HR_OFFSET
+            fast = self._slope() >= self.HR_SLOPE or (
+                self.HR_OFFSET_ARM and self._offset() >= self.HR_OFFSET)
             if fast:
                 need = self.CONFIRM_ICE_FAST
             elif self.CONFIRM_ICE_SLOW is not None:
@@ -587,7 +620,8 @@ class Detector:
                     self.entries_slow += 1
                 self._reset_streaks(); return True
         else:
-            fast = self._slope() <= -self.HR_SLOPE or self._offset() <= -self.HR_OFFSET
+            fast = self._slope() <= -self.HR_SLOPE or (
+                self.HR_OFFSET_ARM and self._offset() <= -self.HR_OFFSET)
             need = self.CONFIRM_BENCH_FAST if fast else self.CONFIRM_BENCH
             if self.bench_streak >= need and self.dwell >= self.MIN_SHIFT_SEC:
                 self.on_ice = False; self.backtrack = need

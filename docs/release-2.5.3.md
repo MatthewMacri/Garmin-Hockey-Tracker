@@ -66,20 +66,49 @@ now fixed at its source instead, and the entry window is left alone.
 
 ## What it does to the recorded games
 
-Replaying the recorded per-second motion through the detector:
+Replayed through `tools/replay_detector.py` at the shipped band, with
+`HR_OFFSET_ARM` as the only difference between the two rows. The harness
+reproduces 98.4% of the watch's own seconds on the 2026-11-05 file when run at
+that file's era, which is what makes the counterfactual worth reading.
 
-| game | shifts (old → new) | ice time | never above 130 bpm |
-|---|---|---|---|
-| 2026-11-03 22:11 | 23 → **16** | 746 s → **634 s** | 0 → 0 |
-| 2026-11-03 23:21 | 1 → **1** | 15 s → **17 s** | 0 → 0 |
-| 2026-11-05 20:06 | 34 → **27** | 1642 s → **1387 s** | 4 → **2** |
+| game | | shifts | ice share | median shift | below-baseline HR |
+|---|---|---|---|---|---|
+| 2026-11-03 22:11 | 2.5.2 | 22 | 46.5% | 80 s | 8/22 |
+| | **2.5.3** | **20** | **43.7%** | **80 s** | **8/20** |
+| 2026-11-05 20:06 | 2.5.2 | 35 | 40.9% | 39 s | 10/35 |
+| | **2.5.3** | **28** | **38.4%** | **55 s** | **8/28** |
 
-Fourteen shifts removed across the two full games, and the shifts that never
-lift the rate above 130 bpm — the bench-fidget signature — halve on 2026-11-05.
+Nine shifts removed across the two full games, and the ice share falls by 2.8
+and 2.5 points.
 
-**Expect a smaller ice time.** On 2026-11-05 the published figure would fall
-from 27:22 to 23:07. That is the intended direction, and it is not yet
-confirmed against ground truth; see *Still open*.
+The most telling number is the median shift on 2026-11-05, which rises from
+**39 s to 55 s**. A real hockey shift is 40–60 s. A detector reporting a median
+of 39 s is reporting something that is not shifts; one reporting 55 s is in the
+right range. That is the shape of the change — it removes short spurious
+entries rather than trimming real ones, which is why the median goes up while
+the count goes down.
+
+What it does **not** do is change the proportion of shifts that never lift the
+rate off its baseline: 8/22 → 8/20 and 10/35 → 8/28, flat either way. Removing
+the offset arm removes short shifts, not specifically low-intensity ones.
+
+**Expect a smaller ice share**, by roughly two and a half points. That is the
+intended direction, and it is not confirmed against ground truth; see
+*Still open*.
+
+### A correction
+
+An earlier draft of this file reported 23 → 16 and 34 → 27 shifts, and claimed
+the low-HR shifts halved from 4 to 2. Those came from a throwaway replay
+written for this analysis which used the shipped band against files recorded at
+a different one, and today's confirmation windows against files recorded with
+2.1.0's. The project already had `tools/replay_detector.py`, which keys the
+constants to the band each file was recorded at precisely so this cannot
+happen, and which warns in its own comments that doing otherwise is "how a
+harness gets fixed until it reproduces the wrong thing". The table above is
+from that harness. The likelihood ratios below are unaffected — they are
+computed from recorded heart rate against the recorded verdict, with no replay
+involved.
 
 ## `hrOffset()` is not gone
 
@@ -92,20 +121,30 @@ deliberately **not** changed: the deeper thresholds score better but fire on
 far less of the bench, and catching bench fidget is the whole point of the
 veto.
 
-## A new tool
+## The harness
 
-`tools/fit/replay-detector.py` re-runs the detector offline over any FIT file
-the app produced, because `motion`, `motion_threshold` and `on_ice` are
-recorded every second. It scores a candidate configuration against the games
-already on disk, and prints the likelihood-ratio table above with `--lr`.
+`tools/replay_detector.py` gained two things:
+
+- `HR_OFFSET_ARM`, so both configurations can be replayed from the same file
+  and a future change to corroboration can be scored the same way.
+- `--no-offset-arm` / `--offset-arm`. 2.5.3 changed corroboration without
+  changing `HYSTERESIS`, so the band no longer identifies the era: a 2.5.3
+  recording and a 2.4.0 recording are both band 0.18 and `era_for()` returns
+  the older constants for either. The flag says which build wrote the file.
+
+It also had `CONFIRM_ICE` sitting at **10** as the class default — the entry
+window from the experiment that was raised and reverted on 2026-11-07. Any
+replay not routed through an era dict was being scored at a window the app has
+never shipped. It is back to 6.
 
 ```
-tools/fit/replay-detector.py --lr data/2026-11-05-game/*.fit
+python3 tools/replay_detector.py <game.fit> --band auto --shifts
+python3 tools/replay_detector.py <game.fit> --band auto --no-offset-arm
 ```
 
-This is what makes the next tuning change arguable from data rather than from
-theory — and it works on *any* game, including ones recorded by the old
-configuration, so nothing about shipping this change is irreversible.
+Nothing about shipping this change is irreversible: `motion`,
+`motion_threshold` and `on_ice` are recorded every second, so either
+configuration can be reconstructed from any game either one produced.
 
 ## Size
 
