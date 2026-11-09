@@ -52,7 +52,7 @@ class GameView extends WatchUi.View {
     private var _txtWorkRest as String = "Work:Rest";
     private var _txtMotion as String = "MOTION";
     private var _txtNoSensor as String = "NO MOTION DATA";
-    private var _txtPressAgain as String = "PRESS AGAIN";
+    private var _txtHoldToPause as String = "KEEP HOLDING";
     private var _txtEndingGame as String = "ENDING GAME";
 
     //! Constructor.
@@ -81,7 +81,7 @@ class GameView extends WatchUi.View {
         _txtWorkRest = WatchUi.loadResource($.Rez.Strings.SummaryWorkRest) as String;
         _txtMotion = WatchUi.loadResource($.Rez.Strings.LabelMotion) as String;
         _txtNoSensor = WatchUi.loadResource($.Rez.Strings.LabelNoSensor) as String;
-        _txtPressAgain = WatchUi.loadResource($.Rez.Strings.LabelPressAgain) as String;
+        _txtHoldToPause = WatchUi.loadResource($.Rez.Strings.LabelHoldToPause) as String;
         _txtEndingGame = WatchUi.loadResource($.Rez.Strings.LabelEndingGame) as String;
     }
 
@@ -166,10 +166,10 @@ class GameView extends WatchUi.View {
             return;
         }
 
-        // A pause waiting for its second press: the player needs to know the
+        // START is down and the hold is running: the player needs to know the
         // watch heard the press, and that it has not paused yet.
-        if (_model.isPauseArmed()) {
-            drawFitted(dc, _txtPressAgain, Y_HEADER, w, h, Graphics.COLOR_YELLOW,
+        if (_model.pauseHolding) {
+            drawFitted(dc, _txtHoldToPause, Y_HEADER, w, h, Graphics.COLOR_YELLOW,
                 [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY,
                  Graphics.FONT_XTINY]);
             return;

@@ -113,6 +113,10 @@ class GameModel {
     public var shiftTargetMs as Number = 60 * 1000;
     public var shiftAlerts as Boolean = true;
 
+    //! True while START is held down during a game, waiting for the hold to
+    //! complete. Set by GameDelegate; read by GameView to show the hint.
+    public var pauseHolding as Boolean = false;
+
     //! Buzz on every change between on-ice and bench. Off by default.
     //!
     //! This buzz had no setting at all until 2.5.4 - shiftAlerts gates the
@@ -650,7 +654,6 @@ class GameModel {
         // on the path through a pause, but clearing it on every entry to
         // RUNNING is what makes "you cannot enter a game already armed" a
         // property of the code rather than a coincidence of the routes.
-        _pauseArmedAt = -1;
 
         // Same reasoning for the idle clock. A resume is someone touching the
         // watch, which is the strongest possible evidence the game is not
@@ -699,12 +702,10 @@ class GameModel {
     // Any press-twice scheme is a scheme a rubbing button can satisfy. The
     // alternative is hold-to-pause, which no stray contact can produce, at
     // the cost of the muscle memory this binding was chosen for.
-    private const PAUSE_ARM_MS = 2000;
 
     // ...but ignore a second press that lands too soon after the first, which
     // is mechanical bounce or one drag registering twice rather than a person
     // pressing twice.
-    private const PAUSE_MIN_GAP_MS = 250;
 
     //! How long the auto-end warning stays on screen before it saves. Long
     //! enough to notice a buzz, pull a sleeve back and read the screen; short
@@ -716,7 +717,6 @@ class GameModel {
     //! longer, so anything under this would end live games between periods.
     private const END_IDLE_MIN_MINUTES = 20;
 
-    private var _pauseArmedAt as Number = -1;
 
     //! True while GameView is the screen on top. The app owns the game tick,
     //! so onTick keeps running under a menu; this is how the model knows
@@ -729,62 +729,6 @@ class GameModel {
     //! When the auto-end warning went up, or -1 when it is not showing.
     private var _endArmedAt as Number = -1;
 
-    //! Ask to pause. The first ask only arms; a second ask within
-    //! PAUSE_ARM_MS actually pauses. Returns true when the pause happened.
-    //!
-    //! This exists because one press used to be enough, and this watch has a
-    //! touchscreen - WatchUi's SELECT behaviour fires on a screen tap as well
-    //! as on the START button, so a glove, a sleeve or a shove against the
-    //! boards could stop the recording. On 2026-11-03 the clock stopped twice
-    //! mid-period, for 3m40s and 3m26s, neither of them deliberate.
-    //!
-    //! Two presses within three seconds is not something a jersey cuff does.
-    public function requestPause() as Boolean {
-        if (state != STATE_RUNNING) {
-            return false;
-        }
-        if (isPauseArmed()) {
-            if (sinceMs(_pauseArmedAt) < PAUSE_MIN_GAP_MS) {
-                return false;   // Too fast to be two presses.
-            }
-            _pauseArmedAt = -1;
-            pause();
-            return true;
-        }
-        _pauseArmedAt = System.getTimer();
-        // The arm is a question, so it has to be the most distinctive cue the
-        // app makes - everything else is a single pulse, this is a double one.
-        // It used to be the weakest (40% for 120ms), which through a glove and
-        // a jersey cuff in a rink is nothing at all: the player never knew they
-        // were in an armed window, which defeats the whole point of asking.
-        alert(Attention.TONE_KEY, [new Attention.VibeProfile(100, 150),
-            new Attention.VibeProfile(0, 100), new Attention.VibeProfile(100, 150)]);
-        return false;
-    }
-
-    //! True while a first press is still waiting for its second.
-    public function isPauseArmed() as Boolean {
-        if (_pauseArmedAt < 0 || state != STATE_RUNNING) {
-            return false;
-        }
-        // sinceMs() reports 0 for a clock that has wrapped, and 0 is inside the
-        // window - so a wrap mid-window would leave this armed for the rest of
-        // the game, and a single press or tap would pause instantly. An arm
-        // that cannot be timed has expired.
-        var age = System.getTimer() - _pauseArmedAt;
-        if (age < 0) {
-            return false;
-        }
-        return age <= PAUSE_ARM_MS;
-    }
-
-    //! Milliseconds left to confirm, for the countdown on screen.
-    public function pauseArmRemainingMs() as Number {
-        if (!isPauseArmed()) {
-            return 0;
-        }
-        return PAUSE_ARM_MS - sinceMs(_pauseArmedAt);
-    }
 
     //! Stop the clock without ending the game.
     public function pause() as Void {
@@ -808,7 +752,6 @@ class GameModel {
             session.stop();
         }
         state = STATE_PAUSED;
-        _pauseArmedAt = -1;
         _endArmedAt = -1;
 
         // Abandon any recovery in flight. _recoverySeconds counts ticks, and
@@ -1505,7 +1448,6 @@ class GameModel {
         // reverts to PRESS AGAIN, and the screen is now asking for a press
         // that would pause the game - so "cancelling is all that press does"
         // would be false for the one press after this one.
-        _pauseArmedAt = -1;
         return true;
     }
 
@@ -1731,7 +1673,6 @@ class GameModel {
         }
         _segmentAccumMs = 0;
         _segmentSince = -1;
-        _pauseArmedAt = -1;
         _endArmedAt = -1;
 
         detector.stop();

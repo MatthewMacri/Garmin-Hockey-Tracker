@@ -27,12 +27,12 @@ of the current Garmin watch range.
   <img src="docs/screenshots/03-bench.png" width="32%" alt="On the bench" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/04-press-again.png" width="32%" alt="Pausing asks for a second press" />
+  <img src="docs/screenshots/04-keep-holding.png" width="32%" alt="Holding START to pause" />
   <img src="docs/screenshots/05-menu.png" width="32%" alt="The stop menu" />
   <img src="docs/screenshots/06-summary.png" width="32%" alt="Post-game summary" />
 </p>
 <p align="center">
-  <sub>Ready &middot; on the ice &middot; on the bench &middot; pausing asks twice &middot; the stop menu &middot; final summary</sub>
+  <sub>Ready &middot; on the ice &middot; on the bench &middot; holding to pause &middot; the stop menu &middot; final summary</sub>
 </p>
 
 ---
@@ -295,7 +295,7 @@ Run app transfers. Nothing here is needed during normal play.
 
 | Button | Action |
 |---|---|
-| `START` / `STOP` | Start the game. **Press twice** to stop into the stop menu — resume, save, discard — exactly as stopping a run does. |
+| `START` / `STOP` | Start the game. **Hold** for a second to stop into the stop menu — resume, or end and save. A short press during a game does nothing at all. |
 | `BACK` (`LAP`) | Line change. `BACK` is the lap key in every Garmin activity, and a lap here *is* a shift, so this is the button that corrects the detector when it has the state wrong. |
 | `UP` / `DOWN` | Nothing. There is one data screen by design, so there is nothing to page through. |
 | `MENU` (hold `UP`) | Correct the shift state, pause, end or discard the game. Only while a game is open. |
@@ -308,9 +308,14 @@ app started:
   game. Ending now goes through the stop menu: `START`, then *End & Save*.
 - **`DOWN` does nothing.** It used to end the period, and a mis-press inside a
   glove could burn one. There are no periods now, so there is nothing to burn.
-- **Pausing takes two presses.** The first buzzes twice and shows `PRESS AGAIN`
-  without stopping anything, and lapses after five seconds if the second never
-  comes.
+- **Pausing is a hold, not a press.** Holding `START` for one second shows
+  `KEEP HOLDING` and then pauses; letting go early does nothing. It was two
+  presses within a window until 2.5.5, and a player lost a whole game to that
+  on 2026-11-09 — a button rubbing inside a glove produces the second press on
+  its own. Narrowing the window only narrows the odds; a hold cannot be made by
+  accident, because contact has to be *maintained*.
+- **Discard is only on the `MENU`.** The stop menu, which is where an
+  accidental press chain lands, offers nothing destructive.
 - **The glass is ignored while a game is live.** This watch maps touch straight
   onto the same behaviours as the buttons — a tap arrives as `SELECT`, exactly
   like `START`, and a swipe right arrives as `BACK` — so a glove or a sleeve
@@ -516,7 +521,7 @@ they carry an id that will never match a listing, whatever is published later.
 The numbers are still in the files, and `tools/replay_detector.py` still reads
 them.
 
-`docs/store-2.5.4.md` has the full trace, including a way to confirm it over
+`docs/store-2.5.5.md` has the full trace, including a way to confirm it over
 USB in five minutes before spending a store submission.
 
 ### Heart rate zones per shift
@@ -588,7 +593,7 @@ cd IndoorHockey
 Upload that at <https://apps.garmin.com/en-US/developer/upload>; the dashboard
 for an app already up is <https://apps-developer.garmin.com>. `store/listing.md`
 holds the description, category and screenshot order to paste into the form,
-and `docs/store-2.5.4.md` holds the current release's text with its character
+and `docs/store-2.5.5.md` holds the current release's text with its character
 counts, so it can be pasted without reading around it.
 
 Launcher icons are generated, not hand-drawn, because the supported watches ask

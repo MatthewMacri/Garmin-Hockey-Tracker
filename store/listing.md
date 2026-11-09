@@ -14,7 +14,7 @@ the 202 device variants they expand to, and on the order of a hundred thousand
 copies of the builder's home directory, shipped inside the package.
 
 Step 1 also asks for **App Version**, a free text box. **The string to type for
-the next upload lives in `docs/store-2.5.4.md`, and that file is the one to
+the next upload lives in `docs/store-2.5.5.md`, and that file is the one to
 follow** - this paragraph has been stale twice. At the time of writing the
 listing is live at `2.3.0` and the next upload is `2.5.2`; 2.4.0, 2.5.0 and
 2.5.1 were tagged and never uploaded, so the store's sequence skips all three.
@@ -36,8 +36,8 @@ you anything while a release is queued.
 | Form field | What to put |
 |---|---|
 | Title | `Ice Hockey Shifts` (17 of 50 chars) |
-| Description | **Take it from `docs/store-2.5.4.md`**, which carries the current text with a scripted character count. The block under *Description* below is the older text and is kept only for diffing - see the note there |
-| What's New | See `docs/store-2.5.4.md`. This is an **update**: the listing has been live since 2026-11-04 and is live at 2.3.0 (Internal: 4). A 404 on the manifest's application id means nothing — the store assigns a listing its own UUID |
+| Description | **Take it from `docs/store-2.5.5.md`**, which carries the current text with a scripted character count. The block under *Description* below is the older text and is kept only for diffing - see the note there |
+| What's New | See `docs/store-2.5.5.md`. This is an **update**: the listing has been live since 2026-11-04 and is live at 2.3.0 (Internal: 4). A 404 on the manifest's application id means nothing — the store assigns a listing its own UUID |
 | Hero Image (optional) | `store/images/hero-1440x720.jpg` (1440x720, 82 KB of 2048 KB) |
 | Category | Health & Fitness — then the closest subcategory to hockey or winter sports |
 | Does your app collect user data? | **No** — it sends nothing anywhere |
@@ -87,7 +87,7 @@ shift and every spell on the bench by itself.
 
 **This is the text currently live on the listing, from the 2.1.0/2.2.0 era. It
 is kept to diff against, not to paste.** Paste the description in
-`docs/store-2.5.4.md` instead. Three things below have since gone wrong and are
+`docs/store-2.5.5.md` instead. Three things below have since gone wrong and are
 left in place deliberately, because they describe what the public listing still
 says: the field list and the settings list both predate stride rate, heart rate
 recovery, skating load, skating intensity and the Max Heart Rate setting; and
@@ -142,7 +142,7 @@ and the on-ice state second by second.
 
 BUTTONS
 
-START begins the game. Pressing it twice stops into the stop menu; twice,
+START begins the game. Holding it for a second stops into the stop menu; a hold,
 because this is a touchscreen and one press was too easy to make inside a
 glove. Screen taps do nothing at all while a game is running.
 BACK is the lap key: a lap here is a line change. Hold UP for the menu.
@@ -172,7 +172,7 @@ vest or a bag has nothing to detect and records one long shift. A paired chest
 strap is fine and is used for heart rate as normal.
     <<< WITHDRAWN: that last sentence is false and is still live on the store.
     The app has never called Sensor.setEnabledSensors and nobody has skated
-    with a strap. The replacement, already in docs/store-2.5.4.md, is: "Heart
+    with a strap. The replacement, already in docs/store-2.5.5.md, is: "Heart
     rate comes from the watch; a paired chest strap is untested." >>>
 
 GPS is on by default, but expect no fix inside most arenas; the app falls back
@@ -193,7 +193,7 @@ bench, shifts, rink, skating
 ## What's New (version 2.2.0 — superseded)
 
 This is the text that went up with 2.2.0, kept for reference. The current one
-is in `docs/store-2.5.4.md`.
+is in `docs/store-2.5.5.md`.
 
 ```
 Shift detection has been retuned, and you will see it in your own numbers.
@@ -217,7 +217,7 @@ three-digit integer.
 ```
 
 If the form's counter accepts more than the ~1,000 characters above,
-append this; `docs/store-2.5.4.md` carries both with exact counts.
+append this; `docs/store-2.5.5.md` carries both with exact counts.
 
 ```
 One thing that costs nothing: start the game at the opening faceoff rather
@@ -233,7 +233,7 @@ In order, from `docs/screenshots/` (390x390 PNG):
 1. `01-ready.png` — ready to start
 2. `02-on-ice.png` — on the ice, shift clock green
 3. `03-bench.png` — on the bench
-4. `04-press-again.png` — the first of the two presses needed to pause
+4. `04-keep-holding.png` — holding START to pause, before it takes
 5. `05-menu.png` — the stop menu
 6. `06-summary.png` — the post-game summary
 

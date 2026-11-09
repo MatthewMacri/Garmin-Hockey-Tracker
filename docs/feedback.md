@@ -3,7 +3,7 @@
 Every question and complaint worth acting on, with its status checked against
 the code rather than remembered. What shipped in answer to them is in
 [release-2.1.0.md](release-2.1.0.md); the store text that announces it is in
-[store-2.5.4.md](store-2.5.4.md). Two sources: the r/hockeyplayers thread about
+[store-2.5.5.md](store-2.5.5.md). Two sources: the r/hockeyplayers thread about
 RinkPulse (a rival app, but the same players asking about the same sport, so
 the complaints transfer) and replies to this app's own post.
 
@@ -33,7 +33,7 @@ player would hit the same thing here, and most of them this app already answers.
 | Complaint | Status here |
 |---|---|
 | Shift buzz "driving me crazy… thought I was getting tons of calls" | **Was wrong, now fixed.** This row claimed `shiftAlerts` "turns it off entirely". It did not. `shiftAlerts` gates the long-shift alert only; the buzz on every on-ice/bench change had no setting at all. A player hit exactly this in the field on 2026-11-09, below. `changeAlerts` now gates it and is **off by default**. `9431bf1`. |
-| "I can't figure out how to start/stop" | **In the app.** START twice reaches the stop menu, hold UP reaches the same, and both exits confirm. |
+| "I can't figure out how to start/stop" | **In the app.** START starts; holding START reaches the stop menu, as does holding UP; the one destructive exit confirms with the safe answer preselected. |
 | "Text from screens is cut off on some corners" | **In the app.** Everything goes through `drawFitted`, which walks a font ladder down to `FONT_XTINY` rather than clipping. Not proof it never clips on all 202 device variants, but it is designed against. |
 | "HR zones show 1 at the top and 5 at the bottom, backwards" | **Not applicable.** No zone list is drawn on the watch. Zones come from Garmin Connect, in Connect's own order. |
 | "Swiping through screens seems inverted" | **Not applicable.** One screen, no paging, and swipes are ignored while a game is live. |
@@ -95,11 +95,13 @@ recorded as handled.
 
 ### What is still open from this report
 
-**Accidental pausing is narrowed, not solved.** Any press-twice scheme is one
-a button rubbing inside a glove can satisfy; a shorter window only shortens
-the odds. The guaranteed fix is hold-to-pause, which no stray contact can
-produce, and the cost is the Garmin muscle memory the two-press binding was
-chosen for. That is a product decision and has not been taken.
+**Nothing.** The pause was the last item, and it was taken: 2.5.5 makes
+pausing a one-second hold on `START`, and a short press during a game does
+nothing at all. The cost is a departure from Garmin's single-press pause,
+which the two-press binding was trying to stay close to; the gesture is
+instead the same hold that opens the menu on `UP`, so it is still one players
+already have. Verified in the simulator: five rapid presses leave the game
+running, a 600 ms hold does nothing, a full hold pauses.
 
 ### What this report says about the process
 

@@ -4,7 +4,7 @@
 // Laid out the way Garmin's own activities are laid out, so that muscle memory
 // built on the stock Run or Bike app transfers to this one:
 //
-//   START/STOP   start the game; press TWICE to stop and get the stop menu
+//   START/STOP   start the game; HOLD to stop and get the stop menu
 //   BACK (LAP)   mark a lap - here, a line change
 //   UP / DOWN    nothing during play, as on a profile with one data screen
 //   hold UP      the menu
@@ -24,10 +24,12 @@
 // DOWN used to end the period. There are no periods any more - a game is one
 // continuous recording - so there is nothing for it to end.
 //
-// Pausing takes two presses rather than one, and touch does nothing at all
-// while a game is live. Both are there because a single press was too easy to
-// make by accident: a game on 2026-11-03 lost seven minutes to two pauses
-// nobody meant to make.
+// Pausing is a one-second HOLD, and touch does nothing at all while a game is
+// live. Both are there because a press is too easy to make by accident: a game
+// on 2026-11-03 lost seven minutes to two pauses nobody meant to make, and on
+// 2026-11-09 a player lost a whole game to a button rubbing inside a glove.
+// Two presses within a window was the first answer and it was not enough - a
+// rubbing button produces the second press by itself.
 //
 // How touch is told apart from the buttons, since this is the part that is easy
 // to get wrong: on this watch the touchscreen does NOT deliver onTap() to an
@@ -52,6 +54,7 @@
 
 import Toybox.Lang;
 import Toybox.System;
+import Toybox.Timer;
 import Toybox.WatchUi;
 
 class GameDelegate extends WatchUi.BehaviorDelegate {
@@ -66,6 +69,25 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     // is reliably zero. A whole second is far more slack than that needs.
     private const KEY_GRACE_MS = 1000;
 
+    // How long START has to be held down to pause the game.
+    //
+    // Pausing was two presses within a window until 2.5.5, and a player lost
+    // a game to it on 2026-11-09: a button rubbing inside a glove produced
+    // the second press on its own. Narrowing the window only narrowed the
+    // odds - any press-twice scheme is one a rubbing button can satisfy.
+    //
+    // A hold cannot be produced by accident. Contact has to be made AND
+    // maintained for a second, which a glove brushing past does not do, and
+    // which a touchscreen tap cannot do at all: a tap arrives as a behaviour
+    // with no key event, and this path is driven entirely by key events.
+    //
+    // One second is Garmin's own hold, the same as the hold on UP that opens
+    // the menu, so the gesture is one players already have.
+    private const PAUSE_HOLD_MS = 1000;
+
+    // Running while START is down during a game; cancelled on release.
+    private var _holdTimer as Timer.Timer?;
+
     //! Constructor.
     public function initialize(model as GameModel) {
         BehaviorDelegate.initialize();
@@ -76,7 +98,54 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     public function onKeyPressed(keyEvent as WatchUi.KeyEvent) as Boolean {
         _lastKeyAt = System.getTimer();
         _sawRealKey = true;
+
+        // START going down during a game starts the pause clock. The pause
+        // happens when the clock fires, not when the button comes back up:
+        // holding a button and having nothing happen until you let go feels
+        // broken, and Garmin's own holds fire at the threshold.
+        if (keyEvent.getKey() == WatchUi.KEY_ENTER
+                && _model.state == STATE_RUNNING) {
+            cancelHold();
+            var timer = new Timer.Timer();
+            timer.start(method(:onPauseHold), PAUSE_HOLD_MS, false);
+            _holdTimer = timer;
+            _model.pauseHolding = true;
+            WatchUi.requestUpdate();
+        }
         return false;   // Let the behaviour mapping run as usual.
+    }
+
+    //! Any key coming back up ends a hold in progress. Released early, the
+    //! timer never fires and nothing happens - which is what a short press on
+    //! START now does during a game.
+    public function onKeyReleased(keyEvent as WatchUi.KeyEvent) as Boolean {
+        cancelHold();
+        return false;
+    }
+
+    //! START was held for the full second: pause, and offer the way out.
+    public function onPauseHold() as Void {
+        _holdTimer = null;
+        _model.pauseHolding = false;
+        if (_model.state != STATE_RUNNING) {
+            return;
+        }
+        _model.pause();
+        pushStopMenu();
+        WatchUi.requestUpdate();
+    }
+
+    //! Stop a pending hold and take the hint off the screen.
+    private function cancelHold() as Void {
+        var timer = _holdTimer;
+        if (timer != null) {
+            timer.stop();
+            _holdTimer = null;
+        }
+        if (_model.pauseHolding) {
+            _model.pauseHolding = false;
+            WatchUi.requestUpdate();
+        }
     }
 
     //! True when the behaviour being handled came from a button rather than
@@ -102,8 +171,8 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
         return age <= KEY_GRACE_MS;
     }
 
-    //! START/STOP, as on a stock activity: start, then stop into the stop
-    //! menu, then resume. Pausing takes two presses - see requestPause().
+    //! START/STOP: start a game, or resume a paused one. Pausing a RUNNING
+    //! game is not here - it is a hold, see onKeyPressed().
     public function onSelect() as Boolean {
         var state = _model.state;
 
@@ -122,15 +191,17 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
         }
 
         if (state == STATE_RUNNING) {
-            // Two presses, not one. The first arms and buzzes; the second,
-            // within three seconds, pauses. See GameModel.requestPause() for
-            // why - in short, this watch has a touchscreen and SELECT fires on
-            // a tap, so one press was never only a press.
-            if (_model.requestPause()) {
-                // Garmin's behaviour: STOP pauses and immediately offers
-                // resume, save and discard rather than making you hunt.
-                pushStopMenu();
-            }
+            // Nothing. Pausing is a HOLD, handled in onKeyPressed/
+            // onPauseHold, and a short press during a game is exactly the
+            // event a glove produces - so it has to do nothing at all.
+            //
+            // This is also why the pause cannot live here even in part:
+            // onSelect fires on the key going DOWN, about a millisecond
+            // after onKeyPressed and long before the button comes back up.
+            // Measured in the simulator, a 2,010 ms hold and a 74 ms tap
+            // both reach this function at the same point. Nothing here can
+            // tell them apart.
+            return true;
         } else if (state == STATE_PAUSED || state == STATE_READY) {
             _model.toggleRun();
         } else {

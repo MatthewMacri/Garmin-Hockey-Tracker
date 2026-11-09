@@ -217,7 +217,7 @@ and a user who has already reviewed 2.3.0 may review again once a new version
 is published. Publishing re-opens reviewing for everyone who has reviewed
 before.
 
-**App Version:** type `2.5.4`
+**App Version:** type `2.5.5`
 
 2.3.0 was the fourth upload and came back as Internal 4, so this is the fifth
 and should read Internal 5. Check the hint under the box reads *(Latest app
@@ -382,7 +382,7 @@ indoor games. Until it has one, those two fields are left out, not invented.
 
 BUTTONS
 
-START begins the game. Pressing it twice stops into the stop menu. Screen
+START begins the game. Holding it for a second stops into the stop menu; a short press during a game does nothing. Screen
 taps do nothing during a game.
 BACK is the lap key: a lap here is a line change. Hold UP for the menu.
 
@@ -453,7 +453,7 @@ each against a 150 KB limit. Upload them in filename order:
 1. `01-ready.png` — ready to start
 2. `02-on-ice.png` — on the ice, shift clock green
 3. `03-bench.png` — on the bench
-4. `04-press-again.png` — the first of the two presses needed to pause
+4. `04-keep-holding.png` — holding START to pause, before it takes
 5. `05-menu.png` — the stop menu
 6. `06-summary.png` — the post-game summary
 

@@ -93,11 +93,8 @@ misdetection in time to correct it, which is a thing to opt into.
 
 ## Still open
 
-**Accidental pausing is narrowed, not solved.** Any press-twice scheme is one a
-rubbing button can satisfy; a shorter window only shortens the odds. The
-guaranteed fix is hold-to-pause, which no stray contact can produce, at the
-cost of the Garmin muscle memory the two-press binding was chosen for. That is
-a product decision and has not been taken.
+**Accidental pausing is narrowed, not solved.** Taken in
+[2.5.5](release-2.5.5.md), which makes pausing a one-second hold.
 
 **The detector is still tuned against two games.** 2.5.3 removed the heart-rate
 offset arm from corroboration on measured grounds, and this release bounds the
@@ -133,3 +130,11 @@ v2.5.4            32397      27192       5205    33.0%
   to the paused game with the clock and shift count intact.
 - `tools/replay_detector.py` still reproduces the watch's own seconds on both
   recorded games at each file's own era.
+
+---
+
+## This release should not be installed
+
+2.5.4 narrowed the window an accidental pause could land in without closing
+it. [2.5.5](release-2.5.5.md) replaces the press-twice scheme with a hold and
+is the version to upload.

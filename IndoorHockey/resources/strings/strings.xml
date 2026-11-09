@@ -104,7 +104,7 @@
     <string id="SetActivityTypePrompt">How the finished activity is filed. Ice Hockey is correct in Garmin Connect. Strava has no hockey type and shows it as a plain workout, so pick Ice Skate if you sync to Strava.</string>
     <string id="TypeHockey">Ice Hockey</string>
     <string id="TypeSkate">Ice Skate (Strava)</string>
-    <string id="LabelPressAgain">PRESS AGAIN</string>
+    <string id="LabelHoldToPause">KEEP HOLDING</string>
     <string id="SetEndIdle">End game when idle</string>
     <string id="SetEndIdlePrompt">Minutes with no skating detected before the game saves itself, so a recording left running does not carry on for hours. It buzzes first and any button cancels. Set 0 to never end by itself. Anything else is held to 20 minutes or more, because an intermission is 15 to 18 minutes of sitting down and a shorter setting would end a game that is still being played.</string>
     <string id="LabelEndingGame">ENDING GAME</string>
