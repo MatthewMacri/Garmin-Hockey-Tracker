@@ -516,7 +516,7 @@ they carry an id that will never match a listing, whatever is published later.
 The numbers are still in the files, and `tools/replay_detector.py` still reads
 them.
 
-`docs/store-2.5.3.md` has the full trace, including a way to confirm it over
+`docs/store-2.5.4.md` has the full trace, including a way to confirm it over
 USB in five minutes before spending a store submission.
 
 ### Heart rate zones per shift
@@ -588,7 +588,7 @@ cd IndoorHockey
 Upload that at <https://apps.garmin.com/en-US/developer/upload>; the dashboard
 for an app already up is <https://apps-developer.garmin.com>. `store/listing.md`
 holds the description, category and screenshot order to paste into the form,
-and `docs/store-2.5.3.md` holds the current release's text with its character
+and `docs/store-2.5.4.md` holds the current release's text with its character
 counts, so it can be pasted without reading around it.
 
 Launcher icons are generated, not hand-drawn, because the supported watches ask

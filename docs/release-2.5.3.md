@@ -3,9 +3,9 @@
 Released 2026-11-07. Like 2.5.0, 2.5.1 and 2.5.2 before it, this corrects a
 version that never reached the store, so no user ever ran the code it changes.
 
-**This is the version to upload.** [2.5.0](release-2.5.0.md),
-[2.5.1](release-2.5.1.md) and [2.5.2](release-2.5.2.md) are tagged and should
-not be.
+**This is no longer the version to upload** - see [2.5.4](release-2.5.4.md).
+[2.5.0](release-2.5.0.md), [2.5.1](release-2.5.1.md) and
+[2.5.2](release-2.5.2.md) should not be installed either.
 
 2.5.2 closed out a QA pass. This release does one thing, to the oldest open
 complaint in the project: *moving your wrist on the bench collects shifts you
@@ -192,3 +192,11 @@ watch is the only place it can be observed. The tiering added in 2.5.2 means
 tiers 1–3 come to exactly 14 fields — precisely the set this watch has already
 recorded twice — so the worst case is losing the per-second diagnostics, not
 the game.
+
+---
+
+## This release should not be installed
+
+2.5.3 shipped the same day a player lost a game to an accidental press chain
+reaching Discard, and to a bench-change buzz with no off switch. See
+[2.5.4](release-2.5.4.md), which is the version to upload.

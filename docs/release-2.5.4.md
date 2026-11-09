@@ -114,6 +114,17 @@ That check arrived as somebody's lost game. `feedback.md` opens by warning that
 an **Unverified** row is not a "yes"; this release is what it costs to forget
 that.
 
+## Size
+
+Measured with `tools/size.sh`, against the tightest supported device limit of
+98,304 B.
+
+```
+ref               total       code       data of 98304
+v2.5.3            31942      26817       5125    32.5%
+v2.5.4            32397      27192       5205    33.0%
+```
+
 ## Verified
 
 - `TYPECHECK=3` build clean for `fr57042mm`.
