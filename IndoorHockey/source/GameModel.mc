@@ -112,6 +112,21 @@ class GameModel {
     // ---- settings, refreshed whenever Garmin Connect pushes a change ----
     public var shiftTargetMs as Number = 60 * 1000;
     public var shiftAlerts as Boolean = true;
+
+    //! Buzz on every change between on-ice and bench. Off by default.
+    //!
+    //! This buzz had no setting at all until 2.5.4 - shiftAlerts gates the
+    //! long-shift alert and nothing gated this one, so a player who found it
+    //! annoying had no way to stop it. One did, on 2026-11-09: "the
+    //! vibration when changing between bench and on ice is unnecessary and
+    //! becomes an annoyance... I don't need to be alerted that I'm sitting
+    //! on the bench. I already know I'm sitting down."
+    //!
+    //! Off is the right default for an app whose whole claim is that you
+    //! start it and forget it. The buzz tells a player something they can
+    //! see by looking, and its only real use is noticing a misdetection in
+    //! time to correct it - which is a thing to opt into, not out of.
+    public var changeAlerts as Boolean = false;
     public var autoLap as Boolean = true;
     public var useGps as Boolean = true;
     public var sensitivity as Number = 1;
@@ -349,6 +364,7 @@ class GameModel {
         shiftTargetMs = readNumber("shiftSeconds", 60, 15, 600) * 1000;
         sensitivity = readNumber("sensitivity", 1, 0, 2);
         shiftAlerts = readBoolean("shiftAlerts", true);
+        changeAlerts = readBoolean("changeAlerts", false);
         autoLap = readBoolean("autoLap", true);
         useGps = readBoolean("useGps", true);
         // Read, but only consulted when a session is created, so changing it
@@ -670,7 +686,20 @@ class GameModel {
     // So a wider window costs very little in accidental pauses and buys a lot
     // for the deliberate case, where the player is wearing hockey gloves and
     // may not feel the first press at all.
-    private const PAUSE_ARM_MS = 5000;
+    //
+    // ...which a player falsified on 2026-11-09: "every time the button got
+    // barely touched moving around in my glove it would pause the workout".
+    // Five seconds is a long time for a button to be rubbed by a glove, and
+    // anywhere in it a second contact pauses the game. Two seconds is still
+    // generous for a gloved hand that has just felt the double-pulse arming
+    // buzz - a deliberate second press follows in well under a second - and
+    // it removes three fifths of the window an accident can land in.
+    //
+    // This narrows the odds; it does not change the shape of the problem.
+    // Any press-twice scheme is a scheme a rubbing button can satisfy. The
+    // alternative is hold-to-pause, which no stray contact can produce, at
+    // the cost of the muscle memory this binding was chosen for.
+    private const PAUSE_ARM_MS = 2000;
 
     // ...but ignore a second press that lands too soon after the first, which
     // is mechanical bounce or one drag registering twice rather than a person
@@ -972,9 +1001,13 @@ class GameModel {
             if (shiftsField != null) {
                 shiftsField.setData(shiftCount);
             }
-            alert(Attention.TONE_LAP, [new Attention.VibeProfile(100, 250)]);
+            if (changeAlerts) {
+                alert(Attention.TONE_LAP, [new Attention.VibeProfile(100, 250)]);
+            }
         } else {
-            alert(Attention.TONE_KEY, [new Attention.VibeProfile(70, 150)]);
+            if (changeAlerts) {
+                alert(Attention.TONE_KEY, [new Attention.VibeProfile(70, 150)]);
+            }
         }
     }
 

@@ -82,6 +82,9 @@
     <string id="SummaryIceHr">On-Ice HR</string>
     <string id="ConfirmEnd">End game and save?</string>
     <string id="ConfirmDiscard">Discard this game?</string>
+    <string id="ConfirmNo">No, keep playing</string>
+    <string id="ConfirmYesEnd">Yes, end and save</string>
+    <string id="ConfirmYesDiscard">Yes, discard it</string>
 
     <!-- Settings -->
     <string id="SetShiftSeconds">Shift alert (sec)</string>
@@ -93,6 +96,8 @@
     <string id="SensHigh">High</string>
     <string id="SetShiftAlerts">Shift alerts</string>
     <string id="SetShiftAlertsPrompt">Buzz when a shift runs long</string>
+    <string id="SetChangeAlerts">Line change alerts</string>
+    <string id="SetChangeAlertsPrompt">Buzz on every change between ice and bench</string>
     <string id="SetAutoLap">Lap per shift</string>
     <string id="SetAutoLapPrompt">Record a FIT lap for every shift and every spell on the bench</string>
     <string id="SetActivityType">Activity Type</string>

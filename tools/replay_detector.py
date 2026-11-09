@@ -202,10 +202,11 @@ def fit_band(rows, grid=None):
 # `git show <tag>:IndoorHockey/source/ShiftDetector.mc` for every tag: one
 # constant set covers all six of those bands.
 _OLD = dict(CONFIRM_ICE=6, CONFIRM_BENCH=10, CONFIRM_ICE_FAST=3,
-            CONFIRM_BENCH_FAST=5, HR_VETO=None, HR_OFFSET_ARM=True)
+            CONFIRM_BENCH_FAST=5, HR_VETO=None, HR_OFFSET_ARM=True,
+            MIN_SHIFT_SEC=8, MIN_BENCH_SEC=8)
 # v2.2.0 to v2.5.2: today's constants, plus the heart-rate offset arm on
 # corroboration that 2.5.3 removed.
-_MID = dict(CONFIRM_ICE=6, HR_OFFSET_ARM=True)
+_MID = dict(CONFIRM_ICE=6, HR_OFFSET_ARM=True, MIN_SHIFT_SEC=8, MIN_BENCH_SEC=8)
 
 ERAS = {
     0.55: _OLD, 0.45: _OLD, 0.35: _OLD, 0.27: _OLD, 0.21: _OLD,
@@ -213,9 +214,9 @@ ERAS = {
 }
 
 # Everything the Learner uses - MOTION_FLOOR, the 40/400 seeds, the 0.15/0.01
-# chase rates, the 60 mg minimum gap - and HYSTERESIS, MIN_SHIFT_SEC,
-# MIN_BENCH_SEC, HR_SLOPE, HR_OFFSET and HR_WINDOW are unchanged at every tag,
-# so none of them need an era entry.
+# chase rates, the 60 mg minimum gap - and HYSTERESIS, HR_SLOPE, HR_OFFSET and
+# HR_WINDOW are unchanged at every tag, so none of them need an era entry.
+# MIN_SHIFT_SEC and MIN_BENCH_SEC did change, at 2.5.4, and are carried above.
 
 
 def era_for(band):
@@ -504,7 +505,9 @@ class Detector:
     # has never shipped.
     CONFIRM_ICE, CONFIRM_BENCH = 6, 14
     CONFIRM_ICE_FAST, CONFIRM_BENCH_FAST = 3, 7
-    MIN_SHIFT_SEC, MIN_BENCH_SEC = 8, 8
+    # 20 from 2.5.4; 8 before it. Every era below predates that, so both
+    # carry the 8 explicitly rather than relying on this default.
+    MIN_SHIFT_SEC, MIN_BENCH_SEC = 20, 20
     HR_SLOPE, HR_OFFSET, HR_WINDOW = 0.25, 4.0, 20
     HR_VETO = 12.0
 

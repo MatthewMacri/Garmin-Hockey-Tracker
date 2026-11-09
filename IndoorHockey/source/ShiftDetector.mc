@@ -189,9 +189,23 @@ class ShiftDetector {
     // of 3.06 at -12.0 precisely because it asks a much deeper question than
     // four beats.
 
-    // A shift shorter than this is noise, not a line change.
-    private const MIN_SHIFT_SEC = 8;
-    private const MIN_BENCH_SEC = 8;
+    // A shift shorter than this is noise, not a line change - and so is a
+    // bench shorter than this.
+    //
+    // These were both 8 until 2.5.4, which made a complete on-ice/bench/
+    // on-ice cycle legal in 16 seconds. On 2026-11-09 a player reported the
+    // app "vibrating every ten seconds switching between on ice and bench"
+    // while he sat on the bench, which is that number being spent.
+    //
+    // 20 is cheap. Swept through tools/replay_detector.py over the two full
+    // recorded games at 8/12/16/20/25/30, the ice share moves by less than a
+    // point anywhere in that range and the shift count by at most two,
+    // because real shifts and real benches are far longer than any of these:
+    // the median shift is 49-96 s. All these constants really bound is how
+    // fast the detector is allowed to change its mind, and 8 s was far
+    // faster than hockey happens.
+    private const MIN_SHIFT_SEC = 20;
+    private const MIN_BENCH_SEC = 20;
 
     // How far below its own baseline the heart rate has to sit before a shift
     // is refused outright, however convincing the motion looks.

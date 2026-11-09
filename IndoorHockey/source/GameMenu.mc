@@ -12,27 +12,42 @@ import Toybox.WatchUi;
 
 module GameMenus {
 
-    //! Add save and discard to a menu. Shared by both menus so the two cannot
-    //! drift apart.
-    function addExits(menu as WatchUi.Menu2, model as $.GameModel) as Void {
+    //! Add the ways out of a game. `withDiscard` is false for the stop menu:
+    //! see stopMenu() for why throwing a game away is not offered there.
+    function addExits(menu as WatchUi.Menu2, model as $.GameModel,
+                      withDiscard as Boolean) as Void {
         if (model.state == $.STATE_FINISHED || model.state == $.STATE_READY) {
             return;
         }
         menu.addItem(new WatchUi.MenuItem(
             WatchUi.loadResource($.Rez.Strings.MenuEndGame) as String, null, :end, null));
-        menu.addItem(new WatchUi.MenuItem(
-            WatchUi.loadResource($.Rez.Strings.MenuDiscard) as String, null, :discard, null));
+        if (withDiscard) {
+            menu.addItem(new WatchUi.MenuItem(
+                WatchUi.loadResource($.Rez.Strings.MenuDiscard) as String, null, :discard, null));
+        }
     }
 
     //! What STOP raises: resume at the top, as on a stock activity, so the most
     //! likely intention is one press away and saving is never accidental.
+    //!
+    //! Discard is deliberately NOT here. This menu is where an accidental
+    //! press chain lands - and a player reported exactly that on 2026-11-09:
+    //! a button rubbing inside a glove paused the game repeatedly and
+    //! eventually ended AND discarded it. The two-press guard on STOP stops
+    //! one stray press; it does nothing about a button being rubbed, which
+    //! produces two presses inside three seconds every time.
+    //!
+    //! So the only destructive item in the app is now reachable only from
+    //! the menu raised by HOLDING UP, which is a gesture a glove against a
+    //! button cannot produce. Everything this menu offers either continues
+    //! the game or saves it.
     function stopMenu(model as $.GameModel) as WatchUi.Menu2 {
         var menu = new WatchUi.Menu2({
             :title => WatchUi.loadResource($.Rez.Strings.MenuStoppedTitle) as String
         });
         menu.addItem(new WatchUi.MenuItem(
             WatchUi.loadResource($.Rez.Strings.MenuResume) as String, null, :resume, null));
-        addExits(menu, model);
+        addExits(menu, model, false);
         return menu;
     }
 
@@ -64,7 +79,40 @@ module GameMenus {
                 WatchUi.loadResource($.Rez.Strings.MenuResume) as String, null, :resume, null));
         }
 
-        addExits(menu, model);
+        addExits(menu, model, true);
+        return menu;
+    }
+
+    //! Yes/no on an irreversible item, as a MENU rather than a dialog.
+    //!
+    //! It was a WatchUi.Confirmation until 2.5.4. The problem with that is
+    //! documented in SDK 9.3.0 by omission: Confirmation takes a prompt and
+    //! nothing else - no :defaultResponse, no setDefaultResponse() - so the
+    //! app cannot ask for the safe answer to be preselected and has to trust
+    //! the firmware to do it. In the simulator the prompt draws no highlight
+    //! on either option and a bare START press through it ends or discards
+    //! the game.
+    //!
+    //! On 2026-11-09 a player reported losing a game to exactly that: a
+    //! button rubbing inside a glove pressed its way through to discard. So
+    //! the firmware does not reliably preselect no, and the guard was one
+    //! extra press rather than a decision.
+    //!
+    //! A Menu2 opens on its first item and the app chooses the order, which
+    //! is the only way to be certain. The safe answer is first, so the press
+    //! that opens this screen cannot also answer it destructively.
+    function confirmMenu(keep as Boolean) as WatchUi.Menu2 {
+        var menu = new WatchUi.Menu2({
+            :title => WatchUi.loadResource(keep
+                ? $.Rez.Strings.ConfirmEnd
+                : $.Rez.Strings.ConfirmDiscard) as String
+        });
+        menu.addItem(new WatchUi.MenuItem(
+            WatchUi.loadResource($.Rez.Strings.ConfirmNo) as String, null, :no, null));
+        menu.addItem(new WatchUi.MenuItem(
+            WatchUi.loadResource(keep
+                ? $.Rez.Strings.ConfirmYesEnd
+                : $.Rez.Strings.ConfirmYesDiscard) as String, null, :yes, null));
         return menu;
     }
 }
@@ -94,28 +142,11 @@ class GameMenuDelegate extends WatchUi.Menu2InputDelegate {
         // from it mid-game.
         if (id == :discard || id == :end) {
             var keep = (id == :end);
-            var prompt = WatchUi.loadResource(
-                keep ? $.Rez.Strings.ConfirmEnd : $.Rez.Strings.ConfirmDiscard) as String;
-            // Drop the menu before raising the prompt, so answering it lands
-            // back on the game rather than on a menu describing a game that
-            // has just been ended.
+            // Drop the menu before raising the question, so answering it
+            // lands back on the game rather than on a menu describing a game
+            // that has just been ended.
             WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
-            // UNRESOLVED, and not fixable from here: which answer this
-            // prompt opens on is the firmware's to decide. WatchUi.
-            // Confirmation takes a prompt and nothing else - SDK 9.3.0 has
-            // no :defaultResponse option and no setDefaultResponse() - so
-            // the app cannot ask for "no" to be preselected.
-            //
-            // In the simulator the prompt draws NO highlight on either
-            // option and a bare START press through it ends or discards the
-            // game, which would make this guard one extra press rather than
-            // a decision. That is most likely the simulator failing to
-            // render a selection rather than the watch defaulting to yes -
-            // stock Garmin confirmations preselect no - but it is untested
-            // on hardware. Check it on the FR570 before trusting the guard.
-            // If the watch really does open on yes, this has to become a
-            // Menu2 with the safe item first, since a dialog cannot be told.
-            WatchUi.pushView(new WatchUi.Confirmation(prompt),
+            WatchUi.pushView(GameMenus.confirmMenu(keep),
                 new $.EndConfirmDelegate(_model, keep), WatchUi.SLIDE_UP);
             return;
         }
@@ -136,7 +167,7 @@ class GameMenuDelegate extends WatchUi.Menu2InputDelegate {
 }
 
 //! Yes/no on throwing the game away.
-class EndConfirmDelegate extends WatchUi.ConfirmationDelegate {
+class EndConfirmDelegate extends WatchUi.Menu2InputDelegate {
 
     private var _model as GameModel;
     private var _keep as Boolean;
@@ -145,18 +176,25 @@ class EndConfirmDelegate extends WatchUi.ConfirmationDelegate {
     //! away. One delegate for both so the two irreversible items cannot drift
     //! apart in how they confirm.
     public function initialize(model as GameModel, keep as Boolean) {
-        ConfirmationDelegate.initialize();
+        Menu2InputDelegate.initialize();
         _model = model;
         _keep = keep;
     }
 
-    //! Act on yes, nothing on no. The system pops the prompt either way,
-    //! which lands back on the game screen.
-    public function onResponse(response as WatchUi.Confirm) as Boolean {
-        if (response == WatchUi.CONFIRM_YES) {
+    //! Act on yes, nothing on no.
+    public function onSelect(item as WatchUi.MenuItem) as Void {
+        var yes = (item.getId() == :yes);
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        if (yes) {
             _model.endGame(_keep);
         }
         WatchUi.requestUpdate();
-        return true;
+    }
+
+    //! BACK out of the question is a "no", which is what BACK means
+    //! everywhere else on this watch.
+    public function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        WatchUi.requestUpdate();
     }
 }
