@@ -1564,15 +1564,30 @@ class GameModel {
         _idleMs += 1000;
         if (_idleMs >= endIdleMs) {
             _endArmedAt = System.getTimer();
-            // Long-short-long-short-long. This has to be unmistakable against
-            // the sensor warning in particular, which is the alert most likely
-            // to be felt in the same minute and which used to share this
-            // array byte for byte: three equal 400ms pulses. A player who
-            // cannot tell them apart through a jersey reads "sensor unhappy
-            // again", ignores it, and loses the game thirty seconds later.
-            // Tone alone is not enough to separate them - tones are routinely
-            // silenced, and alert() honours tonesOn and vibrateOn
-            // independently - so the rhythm has to carry the difference.
+            // Long-short-long-short-long, intended to be unmistakable
+            // against the sensor warning - the alert most likely to be felt
+            // in the same minute, and which used to share this array byte for
+            // byte as three equal 400ms pulses. A player who cannot tell them
+            // apart through a jersey reads "sensor unhappy again", ignores it,
+            // and loses the game thirty seconds later.
+            //
+            // IT DOES NOT WORK ON THIS WATCH. Toybox/Attention.html states:
+            // "Note: Forerunner devices do not support vibration patterns.
+            // Vibration may still be used, but the vibration will always run
+            // at the same duty cycle." So on an FR570 this array and the
+            // sensor warning's array collapse to the same flat buzz, and the
+            // rhythm that was supposed to carry the difference carries
+            // nothing. The comment above described an intention, not the
+            // behaviour.
+            //
+            // Tone cannot be the fallback either, for the reason originally
+            // given - tones are routinely silenced, and the advice for the
+            // lap-alert noise is specifically to turn Alert Tones off - so on
+            // a Forerunner there is currently NO way to tell these two alerts
+            // apart. The fix is separate vibrate() calls spaced by a timer,
+            // since each call is its own buzz, rather than one call carrying a
+            // pattern. Not done here: it needs a state machine and this
+            // comment is the honest description until it exists.
             alert(Attention.TONE_ALERT_LO,
                 [new Attention.VibeProfile(100, 700), new Attention.VibeProfile(0, 200),
                  new Attention.VibeProfile(100, 150), new Attention.VibeProfile(0, 200),
@@ -2704,6 +2719,23 @@ class GameModel {
     //! The patterns are deliberately long and at full strength. A short, gentle
     //! buzz is perfectly clear on a bare wrist and completely undetectable under
     //! a glove, an elbow pad and a jersey sleeve, which is where this app is.
+    //! Fire a tone and a vibration, honouring the watch's own settings.
+    //!
+    //! A caveat that applies to every caller: the multi-element VibeProfile
+    //! arrays passed in here do NOT produce distinguishable rhythms on a
+    //! Forerunner. Toybox/Attention.html: "Note: Forerunner devices do not
+    //! support vibration patterns. Vibration may still be used, but the
+    //! vibration will always run at the same duty cycle." Five call sites in
+    //! this file pass carefully distinct arrays - game start, game end, the
+    //! long-shift alert, the sensor warning and the idle auto-end warning -
+    //! and on the device this app is built and tested on they are all one
+    //! flat buzz. The arrays are kept because they are correct on the other
+    //! products in the manifest that do support patterns.
+    //!
+    //! Attention.ToneProfile (API 3.1.0, exactly this app's minApiLevel) can
+    //! carry the distinction in frequency instead, and is the right fix - but
+    //! only for a player who has Alert Tones on, which is the opposite of the
+    //! advice for the firmware lap-alert noise.
     private function alert(tone as Attention.Tone, vibe as Array<Attention.VibeProfile>) as Void {
         if (!(Toybox has :Attention)) {
             return;
