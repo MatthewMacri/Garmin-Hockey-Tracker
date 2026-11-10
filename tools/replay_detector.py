@@ -355,8 +355,29 @@ def session_ice_pct(path):
     ice_time + bench_time comes to 4148 s - elapsed, not timer - so a 205
     second pause that fell inside a shift was banked as ice time. (max_shift in
     that session is 220 s.) There is no denominator that rescues that
-    numerator, so a gapped file gets no number at all rather than a number
+    numerator, so such a file gets no number at all rather than a number
     somebody might quote.
+
+    But the gap count is only a proxy for that, and too blunt a one: the game
+    of 2026-11-09 has a single one-second break - a dropped sample, not a
+    pause - and refusing on gap count threw away a good number over it. The
+    pollution is testable directly, because it leaves a fingerprint: a
+    numerator that banked paused wall-clock reconciles against
+    total_elapsed_time instead of total_timer_time.
+
+        game        gaps        ice+bench   vs timer   vs elapsed
+        2026-11-03  4 (544 s)     4148 s       +547         -2
+        2026-11-05  0             5119 s         -2         -2
+        2026-11-09  1 (1 s)       4431 s        -10        -10
+
+    11-03 reconciles with elapsed, 547 s away from the timer it is supposed to
+    sum to - the pause bug, confirmed from the file itself. The other two
+    reconcile with the timer, 11-09 by under-counting 10 s, which is the
+    opposite sign from banking extra time and so cannot inflate a share.
+
+    So the test is on the numerator's own arithmetic rather than on how many
+    breaks the stream has. That still refuses 11-03, which is the file that
+    earned the refusal, and stops refusing a file over a dropped second.
     """
     gaps = record_gaps(load(path))
     d = parsed(path)
@@ -366,13 +387,27 @@ def session_ice_pct(path):
         elapsed = m.get('total_elapsed_time')
         if ice is None or not timer:
             continue
-        if gaps:
+        # Did the numerator sum to the timer it is supposed to sum to? One
+        # that banked paused wall-clock does not, and misses by about the
+        # length of the pause. Allow 30 s or 1%, whichever is larger, for
+        # rounding and the last partial second.
+        bench = m.get('dev:bench_time')
+        secs = timer / 1000.0
+        drift = ((ice or 0) + (bench or 0)) - secs
+        if bench is not None and drift > max(30.0, 0.01 * secs):
             return None, (
-                "refused: the record stream has %d break(s) totalling %d s, so "
-                "the session's ice_time banked paused wall-clock into whichever "
-                "segment was open and no denominator fixes it"
-                % (len(gaps), sum(n for _, n in gaps)))
+                "refused: the session's ice_time + bench_time is %.0f s against"
+                " a %.0f s timer, %+.0f s over, so it banked paused wall-clock"
+                " into whichever segment was open%s - and no denominator fixes"
+                " a numerator" % (
+                    (ice or 0) + (bench or 0), secs, drift,
+                    " (%d break(s), %d s)"
+                    % (len(gaps), sum(n for _, n in gaps)) if gaps else ""))
         note = "ice_time / total_timer_time"
+        if gaps:
+            note += " (%d break(s), %d s; the numerator reconciles to %+.0f s," \
+                    " so they were dropped samples and not banked pauses)" \
+                    % (len(gaps), sum(n for _, n in gaps), drift)
         if elapsed and abs(elapsed - timer) > 1000:
             note += " (elapsed differs by %.0f s and is NOT the denominator)" \
                     % ((elapsed - timer) / 1000.0)
