@@ -2,7 +2,7 @@
     <properties>
         <property id="shiftSeconds"  type="number">60</property>
         <property id="sensitivity"   type="number">1</property>
-        <property id="shiftAlerts"   type="boolean">true</property>
+        <property id="shiftAlerts"   type="boolean">false</property>
         <!-- The buzz on every on-ice/bench change. Off: it reports what the
              player can see, and a 2026-11-09 report had it firing every ten
              seconds on the bench. -->

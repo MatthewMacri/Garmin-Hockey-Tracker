@@ -106,7 +106,7 @@
     <string id="SensNormal">Normal</string>
     <string id="SensHigh">High</string>
     <string id="SetShiftAlerts">Shift alerts</string>
-    <string id="SetShiftAlertsPrompt">Buzz when a shift runs long</string>
+    <string id="SetShiftAlertsPrompt">Buzz when a shift passes the target length. Off by default: at a 60-second target most defence shifts cross it, so this alerts you to something normal. Turn it on if you are deliberately holding shifts to a target.</string>
     <string id="SetChangeAlerts">Line change alerts</string>
     <string id="SetChangeAlertsPrompt">Buzz on every change between ice and bench</string>
     <string id="SetAutoLap">Lap per shift</string>

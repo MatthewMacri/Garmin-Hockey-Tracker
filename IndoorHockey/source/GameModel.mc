@@ -120,7 +120,30 @@ class GameModel {
 
     // ---- settings, refreshed whenever Garmin Connect pushes a change ----
     public var shiftTargetMs as Number = 60 * 1000;
-    public var shiftAlerts as Boolean = true;
+
+    //! Buzz once a shift passes shiftTargetMs. Off by default since 2.5.6.
+    //!
+    //! It shipped ON with a 60-second target, and that combination is wrong
+    //! for the player this app is for. Measured on the 2026-11-09 game: 25
+    //! shifts, median 76 s, and 16 of them past 60 s. So this fired sixteen
+    //! times in 74 minutes, each time a TONE_ALERT_HI plus a 500 ms / 150 /
+    //! 500 ms double buzz, to tell a defenceman that a 76-second shift was
+    //! long. For a defenceman at four D it was not long; it was normal.
+    //!
+    //! 2.5.4 answered a player who said the change-buzz "becomes an
+    //! annoyance" by adding changeAlerts, defaulted off, and the reasoning
+    //! given there was that off is the right default for an app whose whole
+    //! claim is that you start it and forget it. That reasoning applies here
+    //! and was not applied here: the louder of the two alerts was left on.
+    //! The owner played a game on 2.5.5 and reported it was "buzzing and
+    //! beeping a lot", with changeAlerts already off.
+    //!
+    //! Still worth having for anyone trying to hold a shift to a target, so
+    //! the setting stays - it just no longer assumes that is why you are
+    //! wearing it. Note this is not the only buzz in a game: addLap() fires
+    //! at every segment change (49 times in that game) and the lap alert
+    //! that follows is the watch's, which no app setting here can silence.
+    public var shiftAlerts as Boolean = false;
 
     //! True while START is held down during a game, waiting for the hold to
     //! complete. Set by GameDelegate; read by GameView to show the hint.
@@ -380,7 +403,7 @@ class GameModel {
     public function loadSettings() as Void {
         shiftTargetMs = readNumber("shiftSeconds", 60, 15, 600) * 1000;
         sensitivity = readNumber("sensitivity", 1, 0, 2);
-        shiftAlerts = readBoolean("shiftAlerts", true);
+        shiftAlerts = readBoolean("shiftAlerts", false);
         changeAlerts = readBoolean("changeAlerts", false);
         autoLap = readBoolean("autoLap", true);
         useGps = readBoolean("useGps", true);
