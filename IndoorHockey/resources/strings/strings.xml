@@ -110,7 +110,7 @@
     <string id="SetChangeAlerts">Line change alerts</string>
     <string id="SetChangeAlertsPrompt">Buzz on every change between ice and bench</string>
     <string id="SetAutoLap">Lap per shift</string>
-    <string id="SetAutoLapPrompt">Record a FIT lap for every shift and every spell on the bench</string>
+    <string id="SetAutoLapPrompt">Record a FIT lap for every shift and every spell on the bench. This is what makes the Splits tab a shift chart and what gives you heart rate zones per shift. Note the watch plays its own lap tone at every change, which this app cannot suppress - about 50 times a game. To keep the laps and lose the noise, turn off Alert Tones and keep Vibration in the watch's sound settings.</string>
     <string id="SetActivityType">Activity Type</string>
     <string id="SetActivityTypePrompt">How the finished activity is filed. Ice Hockey is correct in Garmin Connect. Strava has no hockey type and shows it as a plain workout, so pick Ice Skate if you sync to Strava.</string>
     <string id="TypeHockey">Ice Hockey</string>
