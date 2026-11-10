@@ -2084,22 +2084,49 @@ class GameModel {
     //! Developer fields, so the numbers travel with the activity into Connect.
     //! Create the developer fields, in tiers, each tier able to fail alone.
     //!
-    //! This app asks for 28 developer fields. Garmin's firmware is reported to
-    //! limit how many may be active at once for an activity - 16 on every
-    //! device one Garmin engineer checked, with the 17th createField()
-    //! throwing - and the simulator does not enforce it (a probe created 227
-    //! without complaint), so the only place it could be observed was a real
-    //! watch.
+    //! WARNING - the try/catch in each tier below cannot do what it was
+    //! written to do. Read this before relying on it.
     //!
-    //! It has now been observed, and there is no limit at 24. The game of
-    //! 2026-11-09 was recorded on an FR570 with 24 fields created and 24
-    //! landing in the file, nothing lost. The app asked for 24 rather than
-    //! all of them only because tier 5 is skipped with no stride length set.
-    //! So the 16 figure does not hold on this firmware, and the tiering below
-    //! has never actually had to fire. It stays anyway: it costs one
-    //! try/catch per tier, the reported limit may well be real on one of the
-    //! other 125 devices this ships to, and what it prevents is losing a
-    //! whole game rather than losing a diagnostic.
+    //! The "16 developer fields" figure is not in any Garmin documentation.
+    //! It traces to a single forum post by a Garmin engineer who said the
+    //! firmware constant "is set to 16 for every device that I checked" - and
+    //! who then added, in the same thread, "I only evaluated the number of
+    //! RECORD fields allowed. It is possible that you can have more than 16
+    //! fields if some of them are SESSION or LAP fields." The official docs
+    //! state only BYTE limits, and state them per message: 256 bytes per
+    //! message for an app, 32 for a data field. So the cap is per message
+    //! type, and the counts that matter are these, not the total:
+    //!
+    //!     SESSION  19  (16 with no stride length - tier 5 skipped)
+    //!     RECORD    8
+    //!     LAP       4
+    //!
+    //! Bytes are not the binding constraint: SESSION carries 48 payload
+    //! bytes of the 256 available. Count is.
+    //!
+    //! The 2026-11-09 game proves less than it looks. 24 fields were created
+    //! and 24 landed, but that build ran SESSION at 13, which was never near
+    //! any ceiling. With the three new metrics it is 16, and with a stride
+    //! length set it is 19.
+    //!
+    //! And when it does bite, it does not throw. It raises an uncatchable
+    //! System Error. Garmin's own engineer confirmed this by proposing a
+    //! throw as a future improvement - "I think it would be much cleaner for
+    //! us to throw an exception ... it would make it possible for you to
+    //! handle the error vs just crashing the app" - and several developers
+    //! report building exactly the fallback below and finding it "won't work
+    //! because the errors can't be caught". Worse, the failure is not always
+    //! at create time: session fields are written once, at the end of the
+    //! recording, and overflow can crash there instead. That is the one
+    //! moment a crash costs the whole game.
+    //!
+    //! So the tiering below is not a safety net. It is a priority ORDER, and
+    //! that part still earns its place: a static order means the cheapest
+    //! fields to lose are the ones created last. The real protection is
+    //! keeping SESSION at or under 16 by construction, which is a budget to
+    //! enforce here rather than an exception to catch. The simulator cannot
+    //! help - the constant lives in device firmware, which the simulator
+    //! does not model, which is why a probe created 227 without complaining.
     //!
     //! Before this, every field was created inside beginSession()'s single
     //! try. One throw anywhere in the list and the catch discarded the whole
