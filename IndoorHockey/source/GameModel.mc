@@ -74,6 +74,7 @@ class GameModel {
     private const FIELD_THRESHOLD   = 13;
     private const FIELD_STRIDE_R    = 15;
     private const FIELD_STRIDE_LAG  = 16;
+    private const FIELD_STRIDE_PROM = 27;
 
     // Stride rate, measured by autocorrelating wrist acceleration. The rate is
     // charted; the confidence and winning lag above are diagnostics on the same
@@ -338,6 +339,7 @@ class GameModel {
     private var _strideRateField as FitContributor.Field? = null;
     private var _strideRField as FitContributor.Field? = null;
     private var _strideLagField as FitContributor.Field? = null;
+    private var _stridePromField as FitContributor.Field? = null;
     private var _strideAvgField as FitContributor.Field? = null;
     private var _strideCovField as FitContributor.Field? = null;
     private var _distEstField as FitContributor.Field? = null;
@@ -1830,6 +1832,17 @@ class GameModel {
         if (strideLagField != null) {
             strideLagField.setData(detector.stride.lag);
         }
+        // Signed, because a peak BELOW the mean of its own lag curve is a
+        // real and informative reading - it says the window had no peak at
+        // all - and clamping it at zero would hide the difference between
+        // "nearly a stride" and "nothing like one".
+        var stridePromField = _stridePromField;
+        if (stridePromField != null) {
+            var pr = detector.stride.prominence;
+            if (pr > 127) { pr = 127; }
+            if (pr < -127) { pr = -127; }
+            stridePromField.setData(pr);
+        }
     }
 
     //! Drop every developer-field handle. Called whenever the session they
@@ -1852,6 +1865,7 @@ class GameModel {
         _strideRateField = null;
         _strideRField = null;
         _strideLagField = null;
+        _stridePromField = null;
         _strideAvgField = null;
         _strideCovField = null;
         _distEstField = null;
@@ -1913,11 +1927,22 @@ class GameModel {
     //! Developer fields, so the numbers travel with the activity into Connect.
     //! Create the developer fields, in tiers, each tier able to fail alone.
     //!
-    //! This app asks for 27 developer fields. Garmin's firmware has a limit on
-    //! how many may be active at once for an activity - reported as 16 on
-    //! every device one Garmin engineer checked, with the 17th createField()
-    //! throwing - and the simulator does not enforce it, so the only place the
-    //! limit can be observed is a real watch.
+    //! This app asks for 28 developer fields. Garmin's firmware is reported to
+    //! limit how many may be active at once for an activity - 16 on every
+    //! device one Garmin engineer checked, with the 17th createField()
+    //! throwing - and the simulator does not enforce it (a probe created 227
+    //! without complaint), so the only place it could be observed was a real
+    //! watch.
+    //!
+    //! It has now been observed, and there is no limit at 24. The game of
+    //! 2026-11-09 was recorded on an FR570 with 24 fields created and 24
+    //! landing in the file, nothing lost. The app asked for 24 rather than
+    //! all of them only because tier 5 is skipped with no stride length set.
+    //! So the 16 figure does not hold on this firmware, and the tiering below
+    //! has never actually had to fire. It stays anyway: it costs one
+    //! try/catch per tier, the reported limit may well be real on one of the
+    //! other 125 devices this ships to, and what it prevents is losing a
+    //! whole game rather than losing a diagnostic.
     //!
     //! Before this, every field was created inside beginSession()'s single
     //! try. One throw anywhere in the list and the catch discarded the whole
@@ -2109,6 +2134,9 @@ class GameModel {
             _strideLagField = session.createField("stride_lag", FIELD_STRIDE_LAG,
                 FitContributor.DATA_TYPE_UINT8,
                 {:mesgType => FitContributor.MESG_TYPE_RECORD});
+            _stridePromField = session.createField("stride_prom", FIELD_STRIDE_PROM,
+                FitContributor.DATA_TYPE_SINT8,
+                {:mesgType => FitContributor.MESG_TYPE_RECORD, :units => "%"});
         } catch (ex) {
             return false;
         }

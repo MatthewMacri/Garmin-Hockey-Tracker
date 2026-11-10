@@ -108,6 +108,22 @@ class StrideMeter {
     //! The winning lag in samples, before interpolation. Diagnostic.
     public var lag as Number = 0;
 
+    //! How far the winning peak stood above the mean of the lag curve, times
+    //! 100 - the quantity PROMINENCE is tested against, and the one that
+    //! actually decides most seconds. Diagnostic.
+    public var prominence as Number = 0;
+
+    //! `strength`, `lag` and `prominence` are written on EVERY judged second,
+    //! accepted or not. `rate` is written only when a second is accepted, so
+    //! a zero there still means "no rate".
+    //!
+    //! They used to be zeroed at the top of update() and set only on the way
+    //! out, which made them useless for the one job they exist to do. The
+    //! game of 2026-11-09 accepted 6 of 829 judged seconds and the other 823
+    //! recorded nothing but zeros, so there was no way to tell a near miss at
+    //! 0.58 from noise at 0.05 - which is exactly the difference between
+    //! loosening a constant and abandoning the method.
+
     //! Strides counted, as a running total of rate-per-second over accepted
     //! seconds only. Every unaccepted second contributes nothing, so any
     //! distance built on this is short by whatever coverage misses - which is
@@ -169,6 +185,7 @@ class StrideMeter {
         rate = 0;
         strength = 0;
         lag = 0;
+        prominence = 0;
     }
 
     //! Session coverage: the share of judged seconds that produced a rate.
@@ -214,6 +231,7 @@ class StrideMeter {
         rate = 0;
         strength = 0;
         lag = 0;
+        prominence = 0;
         if (!active || !_filled) {
             // Not a judged second. Coverage is a share of the seconds this
             // was actually asked about, so counting bench seconds in the
@@ -278,6 +296,14 @@ class StrideMeter {
                 bestR = r;
                 bestLag = L;
             }
+        }
+
+        // Record the candidate BEFORE judging it, so a rejected second says
+        // what it saw rather than saying nothing.
+        strength = (bestR * 100.0).toNumber();
+        lag = bestLag;
+        if (rCount > 0) {
+            prominence = ((bestR - (rSum / rCount)) * 100.0).toNumber();
         }
 
         if (bestLag < MIN_LAG || bestR < GATE) {
