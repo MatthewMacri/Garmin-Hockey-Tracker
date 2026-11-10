@@ -31,7 +31,14 @@ mount_watch() {
         echo "$ms"; return 0
     fi
     if mountpoint -q "$MNT" 2>/dev/null; then
-        echo "$MNT"; return 0
+        # Already mounted - still has to go through the descent below, which
+        # is the whole point of this function's return value. Returning $MNT
+        # straight from here was a bug: the FIRST call (which mounts) came
+        # back with ".../Internal Storage", every LATER call came back with
+        # the mount point itself, and subdir() then looked for GARMIN one
+        # level too high. The symptom was `detect` working and `pull`
+        # immediately afterwards reporting "no  on this device".
+        descend; return 0
     fi
     mkdir -p "$MNT"
     # Two different things make the first mount fail, and they look identical.
@@ -64,12 +71,16 @@ mount_watch() {
         msg "Check it is plugged in and awake, then run this again."
         return 1
     fi
-    # The watch exposes one store ("Internal Storage"); descend into it if that
-    # is the layout, so callers always get the directory holding GARMIN.
+    descend
+    return 0
+}
+
+# The watch exposes one store ("Internal Storage"); descend into it if that is
+# the layout, so callers always get the directory holding GARMIN.
+descend() {
     local inner
     inner="$(find "$MNT" -maxdepth 2 -type d -name GARMIN 2>/dev/null | head -1)"
     if [ -n "$inner" ]; then echo "$(dirname "$inner")"; else echo "$MNT"; fi
-    return 0
 }
 
 unmount_watch() {
@@ -95,7 +106,7 @@ install)
     [ -f "$prg" ] || { msg "no such file: $prg"; exit 1; }
     root="$(mount_watch)" || { msg "could not mount the watch"; exit 1; }
     dest="$(subdir "$root" APPS)"
-    [ -d "$dest" ] || { msg "no $dest on this device"; unmount_watch; exit 1; }
+    [ -d "$dest" ] || { msg "no APPS directory under $root/GARMIN"; unmount_watch; exit 1; }
     cp -v "$prg" "$dest/" || { msg "copy failed"; unmount_watch; exit 1; }
     sync
     ls -la "$dest" | head
@@ -107,7 +118,7 @@ pull)
     mkdir -p "$out"
     root="$(mount_watch)" || { msg "could not mount the watch"; exit 1; }
     src="$(subdir "$root" ACTIVITY)"
-    [ -d "$src" ] || { msg "no $src on this device"; unmount_watch; exit 1; }
+    [ -d "$src" ] || { msg "no ACTIVITY directory under $root/GARMIN"; unmount_watch; exit 1; }
     ls -t "$src" | head -40 | while read -r f; do
         cp -n "$src/$f" "$out/" 2>/dev/null && msg "pulled $f"
     done
