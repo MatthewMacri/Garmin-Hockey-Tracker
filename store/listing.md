@@ -95,6 +95,15 @@ the chest-strap sentence is a claim that was **withdrawn** in 2.4.0 and is still
 live on the store. Its character count was also stated as 2,825 for a text that
 measures 3,840.
 
+Confirmed still live on 2026-11-10, read off the listing itself: the live
+Description is 3,864 characters, carries `WHY ON-ICE HEART RATE MATTERS` and
+`END GAME WHEN IDLE`, carries none of `STRIDE RATE`, `FITNESS, NOT JUST
+EFFORT` or `HRR60`, and still ends with the withdrawn sentence. What's New,
+by contrast, matched the repo exactly. So the pattern is specific and
+repeated: five releases updated one box and left the other. `tools/store-status.py`
+now diffs both on every run, so the next miss is caught before upload rather
+than five versions later.
+
 One press at the opening faceoff. After that the app works out when you are on
 the ice and when you are on the bench on its own, and keeps recording until you
 stop it. You never touch the watch during a game.
