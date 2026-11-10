@@ -4,6 +4,12 @@
 
 # Garmin Hockey Tracker
 
+<p align="center">
+  <a href="https://apps.garmin.com/apps/4b5a5a43-135d-456e-91a0-c1dbca4ada2d"><img src="https://img.shields.io/badge/Connect%20IQ-Install-0b7285?style=for-the-badge" alt="Install from the Connect IQ Store" /></a>
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/MatthewMacri/Garmin-Hockey-Tracker?style=for-the-badge" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="MIT" />
+</p>
+
 A Connect IQ watch app that tracks an ice hockey game from your wrist **without
 being touched**. One press at the opening faceoff; after that it works out
 every shift and every spell on the bench by itself and keeps recording until
@@ -434,7 +440,7 @@ Expect no fix inside most arenas; the app degrades quietly to motion-only
 detection and records the game normally.
 
 **Stride length** is the one number the app asks you for, and it is off by
-default. See [Stride rate](#stride-rate) below for why there is no honest
+default. See [Stride rate](#stride-rate) above for why there is no honest
 default to fill in.
 
 **Activity type** decides the FIT sport the finished game is filed under, and
@@ -511,8 +517,15 @@ Confirmed end to end on the watch itself. `GARMIN/GarminDevice.xml` lists one
 `<App>` per store-installed app with a `StoreId` and a `Version`; RinkPulse
 appears as `036b4e61-…` version 39, and its recordings carry
 `application_id 036b4e61-…`, `application_version 39` — with an October file
-from before its last update carrying 38. This app has no entry in that file at
-all, and every one of its recordings carries zeros and version 0.
+from before its last update carrying 38.
+
+That diagnosis is now closed, and the same file is what settled it. *Ice Hockey
+Shifts* appears in `GarminDevice.xml` as `<StoreId>4b5a5a43-135d-456e-91a0-c1dbca4ada2d</StoreId>`
+at version 7, alongside an `<AppId>d979409c-…</AppId>` — the manifest id, which
+404s on the store. **The two ids are different, and only the `StoreId` is the
+one a store URL is built from.** While the app was sideloaded it had no entry
+here at all and every recording carried sixteen zero bytes and version 0; with
+the store build installed, the entry exists and the fields render.
 
 Two consequences. A sideloaded game shows no Connect IQ section at all, which
 is exactly what happens here while the rival app's fields render with names and
@@ -563,14 +576,16 @@ was confirmed on a Forerunner 570 and may differ elsewhere.
 
 ## Install
 
-**From the Connect IQ Store** — the ordinary way, and the only way the developer
-fields show up in Garmin Connect. Listed once Garmin's review completes.
+**[From the Connect IQ Store](https://apps.garmin.com/apps/4b5a5a43-135d-456e-91a0-c1dbca4ada2d)** — search *Ice Hockey Shifts*, or install it
+directly from that link. This is the ordinary way, and the only way the
+developer fields show up in Garmin Connect.
 
-**By sideloading** — every [release](../../releases) carries two files:
+**By sideloading** — every [release](../../releases) carries three files:
 
 | File | What it is |
 |---|---|
-| `IndoorHockey.prg` | A single build for the Forerunner 570. Copy it to `GARMIN/APPS/` on the watch over USB and eject, or run `tools/watch.sh install IndoorHockey.prg`. |
+| `IndoorHockey-42mm.prg` | A release build for the 390x390 Forerunner 570 (`fr57042mm`). Copy it to `GARMIN/APPS/` on the watch over USB and eject, or run `tools/watch.sh install IndoorHockey-42mm.prg`. |
+| `IndoorHockey-47mm.prg` | The same build for the 454x454 variant (`fr57047mm`). |
 | `IndoorHockey.iq` | The store package: the same app built for all 126 products in `manifest.xml`, which the store expands to 202 device variants. This is what gets uploaded to Garmin, not what gets copied to a watch. |
 
 For any watch other than a Forerunner 570, build the `.prg` yourself —

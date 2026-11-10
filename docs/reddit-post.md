@@ -1,7 +1,9 @@
 # r/hockeyplayers post
 
-Ready to paste. Replace `[STORE LINK]` first - the store's app ID is not the
-manifest App ID, so copy the URL from the listing page itself.
+Ready to paste. The store link below is the real one. Note the store's ID is
+not the manifest App ID - the manifest's `d979409c-...` 404s on the store. The
+real one came off the watch: `GARMIN/GarminDevice.xml` carries a `<StoreId>` per
+store-installed app, which for this app is `4b5a5a43-...`.
 
 Claims here stay inside what `comparison.md` can source. In particular it does
 not say this is the only app that detects shifts automatically, or that Garmin
@@ -76,7 +78,7 @@ It detects from wrist motion, so the watch has to be on your wrist -
 watch-in-a-vest gives it nothing to detect. Heart rate comes from the watch; a
 paired chest strap is untested, and I'd rather say so than guess.
 
-[STORE LINK]
+https://apps.garmin.com/apps/4b5a5a43-135d-456e-91a0-c1dbca4ada2d
 
 **Full disclosure: this is my app and it's free.** I'd rather have five people
 tell me it misread their shifts than fifty installs from people who never open

@@ -13,3 +13,7 @@
 
 # Crops and assembles the simulator captures in docs/screenshots/.
 Pillow>=10.0
+
+# simshot.py imports this inside its rim check, so a missing numpy fails
+# partway through a capture instead of at startup.
+numpy>=1.24
