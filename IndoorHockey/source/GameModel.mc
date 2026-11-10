@@ -75,6 +75,14 @@ class GameModel {
     private const FIELD_STRIDE_R    = 15;
     private const FIELD_STRIDE_LAG  = 16;
     private const FIELD_STRIDE_PROM = 27;
+    private const FIELD_BENCH_RECOV = 28;
+    private const FIELD_SHIFT_FADE  = 29;
+    private const FIELD_HR_DRIFT    = 30;
+
+    //! The least coverage at which an average stride rate is worth
+    //! publishing: one accepted second in twenty of the seconds actually
+    //! examined. Below this the rate is an anecdote.
+    private const STRIDE_MIN_COVERAGE = 5;
 
     // Stride rate, measured by autocorrelating wrist acceleration. The rate is
     // charted; the confidence and winning lag above are diagnostics on the same
@@ -340,6 +348,9 @@ class GameModel {
     private var _strideRField as FitContributor.Field? = null;
     private var _strideLagField as FitContributor.Field? = null;
     private var _stridePromField as FitContributor.Field? = null;
+    private var _benchRecovField as FitContributor.Field? = null;
+    private var _shiftFadeField as FitContributor.Field? = null;
+    private var _hrDriftField as FitContributor.Field? = null;
     private var _strideAvgField as FitContributor.Field? = null;
     private var _strideCovField as FitContributor.Field? = null;
     private var _distEstField as FitContributor.Field? = null;
@@ -726,11 +737,112 @@ class GameModel {
     public var viewVisible as Boolean = false;
 
     //! Continuous milliseconds off the ice. Any on-ice second clears it.
+    // The last few heart rates, for reading a rate AT a moment rather than
+    // across one. A single sample at a segment boundary is at the mercy of
+    // one optical glitch; five seconds of it is not.
+    private var _hr5 as Array<Number> = [0, 0, 0, 0, 0] as Array<Number>;
+    private var _hr5Count as Number = 0;
+
+    // Bench recovery: heart rate at the moment a bench began, and the running
+    // total of what each bench gave back.
+    private var _benchStartHr as Number = 0;
+    private var _benchRecovSum as Number = 0;
+    private var _benchRecovCount as Number = 0;
+
+    // Every completed shift's length in seconds, for the fade comparison.
+    // Capped because an array that grows without limit on a watch is a bug
+    // waiting for a long game; 200 shifts is far past any real one.
+    private var _shiftLens as Array<Number> = [] as Array<Number>;
+
+    // Cardiac drift: an incremental least-squares fit of heart rate against
+    // elapsed minutes, over on-ice seconds in a fixed band of effort, so a
+    // game that simply got easier does not read as a player who got fitter.
+    // Floats and minutes, not Numbers and seconds: sum of t squared over a
+    // thousand seconds overflows a 32-bit Number, and silently.
+    private var _driftN as Float = 0.0;
+    private var _driftT as Float = 0.0;
+    private var _driftH as Float = 0.0;
+    private var _driftTT as Float = 0.0;
+    private var _driftTH as Float = 0.0;
+
     private var _idleMs as Number = 0;
 
     //! When the auto-end warning went up, or -1 when it is not showing.
     private var _endArmedAt as Number = -1;
 
+
+    //! Mean of the last few heart rates, or 0 when there are none.
+    private function recentHr() as Number {
+        if (_hr5Count <= 0) {
+            return 0;
+        }
+        var n = (_hr5Count < 5) ? _hr5Count : 5;
+        var sum = 0;
+        for (var i = 0; i < n; i++) {
+            sum += _hr5[i];
+        }
+        return sum / n;
+    }
+
+    //! Average beats per minute given back over a bench, across the game.
+    //! Negative is a real answer: it means the player went back out with a
+    //! HIGHER rate than they came off with, which is what a bench too short
+    //! to recover on looks like.
+    public function benchRecovery() as Number {
+        if (_benchRecovCount <= 0) {
+            return 0;
+        }
+        return _benchRecovSum / _benchRecovCount;
+    }
+
+    //! Late shifts as a percentage of early ones, by mean length. 100 is no
+    //! fade; 85 means the second half of the game was played in shifts 15%
+    //! shorter than the first.
+    //!
+    //! Split by shift INDEX rather than by the clock, because the halves then
+    //! hold the same number of shifts and neither is a mean of two.
+    public function shiftFade() as Number {
+        var n = _shiftLens.size();
+        if (n < 6) {
+            return 0;       // Too few to divide; 0 reads as "not measured".
+        }
+        var half = n / 2;
+        var early = 0;
+        var late = 0;
+        var i;
+        for (i = 0; i < half; i++) {
+            early += _shiftLens[i];
+        }
+        for (i = n - half; i < n; i++) {
+            late += _shiftLens[i];
+        }
+        if (early <= 0) {
+            return 0;
+        }
+        return (late * 100) / early;
+    }
+
+    //! Heart-rate drift across the whole game at a fixed effort, in beats per
+    //! minute: the slope of the fitted line times the length of the game.
+    public function hrDrift() as Number {
+        // Four points is the least that makes a slope worth reporting, and
+        // they have to span some time: a fit over thirty seconds extrapolated
+        // across an hour is noise multiplied by eighty.
+        if (_driftN < 4.0 || _driftTT <= 0.0) {
+            return 0;
+        }
+        var denom = (_driftN * _driftTT) - (_driftT * _driftT);
+        if (denom == 0.0) {
+            return 0;
+        }
+        var span = _driftTT - ((_driftT * _driftT) / _driftN);
+        if (span < 4.0) {       // less than ~2 minutes of spread
+            return 0;
+        }
+        var slope = ((_driftN * _driftTH) - (_driftT * _driftH)) / denom;
+        var minutes = gameElapsedMs().toFloat() / 60000.0;
+        return (slope * minutes).toNumber();
+    }
 
     //! Stop the clock without ending the game.
     public function pause() as Void {
@@ -825,6 +937,27 @@ class GameModel {
         // in returns the new one and every segment gets banked as its own
         // opposite - ice time counted as bench and bench counted as a shift.
         var wasIce = !toIce;
+
+        // Bench recovery and shift fade are both measured AT the boundary,
+        // so they are taken before anything below moves the clocks on.
+        var hrNow = recentHr();
+        if (wasIce) {
+            // A shift just ended: this is where a bench begins.
+            if (hrNow > 0) {
+                _benchStartHr = hrNow;
+            }
+            if (elapsed >= 1000 && _shiftLens.size() < 200) {
+                _shiftLens.add(elapsed / 1000);
+            }
+        } else {
+            // A bench just ended. What it gave back is the difference between
+            // the rate going on to it and the rate coming off it.
+            if (_benchStartHr > 0 && hrNow > 0) {
+                _benchRecovSum += (_benchStartHr - hrNow);
+                _benchRecovCount++;
+            }
+            _benchStartHr = 0;
+        }
 
         if (wasIce) {
             _iceMs += elapsed;
@@ -1148,6 +1281,27 @@ class GameModel {
         calibrateStride();
 
         if (heartRate != null && heartRate > 0) {
+            _hr5[_hr5Count % 5] = heartRate;
+            _hr5Count++;
+
+            // Cardiac drift, over a FIXED band of effort. Taking every on-ice
+            // second instead would measure how the game changed, not how the
+            // player did: intensity fell about 9% across the game of
+            // 2026-11-09, which on its own would read as the heart rate
+            // improving. The band is relative to the learned threshold, so it
+            // means the same thing on a quiet rink and a frantic one.
+            if (onTheIce && detector.hasMotionSensor && detector.staleSeconds == 0
+                    && detector.threshold > 0
+                    && detector.motion >= detector.threshold
+                    && detector.motion < (detector.threshold * 2)) {
+                var tMin = gameElapsedMs().toFloat() / 60000.0;
+                _driftN += 1.0;
+                _driftT += tMin;
+                _driftH += heartRate.toFloat();
+                _driftTT += tMin * tMin;
+                _driftTH += tMin * heartRate.toFloat();
+            }
+
             if (onTheIce) {
                 _iceHrSum += heartRate;
                 _iceHrSamples++;
@@ -1866,6 +2020,9 @@ class GameModel {
         _strideRField = null;
         _strideLagField = null;
         _stridePromField = null;
+        _benchRecovField = null;
+        _shiftFadeField = null;
+        _hrDriftField = null;
         _strideAvgField = null;
         _strideCovField = null;
         _distEstField = null;
@@ -2080,6 +2237,15 @@ class GameModel {
             _iceLoadField = session.createField("ice_load", FIELD_ICE_LOAD,
                 FitContributor.DATA_TYPE_FLOAT,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION});
+            _benchRecovField = session.createField("bench_recovery", FIELD_BENCH_RECOV,
+                FitContributor.DATA_TYPE_SINT8,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
+            _shiftFadeField = session.createField("shift_fade", FIELD_SHIFT_FADE,
+                FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "%"});
+            _hrDriftField = session.createField("hr_drift", FIELD_HR_DRIFT,
+                FitContributor.DATA_TYPE_SINT8,
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
             _intensityField = session.createField("skating_intensity", FIELD_INTENSITY,
                 FitContributor.DATA_TYPE_FLOAT,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION});
@@ -2249,9 +2415,37 @@ class GameModel {
         // ACCEPTED. Coverage needs only a second that was JUDGED: 0% across
         // forty examined seconds is a finding, and the one number here whose
         // whole job is to say the rate beside it means nothing.
+        // A rate built on a handful of seconds is not a rate. The game of
+        // 2026-11-09 accepted 6 of 829 judged seconds and this field still
+        // published 81 pushes per minute off those six - a number beside
+        // which stride_coverage read 0, for anyone who thought to look. The
+        // coverage field is the warning; it should not be the only one.
         field = _strideAvgField;
-        if (field != null && hadMotion && detector.stride.measuredSeconds() > 0) {
+        if (field != null && hadMotion && detector.stride.measuredSeconds() > 0
+                && detector.stride.coveragePercent() >= STRIDE_MIN_COVERAGE) {
             field.setData(detector.stride.averageRate());
+        }
+
+        field = _benchRecovField;
+        if (field != null && _benchRecovCount > 0) {
+            var rec = benchRecovery();
+            if (rec > 127) { rec = 127; }
+            if (rec < -127) { rec = -127; }
+            field.setData(rec);
+        }
+        field = _shiftFadeField;
+        if (field != null) {
+            var fade = shiftFade();
+            if (fade > 0) {
+                field.setData(fade > 255 ? 255 : fade);
+            }
+        }
+        field = _hrDriftField;
+        if (field != null && _driftN >= 4.0) {
+            var drift = hrDrift();
+            if (drift > 127) { drift = 127; }
+            if (drift < -127) { drift = -127; }
+            field.setData(drift);
         }
         field = _strideCovField;
         if (field != null && hadMotion && detector.stride.judgedSeconds() > 0) {
