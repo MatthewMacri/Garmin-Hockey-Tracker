@@ -130,5 +130,31 @@
              as no change at all. -->
         <fitField id="26" sortOrder="26" displayInActivitySummary="true" precision="1"
                   dataLabel="@Strings.FitIntensity" unitLabel="@Strings.UnitNone" />
+
+        <!-- Bench recovery is signed on purpose. A negative number is not an
+             error: on the 2026-11-09 game, benches under 90 s gave back
+             -4 bpm while benches over 90 s gave back +21, and that sign is
+             the whole finding. Rounding it away would hide it. -->
+        <fitField id="28" sortOrder="28" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitBenchRecov" unitLabel="@Strings.UnitBpm" />
+        <!-- Late shifts as a percentage of early ones, so 85 means the second
+             half of the game ran 15% shorter. Withheld below six shifts,
+             because a trend drawn through four points is not a trend. -->
+        <fitField id="29" sortOrder="29" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitShiftFade" unitLabel="@Strings.UnitPercent" />
+        <!-- A slope, not a rate: heart rate against time at a fixed band of
+             effort, which is why the unit is bpm/min and not bpm. Fitting
+             every on-ice second instead would have read this game's 9% fall
+             in intensity as the player getting fitter mid-game. -->
+        <fitField id="30" sortOrder="30" displayInActivitySummary="true" precision="0"
+                  dataLabel="@Strings.FitHrDrift" unitLabel="@Strings.UnitBpmPerMin" />
+
+        <!-- Undisplayed, for the same reason as motion and stride_r above:
+             this exists so a recorded game can settle the stride gates
+             without going back to a rink. It is the margin by which each
+             second was accepted or rejected, and with stride_r and
+             stride_lag it is the whole input to that decision. -->
+        <fitField id="27" sortOrder="27" precision="0"
+                  dataLabel="@Strings.FitStrideProm" unitLabel="@Strings.UnitPercent" />
     </fitContributions>
 </resources>

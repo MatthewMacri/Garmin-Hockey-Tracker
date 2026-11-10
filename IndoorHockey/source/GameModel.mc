@@ -2245,7 +2245,7 @@ class GameModel {
                 {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "%"});
             _hrDriftField = session.createField("hr_drift", FIELD_HR_DRIFT,
                 FitContributor.DATA_TYPE_SINT8,
-                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm/min"});
             _intensityField = session.createField("skating_intensity", FIELD_INTENSITY,
                 FitContributor.DATA_TYPE_FLOAT,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION});
