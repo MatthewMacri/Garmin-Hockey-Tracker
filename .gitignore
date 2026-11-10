@@ -23,3 +23,34 @@ data/
 
 # Local virtualenv for reading FIT files.
 .venv-fit/
+
+# Secrets and local environment. None of these has ever been committed; these
+# lines exist so that an accidental `git add -A` cannot be the first time.
+.env
+.env.*
+!.env.example
+
+# Signing material. The Connect IQ developer key must never enter a public
+# repo: Garmin does not retain a copy, so whoever holds it is the only one
+# who can ship an update to the listing - and anyone who obtains it can ship
+# one as you. Garmin staff on the record: "We do not retain your key - your
+# local copy, and any backups you may make, are all that exist."
+*.der
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python bytecode outside a __pycache__ directory. The one sensitive-class
+# file ever committed to this repo was a .pyc, which embedded a local
+# filesystem path; __pycache__/ was ignored afterwards but a stray .pyc
+# beside a script still was not.
+*.pyc
+*.pyo
+
+# Watch-side state pulled off the device by tools/watch.sh. These carry the
+# unit_id, which is the watch's serial number in plain text.
+*.SET
+err_log.txt
+err_log.bak
+CIQ_LOG.*
