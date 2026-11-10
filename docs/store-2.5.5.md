@@ -1,4 +1,9 @@
-# Connect IQ Store — version 2.5.2, ready to paste
+# Connect IQ Store — version 2.5.5, ready to paste
+
+> Superseded by [store-2.5.6.md](store-2.5.6.md). Kept for the mechanism
+> sections below, which still apply. The heading said "2.5.2" for three
+> releases because this file is retargeted on each one and the title was
+> not part of the retarget.
 
 > **Upload 2.5.2.** 2.5.0 and 2.5.1 were both tagged and neither reached the
 > store, and each is corrected by the one after it — see
