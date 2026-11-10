@@ -207,11 +207,30 @@ _OLD = dict(CONFIRM_ICE=6, CONFIRM_BENCH=10, CONFIRM_ICE_FAST=3,
 # v2.2.0 to v2.5.2: today's constants, plus the heart-rate offset arm on
 # corroboration that 2.5.3 removed.
 _MID = dict(CONFIRM_ICE=6, HR_OFFSET_ARM=True, MIN_SHIFT_SEC=8, MIN_BENCH_SEC=8)
+# v2.5.4 onward: the shipped constants. Spelled out rather than left as an
+# empty dict meaning "class defaults", because the whole point of an era table
+# is that reading it tells you what ran, and because the class defaults have
+# been wrong before - CONFIRM_ICE sat at 10 here for a while, a window the app
+# never shipped, and every replay not routed through an era dict was scored
+# against it.
+_NEW = dict(CONFIRM_ICE=6, CONFIRM_BENCH=14, CONFIRM_ICE_FAST=3,
+            CONFIRM_BENCH_FAST=7, HR_OFFSET_ARM=False,
+            MIN_SHIFT_SEC=20, MIN_BENCH_SEC=20)
+
+ERA_NAMES = {'old': _OLD, 'mid': _MID, 'new': _NEW}
 
 ERAS = {
     0.55: _OLD, 0.45: _OLD, 0.35: _OLD, 0.27: _OLD, 0.21: _OLD,
     0.24: _MID, 0.18: _MID, 0.14: _MID,
 }
+
+# The lowest store internal version known to carry the 2.5.4+ constants.
+# Internal 7 is 2.5.5, read off the live listing; internal 4 is 2.3.0. The
+# versions between are NOT mapped, because one of the four uploads from 2.5.2
+# to 2.5.5 never became a store version and nothing in the repo records which.
+# So this is deliberately a floor and not a table: at or above it the era is
+# certain, below it the band decides and may be wrong.
+APPVER_NEW = 7
 
 # Everything the Learner uses - MOTION_FLOOR, the 40/400 seeds, the 0.15/0.01
 # chase rates, the 60 mg minimum gap - and HYSTERESIS, HR_SLOPE, HR_OFFSET and
@@ -219,19 +238,43 @@ ERAS = {
 # MIN_SHIFT_SEC and MIN_BENCH_SEC did change, at 2.5.4, and are carried above.
 
 
-def era_for(band):
-    """The constants that shipped with the band this file was recorded at,
-    or None when the band matches no release - in which case the file CANNOT
-    be validated and nothing downstream of it should be believed.
+def era_for(band, appver=None):
+    """The constants that shipped with the recording, or None when nothing
+    identifies it - in which case the file CANNOT be validated and nothing
+    downstream of it should be believed.
 
-    One caveat, new in 2.5.3. The band stopped identifying the era at that
-    release: 2.5.3 changed corroboration and left HYSTERESIS alone, so a
-    2.5.3 recording and a 2.4.0 recording are both band 0.18 and this
-    function returns _MID for either. _MID is wrong for the newer file by
-    exactly one constant, HR_OFFSET_ARM. Pass --no-offset-arm for a file a
-    2.5.3-or-later build recorded."""
+    THE BAND STOPPED IDENTIFYING THE ERA AT 2.5.3, and the band table alone
+    now gets the newest files wrong. HYSTERESIS has been 0.18 since 2.4.0, so
+    2.4.0, 2.5.3, 2.5.4 and 2.5.5 recordings are all band 0.18 while the
+    constants changed three times underneath. Scoring the 2026-11-09 game that
+    way - at _MID, with MIN_SHIFT_SEC 8 and the offset arm on - gives 93.7%
+    agreement and 27 shifts. Scored at the era the watch was actually running
+    it gives 99.0% and 24, against the 25 the watch itself recorded. The
+    --no-offset-arm flag that used to paper over this fixed one of the three
+    wrong constants and left the two dwell minimums at 8.
+
+    So prefer the recording's own version. A store-installed build stamps the
+    listing's internal version into developer_data_id.application_version, and
+    at or above APPVER_NEW that is decisive. A SIDELOADED build writes 0 there,
+    which is why the band remains the fallback - and why --era exists."""
+    if appver is not None and appver >= APPVER_NEW:
+        return _NEW
     key = min(ERAS, key=lambda b: abs(b - band))
     return ERAS[key] if abs(key - band) < 0.005 else None
+
+
+def app_version(path):
+    """The store internal version that recorded this file, or 0 for a
+    sideloaded build, or None when the file carries no developer_data_id."""
+    try:
+        rows = fitread.parse(path).get('developer_data_id') or []
+    except Exception:
+        return None
+    for r in rows:
+        v = r.get('application_version')
+        if v is not None:
+            return v
+    return None
 
 
 def run(rows, band, confirm_ice_slow=None, start_on_ice=True, era=None):
@@ -380,6 +423,20 @@ def _main(argv):
         args.remove('--no-offset-arm'); offset_arm = False
     if '--offset-arm' in args:
         args.remove('--offset-arm'); offset_arm = True
+    # An explicit era beats every inference. Needed for sideloaded files,
+    # which stamp application_version 0 and so carry no version at all.
+    era_override = None
+    for name in list(ERA_NAMES):
+        flag = '--era=' + name
+        if flag in args:
+            args.remove(flag); era_override = name
+    if '--era' in args:
+        i = args.index('--era')
+        era_override = args[i + 1]
+        del args[i:i + 2]
+    if era_override is not None and era_override not in ERA_NAMES:
+        raise SystemExit('--era must be one of: %s'
+                         % ', '.join(sorted(ERA_NAMES)))
     if '--band' in args:
         i = args.index('--band')
         band = args[i + 1]
@@ -445,7 +502,21 @@ def _main(argv):
         # Validation first, AT THIS FILE'S OWN BAND: can the harness reproduce
         # what the watch did, with the constants the watch was running?
         # Everything after this is only worth reading if that number is high.
-        era = era_for(band)
+        appver = app_version(path)
+        if era_override is not None:
+            era = ERA_NAMES[era_override]
+            print("era: %s, forced with --era" % era_override)
+        else:
+            era = era_for(band, appver)
+            if appver is not None and appver >= APPVER_NEW:
+                print("era: 2.5.4+ constants, from this file's own"
+                      " application_version %d" % appver)
+            elif appver == 0:
+                print("era: guessed from band %.3f - this file was SIDELOADED"
+                      " (application_version 0),\n     so it carries no"
+                      " version. Band 0.18 spans 2.4.0 through 2.5.5, whose"
+                      "\n     constants differ; pass --era new for a 2.5.4+"
+                      " build." % band)
         if era is not None and offset_arm is not None:
             era = dict(era, HR_OFFSET_ARM=offset_arm)
         if era is None:
