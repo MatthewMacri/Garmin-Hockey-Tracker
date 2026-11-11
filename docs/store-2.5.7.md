@@ -65,15 +65,27 @@ The dashboard lets you reply to a review, and the reply shows publicly under
 it. Worth doing: he reported a real bug precisely, and the fix is in this
 upload.
 
+**Post it once 2.5.7 is approved and live**, not before — the reply says the
+fix is out, and store approval takes a day or so.
+
 ```
-You were right and this was our bug, not your watch. On watches without a
-separate light button - Venu, Venu Sq, vivoactive, Approach - holding the top
-button is how Garmin's own lock works, and this app had made the same hold its
-pause. Locking your watch paused the recording, which is exactly what you saw.
-Fixed in 2.5.7: pausing now only happens when you let the button go, so the
-lock no longer touches the game. Sorry for the lost session, and thank you for
-the detail - 13 seconds told us exactly where to look.
+You were right, and this was our bug rather than your watch.
+
+On watches with no separate light button - Venu, Venu Sq, vivoactive,
+Approach - holding the top button is how Garmin's own lock works, and this app
+had made that same hold its pause. So locking the watch paused the recording,
+which is exactly what you saw. Fixed in 2.5.7: pausing now only takes effect
+when you let the button go, so the lock can't touch the game.
+
+Sorry for the lost session, and thank you for the detail. "13 seconds" told us
+exactly where to look. If you're on a Forerunner or a fenix, though, then this
+was something else and we'd like to know which watch.
 ```
+
+The last line is there because **the review never says which watch he has.**
+The device class was inferred from the symptom, and the inference is strong,
+but it is an inference. On a Forerunner or fenix the lock is a hold of LIGHT,
+so this diagnosis would not apply and something else would be wrong.
 
 ---
 
