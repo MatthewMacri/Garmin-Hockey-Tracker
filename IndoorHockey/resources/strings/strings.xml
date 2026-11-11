@@ -116,6 +116,7 @@
     <string id="TypeHockey">Ice Hockey</string>
     <string id="TypeSkate">Ice Skate (Strava)</string>
     <string id="LabelHoldToPause">KEEP HOLDING</string>
+    <string id="LabelReleaseToPause">LET GO TO PAUSE</string>
     <string id="SetEndIdle">End game when idle</string>
     <string id="SetEndIdlePrompt">Minutes with no skating detected before the game saves itself, so a recording left running does not carry on for hours. It buzzes first and any button cancels. Set 0 to never end by itself. Anything else is held to 20 minutes or more, because an intermission is 15 to 18 minutes of sitting down and a shorter setting would end a game that is still being played.</string>
     <string id="LabelEndingGame">ENDING GAME</string>

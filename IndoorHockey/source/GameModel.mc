@@ -33,6 +33,12 @@ import Toybox.UserProfile;
 import Toybox.WatchUi;
 
 //! Where the game currently is.
+//! How long START has to be held down to pause the game.
+//!
+//! File scope because the hold is timed in GameModel and rendered from
+//! GameView, and both have to agree on the threshold.
+const PAUSE_HOLD_MS = 1000;
+
 enum GameState {
     STATE_READY = 0,     //!< Nothing started; no FIT session yet.
     STATE_RUNNING = 1,   //!< Clock moving, session recording.
@@ -145,9 +151,14 @@ class GameModel {
     //! that follows is the watch's, which no app setting here can silence.
     public var shiftAlerts as Boolean = false;
 
-    //! True while START is held down during a game, waiting for the hold to
-    //! complete. Set by GameDelegate; read by GameView to show the hint.
-    public var pauseHolding as Boolean = false;
+    //! When START went down during a game, as a System.getTimer() reading, or
+    //! -1 when no hold is in progress.
+    //!
+    //! The hold is timed here rather than in GameDelegate because two other
+    //! objects have to be able to end it - the delegate on the key coming up,
+    //! the view on losing the screen - and the model is the only thing both of
+    //! them can see. See beginPauseHold() for why the view gets a say.
+    private var _pauseHoldSince as Number = -1;
 
     //! Buzz on every change between on-ice and bench. Off by default.
     //!
@@ -865,6 +876,74 @@ class GameModel {
         var slope = ((_driftN * _driftTH) - (_driftT * _driftH)) / denom;
         var minutes = gameElapsedMs().toFloat() / 60000.0;
         return (slope * minutes).toNumber();
+    }
+
+    //! START has gone down during a game: start timing the hold.
+    //!
+    //! Nothing is decided here, and nothing is decided on a timer either. The
+    //! pause happens in endPauseHold(), when the button comes back UP.
+    //!
+    //! That is a reversal of 2.5.5, which paused at the threshold while the
+    //! button was still down because firing on release "feels broken". It was
+    //! the wrong call, and a 1-star review on 2026-11-10 is what it cost:
+    //! "i started the recording, locked the watch, it simply stopped after 13
+    //! seconds and did not resume. weird app."
+    //!
+    //! On 34 of this app's 126 products there is no separate LIGHT key - every
+    //! Venu, Venu Sq, Venu X1, vivoactive, Approach and D2 Air - and on those
+    //! Garmin's own documented way to lock the watch is to HOLD THE TOP
+    //! BUTTON. The top button is KEY_ENTER. Locking the watch and pausing the
+    //! game were the same gesture, so the app paused itself 13 seconds in and
+    //! sat there, because a locked watch is one nobody is about to press.
+    //!
+    //! The system owns that gesture and wins the race, so the app must not try
+    //! to win it. Once the controls menu opens over the app the key release is
+    //! delivered to the overlay and never reaches GameDelegate. A scheme that
+    //! pauses at the threshold therefore pauses; one that pauses on release
+    //! does nothing at all. Those are the only two failure modes available
+    //! here, and just one of them loses somebody's game.
+    public function beginPauseHold() as Void {
+        _pauseHoldSince = System.getTimer();
+    }
+
+    //! The hold is over. True if it lasted long enough to have been meant.
+    public function endPauseHold() as Boolean {
+        var since = _pauseHoldSince;
+        _pauseHoldSince = -1;
+        if (since < 0 || state != STATE_RUNNING) {
+            return false;
+        }
+        var held = System.getTimer() - since;
+        if (held < 0) {
+            return false;   // getTimer() wrapped mid-hold. Lose the pause.
+        }
+        return held >= PAUSE_HOLD_MS;
+    }
+
+    //! Abandon a hold without acting on it, from GameView.onHide().
+    //!
+    //! Losing the screen mid-hold is the signature of the controls menu
+    //! opening, which is to say of somebody reaching for the lock rather than
+    //! for the pause. Belt and braces next to the release rule above: this way
+    //! a stolen hold is dropped on the spot instead of staying armed until
+    //! some later, unrelated key comes up.
+    public function cancelPauseHold() as Void {
+        _pauseHoldSince = -1;
+    }
+
+    //! True while START is down and the hold is being timed.
+    public function pauseHoldArmed() as Boolean {
+        return _pauseHoldSince >= 0;
+    }
+
+    //! True once the hold has run long enough that letting go will pause.
+    public function pauseHoldReady() as Boolean {
+        var since = _pauseHoldSince;
+        if (since < 0) {
+            return false;
+        }
+        var held = ((_frameNow >= 0) ? _frameNow : System.getTimer()) - since;
+        return held >= PAUSE_HOLD_MS;
     }
 
     //! Stop the clock without ending the game.

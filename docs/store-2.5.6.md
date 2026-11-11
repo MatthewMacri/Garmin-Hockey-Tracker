@@ -1,5 +1,10 @@
 # Connect IQ Store — version 2.5.6, ready to paste
 
+> **Superseded by [store-2.5.7.md](store-2.5.7.md).** 2.5.6 was built and
+> tagged but never uploaded, and 2.5.7 fixes a live bug that pauses the game
+> when a player locks the watch. Upload 2.5.7 instead; its What's New carries
+> both releases. The Description below is unchanged and still correct.
+
 > **Upload 2.5.6.** The live listing is 2.5.5 (internal 7), approved, 100
 > downloads, 5.0 from one review. Rebuild with `./IndoorHockey/package.sh` and
 > type `2.5.6` in the App Version box — nothing in the repo carries the store

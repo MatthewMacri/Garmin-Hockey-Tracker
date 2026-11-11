@@ -314,12 +314,23 @@ app started:
   game. Ending now goes through the stop menu: `START`, then *End & Save*.
 - **`DOWN` does nothing.** It used to end the period, and a mis-press inside a
   glove could burn one. There are no periods now, so there is nothing to burn.
-- **Pausing is a hold, not a press.** Holding `START` for one second shows
-  `KEEP HOLDING` and then pauses; letting go early does nothing. It was two
-  presses within a window until 2.5.5, and a player lost a whole game to that
-  on 2026-11-09 — a button rubbing inside a glove produces the second press on
-  its own. Narrowing the window only narrows the odds; a hold cannot be made by
-  accident, because contact has to be *maintained*.
+- **Pausing is a hold, and it takes effect when you let go.** Holding `START`
+  shows `KEEP HOLDING`, then `LET GO TO PAUSE` once a second is up; releasing
+  before that does nothing. It was two presses within a window until 2.5.5, and
+  a player lost a whole game to that on 2026-11-09 — a button rubbing inside a
+  glove produces the second press on its own. Narrowing the window only narrows
+  the odds; a hold cannot be made by accident, because contact has to be
+  *maintained*.
+
+  It acts on the release rather than at the one-second mark because of a second
+  lost game. On the 34 products with no `LIGHT` key — every Venu, Venu Sq, Venu
+  X1, vívoactive, Approach and D2 Air — **holding the top button is Garmin's own
+  way to lock the watch**, and the top button is `START`. 2.5.5 paused at the
+  threshold, so locking the watch paused the game, and a player lost a recording
+  13 seconds in. When the controls menu opens the key release goes to it and
+  never reaches the app, so acting on the release means the system's gesture
+  quietly wins and the game keeps recording — the only way round that loses
+  nothing.
 - **Discard is only on the `MENU`.** The stop menu, which is where an
   accidental press chain lands, offers nothing destructive.
 - **The glass is ignored while a game is live.** This watch maps touch straight

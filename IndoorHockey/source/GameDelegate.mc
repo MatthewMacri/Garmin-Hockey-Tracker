@@ -19,17 +19,22 @@
 // behind a confirmation.
 //
 // Ending a game goes through the stop menu, the way stopping a run does:
-// START twice, then Save or Discard.
+// hold START, then Save or Discard.
 //
 // DOWN used to end the period. There are no periods any more - a game is one
 // continuous recording - so there is nothing for it to end.
 //
-// Pausing is a one-second HOLD, and touch does nothing at all while a game is
-// live. Both are there because a press is too easy to make by accident: a game
-// on 2026-11-03 lost seven minutes to two pauses nobody meant to make, and on
-// 2026-11-09 a player lost a whole game to a button rubbing inside a glove.
-// Two presses within a window was the first answer and it was not enough - a
-// rubbing button produces the second press by itself.
+// Pausing is a one-second HOLD that takes effect when the button comes back
+// UP, and touch does nothing at all while a game is live. Both are there
+// because a press is too easy to make by accident: a game on 2026-11-03 lost
+// seven minutes to two pauses nobody meant to make, and on 2026-11-09 a player
+// lost a whole game to a button rubbing inside a glove. Two presses within a
+// window was the first answer and it was not enough - a rubbing button
+// produces the second press by itself.
+//
+// Acting on the release rather than at the threshold is 2.5.7, and it is there
+// because on the 34 products with no LIGHT key the system's own lock gesture is
+// a hold of this very button. See GameModel.beginPauseHold().
 //
 // How touch is told apart from the buttons, since this is the part that is easy
 // to get wrong: on this watch the touchscreen does NOT deliver onTap() to an
@@ -69,7 +74,7 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     // is reliably zero. A whole second is far more slack than that needs.
     private const KEY_GRACE_MS = 1000;
 
-    // How long START has to be held down to pause the game.
+    // Why a hold at all, rather than a press:
     //
     // Pausing was two presses within a window until 2.5.5, and a player lost
     // a game to it on 2026-11-09: a button rubbing inside a glove produced
@@ -81,12 +86,12 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
     // which a touchscreen tap cannot do at all: a tap arrives as a behaviour
     // with no key event, and this path is driven entirely by key events.
     //
-    // One second is Garmin's own hold, the same as the hold on UP that opens
-    // the menu, so the gesture is one players already have.
-    private const PAUSE_HOLD_MS = 1000;
+    // The threshold itself is $.PAUSE_HOLD_MS, and the hold is timed by
+    // GameModel so that the view can abandon one.
 
-    // Running while START is down during a game; cancelled on release.
-    private var _holdTimer as Timer.Timer?;
+    // Fires once at the threshold, only to redraw the hint. It decides
+    // nothing, which is the point - see onHoldThreshold().
+    private var _holdHint as Timer.Timer?;
 
     //! Constructor.
     public function initialize(model as GameModel) {
@@ -99,52 +104,70 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
         _lastKeyAt = System.getTimer();
         _sawRealKey = true;
 
-        // START going down during a game starts the pause clock. The pause
-        // happens when the clock fires, not when the button comes back up:
-        // holding a button and having nothing happen until you let go feels
-        // broken, and Garmin's own holds fire at the threshold.
+        // START going down during a game starts timing a hold. It does not
+        // schedule a pause: nothing here can pause the game, and nothing on a
+        // timer can either. See GameModel.beginPauseHold().
         if (keyEvent.getKey() == WatchUi.KEY_ENTER
                 && _model.state == STATE_RUNNING) {
-            cancelHold();
-            var timer = new Timer.Timer();
-            timer.start(method(:onPauseHold), PAUSE_HOLD_MS, false);
-            _holdTimer = timer;
-            _model.pauseHolding = true;
+            _model.beginPauseHold();
+            armHoldHint();
             WatchUi.requestUpdate();
         }
         return false;   // Let the behaviour mapping run as usual.
     }
 
-    //! Any key coming back up ends a hold in progress. Released early, the
-    //! timer never fires and nothing happens - which is what a short press on
-    //! START now does during a game.
+    //! START coming back up is where the pause is decided. Held for the full
+    //! second, the game pauses and the stop menu opens; released early, the
+    //! hold is dropped and nothing happens at all - which is what a short
+    //! press on START does during a game.
+    //!
+    //! This is the only place a hold can turn into a pause. If the release
+    //! never arrives - because the system controls menu took the app's screen
+    //! and the overlay got the key up instead - then the game simply carries
+    //! on recording, which on a watch nobody is going to touch again is the
+    //! only acceptable way for this to fail.
     public function onKeyReleased(keyEvent as WatchUi.KeyEvent) as Boolean {
-        cancelHold();
+        cancelHoldHint();
+        if (keyEvent.getKey() != WatchUi.KEY_ENTER) {
+            // Some other button came up mid-hold. Whatever that was, it was
+            // not a clean hold of START; drop it rather than credit it.
+            if (_model.pauseHoldArmed()) {
+                _model.cancelPauseHold();
+                WatchUi.requestUpdate();
+            }
+            return false;
+        }
+        if (_model.endPauseHold()) {
+            _model.pause();
+            pushStopMenu();
+        }
+        WatchUi.requestUpdate();
         return false;
     }
 
-    //! START was held for the full second: pause, and offer the way out.
-    public function onPauseHold() as Void {
-        _holdTimer = null;
-        _model.pauseHolding = false;
-        if (_model.state != STATE_RUNNING) {
-            return;
-        }
-        _model.pause();
-        pushStopMenu();
+    //! One redraw at the threshold, so the hint can change from "keep holding"
+    //! to "let go". It changes no state and takes no decision, which is why it
+    //! is safe for it to fire after the app has lost the screen: the worst it
+    //! can do there is ask for a repaint nobody sees.
+    public function onHoldThreshold() as Void {
+        _holdHint = null;
         WatchUi.requestUpdate();
     }
 
-    //! Stop a pending hold and take the hint off the screen.
-    private function cancelHold() as Void {
-        var timer = _holdTimer;
+    //! Arm that one redraw.
+    private function armHoldHint() as Void {
+        cancelHoldHint();
+        var timer = new Timer.Timer();
+        timer.start(method(:onHoldThreshold), $.PAUSE_HOLD_MS, false);
+        _holdHint = timer;
+    }
+
+    //! Drop it.
+    private function cancelHoldHint() as Void {
+        var timer = _holdHint;
         if (timer != null) {
             timer.stop();
-            _holdTimer = null;
-        }
-        if (_model.pauseHolding) {
-            _model.pauseHolding = false;
-            WatchUi.requestUpdate();
+            _holdHint = null;
         }
     }
 
@@ -191,9 +214,9 @@ class GameDelegate extends WatchUi.BehaviorDelegate {
         }
 
         if (state == STATE_RUNNING) {
-            // Nothing. Pausing is a HOLD, handled in onKeyPressed/
-            // onPauseHold, and a short press during a game is exactly the
-            // event a glove produces - so it has to do nothing at all.
+            // Nothing. Pausing is a HOLD, decided in onKeyReleased, and a
+            // short press during a game is exactly the event a glove
+            // produces - so it has to do nothing at all.
             //
             // This is also why the pause cannot live here even in part:
             // onSelect fires on the key going DOWN, about a millisecond
