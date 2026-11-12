@@ -23,6 +23,7 @@ RECORD, SESSION, LAP, FILE_ID, EVENT, FIELD_DESC = 20, 18, 19, 0, 21, 206
 # another app's automatic shift detector for a player's own lap presses is
 # a mistake that survives a long way into an analysis.
 DEV_DATA_ID = 207
+DEVICE_INFO = 23
 
 # Written by the watch firmware, not by this app: one per lap and one for the
 # session. Every shift is a lap here, so this is a heart rate zone breakdown
@@ -42,6 +43,15 @@ NAMES = {
           15:'avg_heart_rate', 16:'max_heart_rate', 25:'sport', 23:'intensity',
           24:'lap_trigger'},
     FILE_ID: {0:'type', 1:'manufacturer', 2:'product', 4:'time_created'},
+    # NOTE field 3 is serial_number and is DROPPED outright, in DROP below.
+    # Leaving it merely unnamed is not redaction: it still decodes, as 'f3',
+    # and still prints - which is how the watch's own serial, purged from this
+    # repo once already, turned up in a debug dump the first time this message
+    # was parsed. Nothing here needs it; sensors are named by type and make.
+    DEVICE_INFO: {253:'timestamp', 0:'device_index', 1:'device_type',
+                  2:'manufacturer', 4:'product', 5:'software_version',
+                  10:'battery_voltage', 11:'battery_status',
+                  25:'source_type', 27:'product_name'},
     EVENT: {253:'timestamp', 0:'event', 1:'event_type', 4:'event_group'},
     FIELD_DESC: {0:'developer_data_index', 1:'field_definition_number',
                  2:'fit_base_type_id', 3:'field_name', 8:'units',
@@ -62,6 +72,12 @@ NAMES = {
 # report zone 2's seconds as zone 1's. They have to keep their holes.
 POSITIONAL = {(TIME_IN_ZONE, 2), (TIME_IN_ZONE, 5), (TIME_IN_ZONE, 6),
               (TIME_IN_ZONE, 9)}
+
+# Fields that are read off the wire and then thrown away, so that no caller can
+# print them by accident. device_info.serial_number identifies a specific piece
+# of hardware - the watch, or a paired strap - and nothing this repo does needs
+# it. It has to be dropped at the decoder, not at the printer.
+DROP = {(DEVICE_INFO, 3)}
 
 # Fields that are raw bytes rather than numbers, and must not be filtered at
 # all. A UUID is sixteen arbitrary bytes and 0xFF is one of the legal ones -
@@ -119,7 +135,7 @@ def parse(path):
     devdefs = {}       # (dev_index, field_num) -> {'name','base','units'}
     out = {'record': [], 'session': [], 'lap': [], 'file_id': [],
            'event': [], 'time_in_zone': [], 'devfields': devdefs,
-           'developer_data_id': []}
+           'developer_data_id': [], 'device_info': []}
 
     while pos < end:
         h = data[pos]; pos += 1
@@ -157,6 +173,8 @@ def parse(path):
         msg = {}
         for fnum, fsize, ftype in fields:
             raw = data[pos:pos + fsize]; pos += fsize
+            if (gnum, fnum) in DROP:
+                continue
             name = NAMES.get(gnum, {}).get(fnum, 'f%d' % fnum)
             if (gnum, fnum) in RAW:
                 msg[name] = bytes(raw)
@@ -190,6 +208,8 @@ def parse(path):
             out['time_in_zone'].append(msg)
         elif gnum == DEV_DATA_ID:
             out['developer_data_id'].append(msg)
+        elif gnum == DEVICE_INFO:
+            out['device_info'].append(msg)
     return out
 
 
@@ -214,3 +234,50 @@ def when(ts):
     if ts is None:
         return None
     return datetime.datetime.utcfromtimestamp(ts + FIT_EPOCH)
+
+
+# source_type, from the FIT profile. 5 is the watch itself; everything else
+# arrived over a radio, which is what makes it a separate sensor.
+SOURCE_TYPE = {0: 'ANT', 1: 'ANT+', 2: 'Bluetooth',
+               3: 'Bluetooth Low Energy', 4: 'Wi-Fi', 5: 'local (the watch)'}
+
+# Enough of the manufacturer table to name what turns up on a wrist. Anything
+# else prints as its number rather than guessing.
+MANUFACTURER = {1: 'Garmin', 13: 'Suunto', 23: 'Suunto', 32: 'Wahoo',
+                63: 'Polar', 68: 'Magene', 95: 'Stages', 263: 'Coospo',
+                265: 'Coospo', 294: 'Coospo'}
+
+# ANT+ device_type 120 is the heart rate profile.
+ANTPLUS_HR = 120
+
+
+def external_sensors(f):
+    """Every sensor the file says arrived over a radio.
+
+    Anything with source_type 5 is the watch describing its own insides - a
+    Forerunner 570 lists five of them - so "external" means source_type is
+    something else. That, not the ANT+ heart-rate profile, is the test: a
+    strap paired over Bluetooth never sets device_type 120, so keying on 120
+    silently reports "no strap" for exactly the setup it was written to check.
+
+    Returns dicts with 'name', 'how', 'is_hr' and 'battery'. An empty list
+    means the activity ran on wrist optical alone, which is the difference
+    between "the strap was used" and "the strap was paired and ignored".
+    """
+    seen, out = [], []
+    for m in f.get('device_info', []):
+        src = m.get('source_type')
+        if src in (5, None):
+            continue                      # the watch's own subsystems
+        manu = m.get('manufacturer')
+        label = m.get('product_name') or MANUFACTURER.get(
+            manu, 'manufacturer %s' % manu)
+        how = SOURCE_TYPE.get(src, 'source_type %s' % src)
+        key = (label, how)
+        if key in seen:
+            continue
+        seen.append(key)
+        out.append({'name': label, 'how': how,
+                    'is_hr': m.get('device_type') == ANTPLUS_HR,
+                    'battery': m.get('battery_status')})
+    return out

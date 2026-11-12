@@ -12,7 +12,7 @@ long shift - and exits non-zero if anything is wrong.
 import sys, os, statistics as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fitread import parse, when, SPORT, SUBSPORT
+from fitread import parse, when, SPORT, SUBSPORT, external_sensors
 
 FAIL, WARN = [], []
 
@@ -100,8 +100,29 @@ def check(path):
     if not hr:
         WARN.append('no heart rate recorded')
     else:
-        print('\n  heart rate  avg %.0f  max %d  samples %d'
-              % (st.mean(hr), max(hr), len(hr)))
+        # Coverage, not just the average. Every heart-rate gate in the detector
+        # is behind hrIsFresh(), and this rink has no GPS, so heart rate is the
+        # ONLY corroboration available: a second without it is a second the
+        # detector spends on the slow confirmation counts.
+        cover = 100.0 * len(hr) / max(len(recs), 1)
+        print('\n  heart rate  avg %.0f  max %d  samples %d  coverage %.0f%%'
+              % (st.mean(hr), max(hr), len(hr), cover))
+        if cover < 90:
+            WARN.append('heart rate covered only %.0f%% of the game; the '
+                        'detector falls back to its slow confirmations for '
+                        'the rest' % cover)
+
+    # Which sensor supplied it. An empty list means wrist optical alone - and
+    # a strap that was worn, paired and then ignored by the watch looks exactly
+    # like one that was left at home, unless this is checked.
+    ext = external_sensors(f)
+    if ext:
+        for d in ext:
+            print('  sensor      %s over %s%s'
+                  % (d['name'], d['how'],
+                     '  [heart rate profile]' if d['is_hr'] else ''))
+    else:
+        print('  sensor      none - wrist optical only')
 
 
 def main():
