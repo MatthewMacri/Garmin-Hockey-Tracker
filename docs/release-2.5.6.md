@@ -66,6 +66,11 @@ rate drift, stride prominence. Now declared — 31 created, 31 declared, no gaps
 in either direction and unique sort orders.
 
 `hr_drift` was also labelled `bpm` when it is a slope. It is `bpm/min`.
+**This was wrong and 2.5.8 reverts it.** `hrDrift()` returns the slope
+multiplied by the length of the game, so the per-minute cancels and the
+result is a total in `bpm`. The original label was correct. The error
+surfaced on 2026-11-12, the first game in which the field rendered at
+all: it read 19 bpm/min, which across 74 minutes is +1,400 bpm.
 
 ## What the alert comments claimed and the SDK denies
 

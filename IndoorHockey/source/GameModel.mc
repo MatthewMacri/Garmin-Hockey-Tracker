@@ -2387,9 +2387,16 @@ class GameModel {
             _shiftFadeField = session.createField("shift_fade", FIELD_SHIFT_FADE,
                 FitContributor.DATA_TYPE_UINT8,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "%"});
+            // "bpm", not "bpm/min". hrDrift() returns the fitted slope times
+            // the length of the game, so the bpm/min cancels and what is left
+            // is a total: how many beats per minute higher the same effort
+            // cost by the end. 2.5.6 relabelled this to bpm/min on the
+            // grounds that it "is a slope" - it is a slope multiplied by a
+            // time - and the first game that ever rendered the field read 19
+            // bpm/min, which over 74 minutes would be +1,400 bpm.
             _hrDriftField = session.createField("hr_drift", FIELD_HR_DRIFT,
                 FitContributor.DATA_TYPE_SINT8,
-                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm/min"});
+                {:mesgType => FitContributor.MESG_TYPE_SESSION, :units => "bpm"});
             _intensityField = session.createField("skating_intensity", FIELD_INTENSITY,
                 FitContributor.DATA_TYPE_FLOAT,
                 {:mesgType => FitContributor.MESG_TYPE_SESSION});
