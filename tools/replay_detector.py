@@ -217,7 +217,14 @@ _NEW = dict(CONFIRM_ICE=6, CONFIRM_BENCH=14, CONFIRM_ICE_FAST=3,
             CONFIRM_BENCH_FAST=7, HR_OFFSET_ARM=False,
             MIN_SHIFT_SEC=20, MIN_BENCH_SEC=20)
 
-ERA_NAMES = {'old': _OLD, 'mid': _MID, 'new': _NEW}
+# v2.5.8 onward: the shift floor drops to 12 while the bench floor stays at
+# 20. 2.5.8 split them because the shift floor was pinning 23% of a game's
+# shifts to exactly its own value while the bench floor pinned none.
+_V258 = dict(CONFIRM_ICE=6, CONFIRM_BENCH=14, CONFIRM_ICE_FAST=3,
+             CONFIRM_BENCH_FAST=7, HR_OFFSET_ARM=False,
+             MIN_SHIFT_SEC=12, MIN_BENCH_SEC=20)
+
+ERA_NAMES = {'old': _OLD, 'mid': _MID, 'new': _NEW, '258': _V258}
 
 ERAS = {
     0.55: _OLD, 0.45: _OLD, 0.35: _OLD, 0.27: _OLD, 0.21: _OLD,
@@ -231,6 +238,14 @@ ERAS = {
 # So this is deliberately a floor and not a table: at or above it the era is
 # certain, below it the band decides and may be wrong.
 APPVER_NEW = 7
+
+# The lowest store internal version carrying 2.5.8's split floors. 2.5.7 is
+# internal 8, read off the live listing, so 2.5.8 is expected to be 9 - but
+# "expected" is doing real work in that sentence, because two uploads in this
+# app's history never became store versions at all. Check the dashboard after
+# the upload and correct this if 2.5.8 landed on some other ordinal; a wrong
+# value here silently replays new games against the old floor.
+APPVER_V258 = 9
 
 # Everything the Learner uses - MOTION_FLOOR, the 40/400 seeds, the 0.15/0.01
 # chase rates, the 60 mg minimum gap - and HYSTERESIS, HR_SLOPE, HR_OFFSET and
@@ -257,6 +272,8 @@ def era_for(band, appver=None):
     listing's internal version into developer_data_id.application_version, and
     at or above APPVER_NEW that is decisive. A SIDELOADED build writes 0 there,
     which is why the band remains the fallback - and why --era exists."""
+    if appver is not None and appver >= APPVER_V258:
+        return _V258
     if appver is not None and appver >= APPVER_NEW:
         return _NEW
     key = min(ERAS, key=lambda b: abs(b - band))
@@ -543,7 +560,11 @@ def _main(argv):
             print("era: %s, forced with --era" % era_override)
         else:
             era = era_for(band, appver)
-            if appver is not None and appver >= APPVER_NEW:
+            if appver is not None and appver >= APPVER_V258:
+                print("era: 2.5.8+ constants (shift floor 12, bench floor 20),"
+                      " from this file's own\n     application_version %d"
+                      % appver)
+            elif appver is not None and appver >= APPVER_NEW:
                 print("era: 2.5.4+ constants, from this file's own"
                       " application_version %d" % appver)
             elif appver == 0:

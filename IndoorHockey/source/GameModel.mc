@@ -85,10 +85,16 @@ class GameModel {
     private const FIELD_SHIFT_FADE  = 29;
     private const FIELD_HR_DRIFT    = 30;
 
-    //! The least coverage at which an average stride rate is worth
-    //! publishing: one accepted second in twenty of the seconds actually
-    //! examined. Below this the rate is an anecdote.
-    private const STRIDE_MIN_COVERAGE = 5;
+    //! The least coverage at which a stride measurement is worth publishing:
+    //! one accepted second in five of the seconds actually examined. Below
+    //! this it is an anecdote.
+    //!
+    //! Was 5 - one second in twenty - which is itself an anecdote. The two
+    //! games on record cover 0.3% and 3%, so both are withheld either way and
+    //! this costs nothing today; it bounds what gets published the first time
+    //! the meter half-works, which is the case nobody has seen yet and the
+    //! one where a thin number would be believed.
+    private const STRIDE_MIN_COVERAGE = 20;
 
     // Stride rate, measured by autocorrelating wrist acceleration. The rate is
     // charted; the confidence and winning lag above are diagnostics on the same
@@ -2628,12 +2634,20 @@ class GameModel {
         // seconds and no others, hence the label "Speed While Striding": a
         // denominator of total ice time would quietly claim a speed for every
         // second the app could not measure.
+        // Both of these are the stride rate wearing different units -
+        // distance is pushes times stride length, speed is that over the same
+        // seconds - so both inherit the rate's coverage bar. Requiring merely
+        // "some second was measured" let them publish a distance off six
+        // accepted seconds while stride_avg, the number they are computed
+        // from, was correctly withheld for exactly that reason.
+        var strideCovered = detector.stride.measuredSeconds() > 0
+                && detector.stride.coveragePercent() >= STRIDE_MIN_COVERAGE;
         field = _distEstField;
-        if (field != null && hadMotion && detector.stride.measuredSeconds() > 0) {
+        if (field != null && hadMotion && strideCovered) {
             field.setData(estimatedDistanceM());
         }
         field = _speedEstField;
-        if (field != null && hadMotion && detector.stride.measuredSeconds() > 0) {
+        if (field != null && hadMotion && strideCovered) {
             field.setData(estimatedSpeedKph());
         }
         field = _strideLenField;

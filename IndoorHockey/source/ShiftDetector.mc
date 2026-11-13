@@ -197,14 +197,27 @@ class ShiftDetector {
     // app "vibrating every ten seconds switching between on ice and bench"
     // while he sat on the bench, which is that number being spent.
     //
-    // 20 is cheap. Swept through tools/replay_detector.py over the two full
-    // recorded games at 8/12/16/20/25/30, the ice share moves by less than a
-    // point anywhere in that range and the shift count by at most two,
-    // because real shifts and real benches are far longer than any of these:
-    // the median shift is 49-96 s. All these constants really bound is how
-    // fast the detector is allowed to change its mind, and 8 s was far
-    // faster than hockey happens.
-    private const MIN_SHIFT_SEC = 20;
+    // Both were 20 from 2.5.4 until 2.5.8. The sweep that chose 20 was right
+    // that the ice share barely moves across 8..30 - it moves 0.4 of a point
+    // over 2026-11-12 - but it only ever looked at the totals, and the floor
+    // does not distort totals. It distorts the SHIFT LENGTHS, by reporting a
+    // short shift as exactly the floor.
+    //
+    // On 2026-11-12, the first game recorded with a chest strap and so the
+    // first with heart-rate corroboration good enough to flip the detector
+    // promptly, SIX of twenty-six shifts came back pinned at 19-20 s - 23% of
+    // the game's shifts reported as a number the detector had picked rather
+    // than measured. Replayed at 12 that falls to two, with the shift count
+    // unchanged at 26, the median unchanged at 52 s and the ice share moving
+    // from 37.4% to 37.2%.
+    //
+    // So the shift floor drops to 12 and the bench floor stays at 20. The
+    // bench floor is NOT doing the same damage and the same replay says so:
+    // the shortest bench spell in that game is 24 s and nothing is pinned.
+    // The original complaint - "vibrating every ten seconds switching between
+    // on ice and bench" - was a complete CYCLE in 16 s, which needs only one
+    // of the two floors to stay high to remain impossible.
+    private const MIN_SHIFT_SEC = 12;
     private const MIN_BENCH_SEC = 20;
 
     // How far below its own baseline the heart rate has to sit before a shift
