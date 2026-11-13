@@ -77,7 +77,13 @@ POSITIONAL = {(TIME_IN_ZONE, 2), (TIME_IN_ZONE, 5), (TIME_IN_ZONE, 6),
 # print them by accident. device_info.serial_number identifies a specific piece
 # of hardware - the watch, or a paired strap - and nothing this repo does needs
 # it. It has to be dropped at the decoder, not at the printer.
-DROP = {(DEVICE_INFO, 3)}
+#
+# Field 29 is the same problem wearing different clothes: on a Bluetooth
+# sensor it carries the six bytes of the device's MAC address, which is a
+# permanent hardware identifier for a thing strapped to the user's chest. It
+# decoded as a harmless-looking 'f29' list of six numbers and printed on the
+# very first dump of a real strap.
+DROP = {(DEVICE_INFO, 3), (DEVICE_INFO, 29)}
 
 # Fields that are raw bytes rather than numbers, and must not be filtered at
 # all. A UUID is sixteen arbitrary bytes and 0xFF is one of the legal ones -
@@ -247,8 +253,22 @@ MANUFACTURER = {1: 'Garmin', 13: 'Suunto', 23: 'Suunto', 32: 'Wahoo',
                 63: 'Polar', 68: 'Magene', 95: 'Stages', 263: 'Coospo',
                 265: 'Coospo', 294: 'Coospo'}
 
-# ANT+ device_type 120 is the heart rate profile.
+# What counts as a heart-rate sensor depends on how it is attached, because
+# device_type is interpreted against a different table per source_type. Over
+# ANT+ the heart-rate profile is 120; over Bluetooth it is 1. Testing only for
+# 120 therefore says "not a heart rate sensor" about every BLE strap.
 ANTPLUS_HR = 120
+BLE_HR = 1
+BLE_SOURCES = (2, 3)        # Bluetooth, Bluetooth Low Energy
+ANT_SOURCES = (0, 1)        # ANT, ANT+
+
+
+def _is_hr(src, dtype):
+    if src in ANT_SOURCES:
+        return dtype == ANTPLUS_HR
+    if src in BLE_SOURCES:
+        return dtype == BLE_HR
+    return False
 
 
 def external_sensors(f):
@@ -270,14 +290,23 @@ def external_sensors(f):
         if src in (5, None):
             continue                      # the watch's own subsystems
         manu = m.get('manufacturer')
-        label = m.get('product_name') or MANUFACTURER.get(
-            manu, 'manufacturer %s' % manu)
+        # A BLE strap need not tell the watch who made it: the Coospo H6
+        # reports no manufacturer and no product name at all, so the honest
+        # label is what it is rather than "manufacturer None".
+        if m.get('product_name'):
+            label = m['product_name']
+        elif manu in MANUFACTURER:
+            label = MANUFACTURER[manu]
+        elif manu is not None:
+            label = 'manufacturer %s' % manu
+        else:
+            label = 'unnamed sensor'
         how = SOURCE_TYPE.get(src, 'source_type %s' % src)
         key = (label, how)
         if key in seen:
             continue
         seen.append(key)
         out.append({'name': label, 'how': how,
-                    'is_hr': m.get('device_type') == ANTPLUS_HR,
+                    'is_hr': _is_hr(src, m.get('device_type')),
                     'battery': m.get('battery_status')})
     return out
