@@ -1,9 +1,14 @@
-# v2.5.8 — the floor was reporting shifts it had not measured
+# v2.5.8 — the detector was reporting shifts it had not measured
 
-Released 2026-11-13. The first release driven by a chest strap, and by what
-the strap exposed: with heart-rate corroboration good enough to flip the
-detector promptly, the shift floor stopped being a safety net and started
-being an author.
+Cut 2026-11-13, re-cut 2026-11-17, not yet uploaded. The first release driven
+by a chest strap, and by what two games with one exposed.
+
+The strap gave the detector heart-rate corroboration good enough to flip
+promptly, and two things that had been hiding behind a slower detector came
+out at once. The shift floor stopped being a safety net and started being an
+author. And the heart-rate veto — the single rule allowed to contradict
+motion — began refusing shifts outright, for the specific reason that the
+player's conditioning had improved.
 
 ---
 
@@ -84,6 +89,94 @@ number both are computed from, was correctly gated on coverage. So the app
 would withhold the stride rate as unsupported and then publish a distance
 derived from the very same seconds. Both now inherit the rate's bar.
 
+## The heart-rate veto was throwing away real shifts
+
+Found on 2026-11-16, the second game recorded with a chest strap, and the
+reason the game read 44.7% ice against the 50% that four defencemen predict.
+
+`ShiftDetector` has exactly one rule where heart rate may *contradict* motion
+rather than agree with it:
+
+```monkeyc
+private const HR_VETO = 12.0;   // beats under the drifting baseline
+return hrOffset() <= -HR_VETO;  // refuse the shift, "however convincing the motion looks"
+```
+
+At 57:42 the app recorded 3 m 43 s on the bench. He was skating. The veto
+fired on **137 of those 223 seconds**, because his rate sat 19.6 beats under a
+baseline his own hard first half had dragged up to 169.
+
+**This is a fitness result turning into a bug.** The same game returned
+`hr_drift` of **−17**: his rate came down 17 bpm for the same work. Skating at
+146 against a 169 baseline is arithmetically identical to sitting at 131
+against a 150 one, so the veto cannot separate them — and the better his
+recovery gets, the more shifts it discards.
+
+Motion separates them, and not narrowly. Inside the refused window against a
+confirmed bench spell from the same game:
+
+| | refused window | real bench |
+|---|---|---|
+| median motion | **110 mg** | 8 mg |
+| seconds above threshold | **52%** | 10% |
+| runs of ≥ 6 s | **7** | 0 |
+| longest run | **14 s** | 3 s |
+
+The refused window carries *more* motion evidence than a shift the detector
+accepted that same game (78 mg median, 36% above threshold, longest run 9 s).
+
+### The fix
+
+```monkeyc
+private const VETO_OVERRIDE_SEC = 14;
+
+if (_iceStreak >= needed && _secondsInState >= MIN_BENCH_SEC
+        && (_iceStreak >= VETO_OVERRIDE_SEC || !restingHeartRate())) {
+```
+
+Fourteen is the longest run in the window that motivated it, and more than
+twice `CONFIRM_ICE`, so clearing it means considerably more than "confirmed".
+
+### Replayed, all five games
+
+Before and after, at 2.5.8 constants, band 0.18:
+
+| game | shifts | median | ice share | max bench |
+|---|---|---|---|---|
+| 2026-11-03 | 18 → **18** | 88 → 88 s | 42.5% → **42.5%** | 197 → 197 |
+| 2026-11-05 | 27 → **27** | 49 → 55 s | 37.5% → 37.8% | 335 → 335 |
+| 2026-11-09 | 24 → 25 | 80 → 79 s | 43.5% → 42.9% | 244 → 244 |
+| 2026-11-12 | 26 → **29** | 52 → 53 s | 37.2% → **40.6%** | 333 → **262** |
+| 2026-11-16 | 28 → 29 | 57 → 57 s | 42.7% → 43.0% | 241 → 241 |
+
+**2026-11-05 is the guard, and it holds.** That game is why the veto exists —
+it removed six shifts of a player sitting between periods and shifting around.
+Its shift count is unchanged at 27, and 2026-11-03 is unchanged to the
+decimal. Those false shifts are wrist bursts; they never sustain fourteen
+seconds. The veto keeps the case it was built for and loses only to motion
+that does not stop.
+
+**2026-11-12 is the strongest evidence**, being the file the harness
+reproduces best at 99.7% second-by-second agreement. It gains three shifts, a
+333-second "bench" collapses to 262, and its ice share moves to 40.6% against
+the ~38.9% its 6-then-5 defencemen predict — shipped was 1.7 points under,
+this is 1.7 over.
+
+### What this does not settle
+
+**2026-11-16 barely moves, and it is the game that prompted the change.** That
+file is missing 268 of its seconds — 6.1%, scattered singles — so the replay
+runs on a compressed timeline and reaches only 84% agreement where 2026-11-12
+reaches 99.7%. Direct inspection of the file is unambiguous that 57:42 was
+misclassified; the *replay* of that file is what cannot be trusted. Four
+defencemen predict 50% and even the most aggressive override tested reached
+45.2%, so this does not close the gap.
+
+**The supported range is 12–16, not a sharp 14.** 16 lands 2026-11-12 closest
+to expectation; 12 recovers most on 2026-11-16. Nothing in five games
+separates them by more than two points. 14 is the midpoint, chosen on the
+longest-run measurement rather than on the sweep.
+
 ## hr_drift is `bpm`, not `bpm/min`
 
 Carried from the fix made on 2026-11-13 and included here because it has not
@@ -109,6 +202,11 @@ replay every future game against a floor the watch is no longer running.
 uploads in this app's history never became store versions at all. Check the
 dashboard after the upload and correct it if 2.5.8 landed elsewhere.
 
+`_V258` also carries `VETO_OVERRIDE_SEC`, and `Detector` mirrors the watch's
+gate rather than its `restingHeartRate()`, so the override is applied in the
+one place the watch applies it. It defaults to `None` for every earlier era,
+where the veto really was absolute.
+
 `tools/fit/fitread.py` now decodes `device_info`, so a game can be asked which
 sensor fed it rather than assumed. Two things were wrong in the first cut of
 it, both found against real files:
@@ -127,15 +225,23 @@ it, both found against real files:
 ref               total       code       data of 98304
 v2.5.6            34513      29029       5484    35.1%
 v2.5.7            34981      29414       5567    35.6%
-v2.5.8            34982      29426       5556    35.6%
+v2.5.8            34999      29443       5556    35.6%
 ```
 
-One byte.
+Seventeen bytes more than 2.5.7, for the floor split, the stride gates and the
+veto override together.
 
 ## Verified
 
-Four games replayed through `tools/replay_detector.py` at both floors, table
-above. `TYPECHECK=3` builds clean on `fr57042mm`, `venu3` and `instinct2`.
+Five games replayed through `tools/replay_detector.py`, both tables above.
+`TYPECHECK=3` builds clean on `fr57042mm`, `venu3` and `instinct2`.
+
+One trap worth recording: `data/2026-11-03-game/` holds four `.fit` files, and
+the alphabetically first is **not ours** — `2026-11-01-13-08-42.fit` carries
+`application_version` 39 and six developer fields with none of this app's
+names. The game is `2026-11-03-22-11-07.fit`. Globbing a directory and taking
+the first match silently replays a foreign file; check `application_version`
+and the field names, never the directory name.
 
 **Not verified against ground truth, as ever.** Every number in that table is
 the harness reproducing the watch. The strongest external check this project
@@ -143,6 +249,10 @@ has is still the one that arrived by conversation: with six defencemen for
 half of the first period and five thereafter, expected ice share is about
 38.9%, and 2026-11-12 measured **37.3%**. That validates the ice *share*. It
 says nothing about whether the 26 shifts are the 26 shifts that happened.
+
+2026-11-16 adds a second such check and it is the less flattering one: four
+defencemen predict 50% and the watch recorded **44.7%**. The veto override
+closes part of that, not all of it.
 
 ## Still open
 
@@ -155,3 +265,12 @@ says nothing about whether the 26 shifts are the 26 shifts that happened.
   would let the laps be turned off without losing the data. Not done.
 - **Ten products may have no reachable pause or stop**, from
   [2.5.7](release-2.5.7.md). Unchanged.
+- **2026-11-16 still reads about five points under its predicted ice share**
+  after the veto fix. Something else is losing ice, and the file's 6.1% of
+  missing seconds means the harness cannot be the thing that finds it.
+- **Three shifts in 2026-11-16 look false** — 7 s at the opening, and two more
+  at 142–146 bpm against a 170 on-ice average, one of them running to the
+  final buzzer. Warm-up and cool-down remain undetected as such.
+- **Records are being dropped.** 268 seconds missing on 2026-11-16 and 544 on
+  2026-11-03, against 0 and 13 on the two clean games. Unexplained, and it
+  degrades every replay of those files.

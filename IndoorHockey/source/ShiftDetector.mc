@@ -239,6 +239,38 @@ class ShiftDetector {
     // change in one commit.
     private const HR_VETO = 12.0;
 
+    // Seconds of unbroken above-band motion that overrule the veto above.
+    //
+    // The veto was written to refuse a shift "however convincing the motion
+    // looks", and on 2026-11-16 that is exactly what it did: a 223-second
+    // stretch the player skated was recorded as bench, because his rate sat
+    // 19.6 beats under a baseline his own hard first half had dragged up to
+    // 169. Skating at 146 against a 169 baseline is arithmetically identical
+    // to sitting at 131 against a 150 one, and the veto cannot tell them
+    // apart. The better his recovery gets, the more shifts it throws away.
+    //
+    // Motion can tell them apart, and the separation is not close. Measured
+    // on that game, inside the refused window against a confirmed bench:
+    //
+    //                        refused window    real bench
+    //   median motion              110 mg          8 mg
+    //   seconds above threshold       52%           10%
+    //   runs of >= 6 s                   7             0
+    //   longest run                    14 s          3 s
+    //
+    // So the veto keeps its word for the case it was built for - a player
+    // sitting between periods and shifting around, which is short bursts -
+    // and loses the argument to motion that simply does not stop. Fourteen
+    // seconds is the longest run in the window that motivated this, and more
+    // than twice CONFIRM_ICE, so clearing it means far more than "confirmed".
+    //
+    // The guard this has to pass is the game of 2026-11-05, which is why the
+    // veto exists at all. Replayed at 2.5.8 constants its shift count is 27
+    // at every override from 16 down to 10, unchanged from shipped: those
+    // bogus shifts are wrist bursts and never sustain ten seconds, let alone
+    // fourteen. 2026-11-03 is likewise untouched. See docs/release-2.5.9.md.
+    private const VETO_OVERRIDE_SEC = 14;
+
     public var state as IceState = OFF_ICE;
 
     // Last motion index, exposed so the UI can show a detection bar.
@@ -716,7 +748,7 @@ class ShiftDetector {
         if (state == OFF_ICE) {
             var needed = corroboratesIce() ? CONFIRM_ICE_FAST : CONFIRM_ICE;
             if (_iceStreak >= needed && _secondsInState >= MIN_BENCH_SEC
-                    && !restingHeartRate()) {
+                    && (_iceStreak >= VETO_OVERRIDE_SEC || !restingHeartRate())) {
                 return transition(ON_ICE, needed);
             }
         } else {

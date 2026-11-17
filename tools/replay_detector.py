@@ -222,7 +222,7 @@ _NEW = dict(CONFIRM_ICE=6, CONFIRM_BENCH=14, CONFIRM_ICE_FAST=3,
 # shifts to exactly its own value while the bench floor pinned none.
 _V258 = dict(CONFIRM_ICE=6, CONFIRM_BENCH=14, CONFIRM_ICE_FAST=3,
              CONFIRM_BENCH_FAST=7, HR_OFFSET_ARM=False,
-             MIN_SHIFT_SEC=12, MIN_BENCH_SEC=20)
+             MIN_SHIFT_SEC=12, MIN_BENCH_SEC=20, VETO_OVERRIDE_SEC=14)
 
 ERA_NAMES = {'old': _OLD, 'mid': _MID, 'new': _NEW, '258': _V258}
 
@@ -638,6 +638,12 @@ class Detector:
     HR_SLOPE, HR_OFFSET, HR_WINDOW = 0.25, 4.0, 20
     HR_VETO = 12.0
 
+    # Seconds of unbroken above-band motion that overrule HR_VETO. None is
+    # every era before 2.5.8: the veto was absolute, and a well-recovered
+    # player skating below his own dragged-up baseline lost the shift. See
+    # ShiftDetector.VETO_OVERRIDE_SEC for the measurement behind the 14.
+    VETO_OVERRIDE_SEC = None
+
     # Whether corroboration consults hrOffset() at all. False from 2.5.3,
     # where the arm was removed: scored over the three recorded games it ran
     # at a likelihood ratio of 1.54, flat across its whole range, while
@@ -741,8 +747,10 @@ class Detector:
                 need = self.CONFIRM_ICE_SLOW
             else:
                 need = self.CONFIRM_ICE
+            override = (self.VETO_OVERRIDE_SEC is not None
+                        and self.ice_streak >= self.VETO_OVERRIDE_SEC)
             if self.ice_streak >= need and self.dwell >= self.MIN_BENCH_SEC \
-                    and not self._resting():
+                    and (override or not self._resting()):
                 self.on_ice = True; self.backtrack = need
                 if fast:
                     self.entries_fast += 1

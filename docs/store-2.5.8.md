@@ -27,24 +27,37 @@ Produces `IndoorHockey.iq` for all 126 manifest products, from a staging copy
 at a neutral path so the per-device `debug.xml` carries no home directory. It
 aborts if `$HOME` appears in the unpacked archive.
 
-## Step 2 — tick the six device part numbers Garmin dropped
+## Step 2 — the "six dropped part numbers" is a false alarm
 
-**This is the one step that is easy to miss and costs real users.** The live
-listing carries 202 part numbers; the package declares 208. The six missing
-ones are devices your users cannot install on:
+**Previous releases of this file told you to tick six boxes on the upload
+form. Do not; there is nothing to tick.** Checked against the actual package
+on 2026-11-17:
 
-| part number | device |
-|---|---|
-| 006-B3324-00 | D2 Delta PX |
-| 006-B3393-00 | Approach S62 |
-| 006-B3700-00 | Approach S62 |
-| 006-B3446-00 | vívoactive 3 |
-| 006-B3473-00 | vívoactive 3 Music |
-| 006-B3477-00 | vívoactive 3 Music |
+| part number | device | in the package? |
+|---|---|---|
+| 006-B3324-00 | D2 Delta PX | **no** |
+| 006-B3393-00 | Approach S62 | **no** |
+| 006-B3700-00 | Approach S62 | **no** |
+| 006-B3446-00 | vívoactive 3 | **no** |
+| 006-B3473-00 | vívoactive 3d | **no** |
+| 006-B3477-00 | vívoactive 3d | **no** |
 
-So four products across six part numbers. Garmin's App Migration has silently
-dropped devices from this listing before, which is why `store-status.py`
-checks it on every release rather than trusting the form.
+`package.sh` emits **202** part-number directories. `store-status.py` derives
+**208** by reading every `partNumbers` entry out of each product's
+`compiler.json` in the SDK, and reports the difference as devices Garmin
+dropped from the listing. It is not that: the Connect IQ packager never built
+those six, so the `.iq` carries no binary for them and offering them on the
+form would promise an install that cannot happen.
+
+Why the packager omits them is **not yet established** — all four products are
+in `manifest.xml` and all four devices are installed in the SDK. Related and
+probably the same root cause: `TYPECHECK=3 ./build.sh vivoactive3` fails on
+five sport constants the device does not support, recorded in
+[2.5.7](release-2.5.7.md).
+
+So: **tick nothing, and ignore the DROPPED block `store-status.py` prints**
+until that tool is taught to compare against the package rather than the SDK's
+declaration. Filed, not fixed.
 
 ## Step 3 — paste BOTH boxes
 
@@ -71,11 +84,13 @@ every future game against a floor the watch is no longer running, silently.
 905 characters (911 if the form counts CRLF line endings). Paste verbatim.
 
 ```
-Fixed: short shifts were being reported as 20 seconds when they were shorter. The detector had a 20-second minimum that quietly rounded them up - in one recorded game that was 6 shifts out of 26. The minimum for a shift is now 12 seconds, so shift lengths and the Splits chart show what actually happened. Ice time barely moves.
+Fixed: short shifts were being reported as 20 seconds when they were shorter. The detector had a 20-second minimum that quietly rounded them up - in one game that was 6 shifts of 26. The minimum for a shift is now 12 seconds, so shift lengths and the Splits chart show what actually happened. Ice time barely moves.
 
-Fixed: heart rate drift was labelled bpm/min when the number is a total in bpm. A reading of 19 means 19 bpm of drift across the whole game, not 19 every minute.
+Fixed: a shift skated with your heart rate well below its baseline could be recorded as bench. Sustained skating now overrules that.
 
-Changed: stride rate, estimated distance and estimated speed are now withheld unless enough of the game was actually measured, rather than being published off a handful of seconds.
+Fixed: heart rate drift was labelled bpm/min when it is a total in bpm. A reading of 19 means 19 bpm across the whole game, not 19 every minute.
+
+Changed: stride rate, distance and speed estimates are now withheld unless enough of the game was measured, rather than published off a handful of seconds.
 
 If your watch buzzes at every line change, that is the watch's own lap alert and no Connect IQ app can silence it. Turn off "Lap per shift" in this app's settings to stop it - your shift times and ice time are recorded either way.
 ```
@@ -107,17 +122,17 @@ WHAT IT DOES
 • Ends itself if you forget — after 25 minutes with no skating it saves
   rather than discards.
 • Total ice time on screen all game.
-• On-ice heart rate as its own number, not blended with the bench: in elite
-  match play it averages 84% of maximum, a figure a game average hides.
+• On-ice heart rate as its own number, not blended with the bench — in elite
+  match play that averages 84% of maximum.
 
 HOW THE DETECTION WORKS
 
 Wrist motion decides, because it is the only signal fast enough to open and
 close a shift; GPS and heart rate only agree with it. One exception: while
-heart rate sits well below its baseline, no amount of arm movement opens a
-shift. That is a player sitting down. Thresholds are learned during the game,
-and a change is believed only once it persists, then dated back to when it
-happened, so a shift keeps its opening seconds.
+a rate well below its baseline refuses a shift, unless the
+motion simply does not stop. That is a player sitting down. Thresholds are
+learned during the game, and a change is believed only once it persists, then
+dated back, so a shift keeps its opening seconds.
 
 It will get some boundaries wrong. The LAP button flips the state by hand.
 
@@ -133,9 +148,8 @@ by second.
 
 FITNESS, NOT JUST EFFORT
 
-Heart rate recovery is the one number here that should improve over a season —
-HRR60: your rate when a shift ends minus your rate sixty seconds later,
-averaged over the game.
+Heart rate recovery should improve over a season — HRR60: your rate when a
+shift ends minus your rate sixty seconds later, averaged over the game.
 
 Skating load is the accumulated acceleration of your skating, on the ice
 only.
@@ -146,16 +160,16 @@ setting, and is unitless on purpose: compare it with your own past games.
 STRIDE RATE
 
 Skating rhythm in pushes per minute, with a coverage figure saying how much of
-your ice time the game average rests on.
+your ice time it rests on.
 
 Distance and speed need a stride length, which nothing on a wrist can measure.
 Set it yourself, or let the app work it out where GPS and your rhythm land in
-the same second. Until it has one, those fields are left out, not invented.
+the same second. Until then those fields are left out, not invented.
 
 BUTTONS
 
-START begins the game. Hold it for a second to stop; a short press during a
-game does nothing, and nor do screen taps.
+START begins the game. To stop, hold it for a second and let go; a short press
+during a game does nothing, and nor do screen taps.
 BACK is the lap key: a lap here is a line change. Hold UP for the menu.
 
 SETTINGS
@@ -176,9 +190,10 @@ motion, so a watch in a vest or a bag has nothing to detect. Heart rate is
 whichever source the watch itself is using, so a paired chest strap just
 works.
 
-Your watch plays its own lap tone at each line change, because every shift is
-a lap. No Connect IQ app can suppress that. Turn off Alert Tones and
-keep Vibration to silence it without losing the Splits chart.
+Your watch plays its own lap alert at each line change, because every shift is
+a lap. No Connect IQ app can suppress that. Turning off Alert Tones silences
+the sound but leaves the vibration - if the buzzing bothers you, turn off Lap
+Per Shift here. Shift times and ice time are recorded either way.
 
 GPS is on by default; expect no fix inside most arenas. The app records
 normally without one.
